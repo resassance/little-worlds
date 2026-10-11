@@ -8,7 +8,7 @@
 
 Готовые приложения находятся в [релизе 0.2.1 на GitHub](https://github.com/resassance/little-worlds/releases/tag/v0.2.1): [Windows](https://github.com/resassance/little-worlds/releases/download/v0.2.1/little-worlds-windows.zip), [Linux](https://github.com/resassance/little-worlds/releases/download/v0.2.1/little-worlds-linux.zip), [Android APK](https://github.com/resassance/little-worlds/releases/download/v0.2.1/little-worlds-android.apk), [Web](https://github.com/resassance/little-worlds/releases/download/v0.2.1/little-worlds-web.zip). Исходный проект — [ZIP](https://github.com/resassance/little-worlds/releases/download/v0.2.1/little-worlds-godot.zip).
 
-Windows/Linux: распакуйте ZIP и запустите приложение внутри. Android: скачайте APK на телефон и откройте его через «Файлы»; при запросе Android разрешите установку из этого источника. Web: распакуйте ZIP и запускайте через HTTP, как описано ниже. Сборки, контрольные суммы и отчёт проверки приложены к релизу; в репозитории находятся исходники.
+Windows/Linux: распакуйте ZIP и запустите приложение внутри. Android: скачайте APK на телефон и откройте его через «Файлы»; при запросе Android разрешите установку из этого источника. Web: распакуйте весь ZIP и откройте `start-windows.exe` или запустите `start-linux`. Игра откроется в браузере; Godot и Python устанавливать не нужно. Оставьте окно запуска открытым, пока играете. `index.html` при открытии с диска покажет инструкцию.
 
 В версии 0.2.1 поселения используют общий план работ, пакетную выдачу задач и индексы соседей/опеки. Возраст, навыки, семьи, грузы и перемещения остаются индивидуальными. Подробности — в [архитектуре населения](docs/POPULATION.md).
 
@@ -68,12 +68,20 @@ godot --headless --path . --export-release Web build/web/index.html
 
 Создайте соответствующие каталоги `build/` перед экспортом. Для Android нужны JDK, Android SDK и debug keystore в настройках редактора. APK 0.2.1 подписан тестовым ключом, предназначен для установки и проверки; магазинная подпись настраивается владельцем приложения.
 
-Web запускается через HTTP, например `python3 -m http.server 8000 --directory build/web`; затем откройте `http://localhost:8000`. Профиль не использует потоки и не требует заголовков изоляции. Для Яндекс Игр загружается содержимое Web ZIP с `index.html` в корне. SDK подключается через `/sdk.js` на домене площадки; симуляция не зависит от него.
+Web запускается через HTTP. В готовом архиве программа запуска использует `http://127.0.0.1:18765/`; сохранения привязаны к этому адресу и выбранному браузеру. При самостоятельном экспорте можно использовать `python3 -m http.server 8000 --directory build/web`. Профиль не использует потоки и не требует заголовков изоляции. Для Яндекс Игр упакуйте только `index.html` и файлы `index.*` с `index.html` в корне ZIP. SDK подключается через `/sdk.js` на домене площадки; симуляция не зависит от него.
+
+Программы запуска собираются из `platform/web_launcher.go` с помощью Go:
+
+```sh
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o build/web/start-linux platform/web_launcher.go
+CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o build/web/start-windows.exe platform/web_launcher.go
+cp platform/WEB_README.txt build/web/README.txt
+```
+
+`SHA256SUMS.txt` в релизе содержит контрольные суммы сборок: они позволяют проверить целостность скачанных файлов.
 
 ## Документация и проверки
 
-[План](PLAN.md), [критерии первой версии](docs/RELEASE_CHECKLIST.md), [правила выпуска](docs/RELEASE.md), [люди и эпохи](docs/HUMANITY.md), [большой мир](docs/LARGE_WORLD.md), [результаты проверки](docs/VALIDATION.md).
+[План](PLAN.md), [критерии первой версии](docs/RELEASE_CHECKLIST.md), [правила выпуска](docs/RELEASE.md), [люди и эпохи](docs/HUMANITY.md), [большой мир](docs/LARGE_WORLD.md).
 
 Для проверки ядра используйте `godot --headless --path . --script res://tests/expansion_test.gd` и другие `*_test.gd` в `tests/`. Визуальная проверка: `godot --path . --audio-driver Dummy --script res://tests/visual_capture.gd`. Web-сценарии используют Python, Playwright, Chromium и Pillow; контракт SDK — `node tests/platform_test.cjs`. Перед `tests/web_sdk_smoke.py` запустите `tests/population_test.gd`: он создаёт проверочный мир с 2 000 людьми.
-
-Фактически проверены Linux-запуск и Chromium. Windows собран и проверен как PE-приложение, Android — как APK с валидной подписью. Запуск Windows на устройстве, физический телефон и модерация Яндекс Игр требуют отдельной проверки на этих площадках.
