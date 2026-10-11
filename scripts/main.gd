@@ -77,13 +77,27 @@ var sculpt_width: SpinBox
 var sculpt_height: SpinBox
 var sculpt: WorldSculpt
 var sculpt_stop: Button
+var touch_ui := false
+var ui_scale := 1.0
+var system_ui_scale := 1.0
+var ui_scale_picker: OptionButton
+var safe_rect := Rect2()
+var step_job: WorldStepJob
+var pending_actions: Array[Callable] = []
+var inspector_dirty := true
+var inspector_timer := 0.0
+var inspector_updates := 0
+var save_job: WorldSaveJob
+var save_automatic := false
 
 func _ready() -> void:
 	get_window().content_scale_size = Vector2i.ZERO
 	preferences.load_preferences()
+	_configure_display()
 	sound=GameAudio.new(); add_child(sound); sound.setup(preferences)
 	_build_theme()
 	_build_ui()
+	if touch_ui: _prepare_touch_ui(self)
 	var initial := SaveStore.load_world()
 	if initial == null:
 		initial = WorldState.new()
@@ -98,12 +112,91 @@ func _ready() -> void:
 	platform=GamePlatform.new()
 	platform.suspension_changed.connect(func(value: bool): platform_suspended=value; _update_suspension())
 	platform.message.connect(show_message)
-	platform.cloud_loaded.connect(func(value: WorldState): _set_world(value); show_message("Мир загружен из облака."))
-	platform.reward_received.connect(func(): world.rain(view.local_to_cell(view.size*0.5),8); show_message("Дождь за просмотр видео: огонь погас, земля восстановилась."))
+	platform.cloud_loaded.connect(func(value: WorldState): _at_boundary(func(): _set_world(value); show_message("Мир загружен из облака.")))
+	platform.reward_received.connect(func(): _at_boundary(func(): world.rain(view.local_to_cell(view.size*0.5),8); show_message("Дождь за просмотр видео: огонь погас, земля восстановилась.")))
 	add_child(platform)
 	platform.gameplay(true)
 	if not preferences.tutorial_done: show_message("Создавайте землю, поселите жителей и наблюдайте за поколениями. Подсказки: Мир → Как играть.")
 	get_tree().auto_accept_quit = false
+
+func _configure_display() -> void:
+	touch_ui = OS.has_feature("android") or OS.has_feature("ios")
+	if OS.has_feature("web"):
+		touch_ui = bool(JavaScriptBridge.eval("matchMedia('(pointer: coarse)').matches"))
+	system_ui_scale = 1.0
+	if OS.has_feature("android"):
+		system_ui_scale = _android_density()
+	elif OS.has_feature("ios"):
+		system_ui_scale = maxf(1.0, DisplayServer.screen_get_scale())
+	elif OS.has_feature("web"):
+		system_ui_scale = float(JavaScriptBridge.eval("document.querySelector('canvas').width / Math.max(1, document.querySelector('canvas').getBoundingClientRect().width)"))
+	for argument in OS.get_cmdline_user_args():
+		if argument == "--touch-ui": touch_ui = true
+		if argument.begins_with("--ui-scale="):
+			system_ui_scale = argument.trim_prefix("--ui-scale=").to_float()
+	_apply_ui_scale()
+
+func _android_density() -> float:
+	if Engine.has_singleton("AndroidRuntime"):
+		var runtime := Engine.get_singleton("AndroidRuntime")
+		var activity: Object = runtime.call("getActivity")
+		if activity != null:
+			var resources: Object = activity.call("getResources")
+			if resources != null:
+				var metrics: Object = resources.call("getDisplayMetrics")
+				if metrics != null:
+					var density: Variant = metrics.get("density")
+					if (density is float or density is int) and is_finite(float(density)) and float(density) > 0:
+						return float(density)
+	return maxf(1.0, float(mini(get_window().size.x,get_window().size.y)) / 480.0)
+
+func _touch_target() -> float:
+	return 48.0 * maxf(1.0,system_ui_scale / ui_scale)
+
+func _apply_ui_scale() -> void:
+	ui_scale = clampf(system_ui_scale * preferences.ui_scale, 1.0, 4.0)
+	ui_scale = minf(ui_scale, maxf(1.0, float(mini(get_window().size.x,get_window().size.y)) / 320.0))
+	get_window().content_scale_factor = ui_scale
+
+func _set_ui_scale(index: int) -> void:
+	preferences.ui_scale = [0.85,1.0,1.15,1.3][index]
+	preferences.save_preferences()
+	_apply_ui_scale()
+	_build_theme()
+	if touch_ui: _prepare_touch_ui(self)
+	call_deferred("_responsive")
+	if settings_dialog.visible:
+		settings_dialog.hide()
+		call_deferred("_popup_dialog",settings_dialog,Vector2i(400,380))
+
+func _prepare_touch_ui(node: Node) -> void:
+	if node is Label:
+		node.add_theme_font_size_override("font_size", maxi(16, node.get_theme_font_size("font_size")))
+	elif node is BaseButton:
+		if not node.has_meta("touch_minimum"): node.set_meta("touch_minimum",node.custom_minimum_size)
+		node.custom_minimum_size = Vector2(node.get_meta("touch_minimum")).max(Vector2.ONE * _touch_target())
+		node.add_theme_font_size_override("font_size", 16)
+		if node is Button: node.add_theme_constant_override("icon_max_width", 22)
+	elif node is LineEdit or node is Range:
+		node.custom_minimum_size.y = maxf(_touch_target(), node.custom_minimum_size.y)
+		if node is LineEdit: node.add_theme_font_size_override("font_size", 16)
+	if node is ScrollContainer: node.scroll_deadzone = 12
+	if node is PopupMenu:
+		node.add_theme_font_size_override("font_size", 16)
+		node.add_theme_constant_override("v_separation", 28)
+	for child in node.get_children(true): _prepare_touch_ui(child)
+
+func _screen_rect() -> Rect2:
+	var area := Rect2(Vector2.ZERO, size)
+	if OS.has_feature("android") or OS.has_feature("ios"):
+		var physical := DisplayServer.get_display_safe_area()
+		if physical.has_area():
+			area = area.intersection(Rect2(Vector2(physical.position) / ui_scale, Vector2(physical.size) / ui_scale))
+	return area.grow(-12.0 if touch_ui else -16.0)
+
+func _at_boundary(action: Callable) -> void:
+	if world.stepping or save_job != null: pending_actions.append(action)
+	else: action.call()
 
 func _style(color: Color, border: Color = Color.TRANSPARENT, radius: int = 8) -> StyleBoxFlat:
 	var box := StyleBoxFlat.new()
@@ -120,7 +213,10 @@ func _style(color: Color, border: Color = Color.TRANSPARENT, radius: int = 8) ->
 func _build_theme() -> void:
 	var ui := Theme.new()
 	ui.default_font = FONT
-	ui.default_font_size = 13
+	ui.default_font_size = 16 if touch_ui else 13
+	if touch_ui:
+		ui.set_constant("buttons_min_height", "AcceptDialog", ceili(_touch_target()))
+		ui.set_constant("buttons_min_width", "AcceptDialog", 120)
 	ui.set_color("font_color", "Label", Color("ece8d6"))
 	ui.set_color("font_color", "Button", Color("d5ded2"))
 	ui.set_color("font_pressed_color", "Button", Color("302526"))
@@ -177,14 +273,14 @@ func _build_theme() -> void:
 func _label(text_value: String, font_size: int = 14, color: Color = Color("e4ece4")) -> Label:
 	var label := Label.new()
 	label.text = text_value
-	label.add_theme_font_size_override("font_size", font_size)
+	label.add_theme_font_size_override("font_size", maxi(16, font_size) if touch_ui else font_size)
 	label.add_theme_color_override("font_color", color)
 	return label
 
 func _button(text_value: String, callback: Callable, minimum: Vector2 = Vector2(0, 42)) -> Button:
 	var button := Button.new()
 	button.text = text_value
-	button.custom_minimum_size = minimum
+	button.custom_minimum_size = minimum.max(Vector2.ONE * _touch_target()) if touch_ui else minimum
 	button.pressed.connect(callback)
 	button.pressed.connect(func(): sound.click())
 	button.focus_mode = Control.FOCUS_NONE
@@ -230,7 +326,7 @@ func _build_ui() -> void:
 	view = WorldView.new()
 	view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	view.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	view.cell_selected.connect(_inspect)
+	view.cell_selected.connect(_request_inspection)
 	view.feedback.connect(show_message)
 	add_child(view)
 	hud = Control.new()
@@ -246,6 +342,9 @@ func _build_ui() -> void:
 	var popup := world_menu.get_popup()
 	for item in [["Новый остров", 0], ["Сохранить", 1], ["Загрузить", 2], ["Настройки", 3], ["Координаты и поселения", 4], ["Климат мира", 5], ["Как играть", 6], ["Создать материк", 10]]:
 		popup.add_item(item[0], item[1])
+	if touch_ui:
+		popup.add_item("Вся суша", 11)
+		popup.add_item("Скрыть панели", 12)
 	popup.about_to_popup.connect(func():
 		if platform!=null and platform.available and popup.get_item_index(7)==-1:
 			popup.add_separator()
@@ -284,18 +383,22 @@ func _build_ui() -> void:
 	info_button.tooltip_text = "Сведения и хроника · I"
 	bottom_controls.add_child(info_button)
 	var zoom_out := _button("−", func(): view.zoom_by(1.0 / 1.3), Vector2(44, 44))
+	zoom_out.name = "ZoomOut"
 	zoom_out.tooltip_text = "Отдалить · −"
 	bottom_controls.add_child(zoom_out)
 	var fit := _button("", func(): view.fit_map(), Vector2(44, 44))
+	fit.name = "Fit"
 	fit.icon = PixelArt.icon("fit")
 	fit.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	fit.add_theme_constant_override("icon_max_width", 16)
 	fit.tooltip_text = "Вся созданная суша · F"
 	bottom_controls.add_child(fit)
 	var zoom_in := _button("+", func(): view.zoom_by(1.3), Vector2(44, 44))
+	zoom_in.name = "ZoomIn"
 	zoom_in.tooltip_text = "Приблизить · +"
 	bottom_controls.add_child(zoom_in)
 	var clean := _button("◌", _toggle_hud, Vector2(44, 44))
+	clean.name = "Clean"
 	clean.tooltip_text = "Скрыть интерфейс · Tab"
 	bottom_controls.add_child(clean)
 	status_panel = PanelContainer.new()
@@ -440,7 +543,7 @@ func _build_dialogs() -> void:
 	seed_input.custom_minimum_size = Vector2(180, 42)
 	generation_content.add_child(seed_input)
 	generation_dialog.add_child(generation_content)
-	generation_dialog.confirmed.connect(_generate)
+	generation_dialog.confirmed.connect(func(): _at_boundary(_generate))
 	add_child(generation_dialog)
 	settings_dialog = AcceptDialog.new()
 	settings_dialog.title = "Настройки"
@@ -448,6 +551,13 @@ func _build_dialogs() -> void:
 	settings_dialog.ok_button_text = "Готово"
 	var settings := VBoxContainer.new()
 	settings_dialog.add_child(settings)
+	settings.add_child(_label("Размер интерфейса",16,MUTED))
+	ui_scale_picker = OptionButton.new()
+	for caption in ["Компактный · 85%","Системный · 100%","Крупный · 115%","Очень крупный · 130%"]: ui_scale_picker.add_item(caption)
+	var scale_options := [0.85,1.0,1.15,1.3]
+	ui_scale_picker.select(scale_options.find(preferences.ui_scale) if scale_options.has(preferences.ui_scale) else 1)
+	ui_scale_picker.item_selected.connect(_set_ui_scale)
+	settings.add_child(ui_scale_picker)
 	var motion := CheckButton.new()
 	motion.text = "Уменьшить анимацию"
 	motion.button_pressed=preferences.reduce_motion
@@ -462,7 +572,7 @@ func _build_dialogs() -> void:
 	settings_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	settings_hint.custom_minimum_size.x = 340
 	settings.add_child(settings_hint)
-	var autosave:=CheckButton.new(); autosave.text="Автосохранение раз в минуту"; autosave.button_pressed=preferences.autosave
+	var autosave:=CheckButton.new(); autosave.text="Автосохранение" if touch_ui else "Автосохранение раз в минуту"; autosave.button_pressed=preferences.autosave
 	autosave.toggled.connect(func(value: bool): preferences.autosave=value; preferences.save_preferences())
 	settings.add_child(autosave)
 	for item in [["effects","Звуки действий"],["ambience","Шум океана"]]:
@@ -522,27 +632,39 @@ func _build_dialogs() -> void:
 		dialog.visibility_changed.connect(func(): modal_scrim.visible = _modal_open())
 
 func _responsive() -> void:
-	if sidebar == null:
-		return
+	if sidebar == null: return
 	if tool_tween != null: tool_tween.kill()
 	if info_tween != null: info_tween.kill()
-	var available_height := maxf(160, size.y - 144)
-	tool_panel.size = Vector2(248, available_height)
-	sidebar.size = Vector2(296, available_height)
-	tool_panel.position = Vector2(16 if tools_open else -tool_panel.size.x - 16, 76)
-	sidebar.position = Vector2(size.x - sidebar.size.x - 16 if info_open else size.x + 16, 76)
+	safe_rect = _screen_rect()
+	var top := safe_rect.position.y + (60.0 if touch_ui else 60.0)
+	var bottom := safe_rect.end.y - (_touch_target() if touch_ui else 44.0)
+	var available_height := maxf(80, bottom - top - 12)
+	tool_panel.size = Vector2(minf(324 if touch_ui else 248, safe_rect.size.x), available_height)
+	sidebar.size = Vector2(minf(360 if touch_ui else 296, safe_rect.size.x), available_height)
+	tool_panel.position = Vector2(safe_rect.position.x if tools_open else -tool_panel.size.x - 16, top)
+	sidebar.position = Vector2(safe_rect.end.x - sidebar.size.x if info_open else size.x + 16, top)
 	tool_panel.visible = tools_open
 	sidebar.visible = info_open
+	if touch_ui:
+		tools_button.text = "Кисть"
+		tools_button.custom_minimum_size = Vector2(88,_touch_target())
+		tools_button.size = tools_button.get_combined_minimum_size()
+		info_button.text = "Мир"
+		info_button.custom_minimum_size = Vector2(64,_touch_target())
+		bottom_controls.get_node("Clean").hide()
+		bottom_controls.get_node("Fit").visible = safe_rect.size.x >= 460
+		day_label.visible = safe_rect.size.x >= 420
+		day_label.get_parent().visible = day_label.visible
 	call_deferred("_fit_tool_drawer")
-	top_time.position = Vector2(size.x - top_time.get_combined_minimum_size().x - 16, 16)
-	tools_button.position = Vector2(16, size.y - 60)
-	bottom_controls.position = Vector2(size.x - bottom_controls.get_combined_minimum_size().x - 16, size.y - 60)
-	reveal_button.position = Vector2(16, size.y - 60)
-	status_panel.position = Vector2(maxf(16, (size.x - 420) * 0.5), size.y - 116)
-	status_panel.size.x = minf(420, size.x - 32)
-	status_panel.custom_minimum_size.x = minf(420, size.x - 32)
-	if size.x < 900 and tools_open and info_open:
-		_set_drawer("info", false, false)
+	top_time.position = Vector2(safe_rect.end.x - top_time.get_combined_minimum_size().x, safe_rect.position.y)
+	world_menu.position = safe_rect.position
+	tools_button.position = Vector2(safe_rect.position.x, bottom)
+	bottom_controls.position = Vector2(safe_rect.end.x - bottom_controls.get_combined_minimum_size().x, bottom)
+	reveal_button.position = Vector2(safe_rect.position.x, bottom)
+	status_panel.position = Vector2(maxf(safe_rect.position.x, (size.x - 420) * 0.5), bottom - 56)
+	status_panel.size.x = minf(420, safe_rect.size.x)
+	status_panel.custom_minimum_size.x = minf(420, safe_rect.size.x)
+	if _compact_drawers() and tools_open and info_open: _set_drawer("info", false, false)
 
 func _tool_group_changed(index: int) -> void:
 	land_group.visible = index == 0
@@ -553,7 +675,10 @@ func _tool_group_changed(index: int) -> void:
 
 func _fit_tool_drawer() -> void:
 	if tool_panel != null:
-		tool_panel.size.y = minf(maxf(180, toolbar.get_combined_minimum_size().y + 28), maxf(160, size.y - 144))
+		tool_panel.size.y = minf(maxf(180, toolbar.get_combined_minimum_size().y + 28), maxf(80, safe_rect.end.y - tool_panel.position.y - 60))
+
+func _compact_drawers() -> bool:
+	return size.x < 900 or (touch_ui and minf(size.x,size.y) < 600)
 
 func _toggle_tools() -> void:
 	_set_drawer("tools", not tools_open)
@@ -568,13 +693,14 @@ func _set_drawer(key: String, opened: bool, animated: bool = true) -> void:
 	else:
 		info_open = opened
 		info_button.button_pressed = opened
-	if opened and size.x < 900:
+		if opened: inspector_dirty = true
+	if opened and _compact_drawers():
 		if key == "tools" and info_open: _set_drawer("info", false, animated)
 		elif key == "info" and tools_open: _set_drawer("tools", false, animated)
 	var panel := tool_panel if key == "tools" else sidebar
 	var old_tween := tool_tween if key == "tools" else info_tween
 	if old_tween != null: old_tween.kill()
-	var target: float = (16.0 if opened else -panel.size.x - 16.0) if key == "tools" else (size.x - panel.size.x - 16.0 if opened else size.x + 16.0)
+	var target: float = (safe_rect.position.x if opened else -panel.size.x - 16.0) if key == "tools" else (safe_rect.end.x - panel.size.x if opened else size.x + 16.0)
 	if not animated or view.reduce_motion:
 		panel.position.x = target
 		panel.visible = opened
@@ -609,16 +735,18 @@ func _world_menu_selected(id: int) -> void:
 		2:
 			_load()
 		3:
-			settings_dialog.popup_centered(Vector2i(400, 310))
+			_popup_dialog(settings_dialog, Vector2i(400, 310))
 
-		10: sculpt_dialog.popup_centered(Vector2i(420,240))
+		10: _popup_dialog(sculpt_dialog, Vector2i(420,240))
 		5:
 			climate_mode.selected=["uniform","belts","manual"].find(world.climate.mode)
 			climate_biome.selected=world.climate.biome
 			climate_scale.value=world.climate.scale; climate_equator.value=world.climate.equator; climate_seasons.button_pressed=world.climate.seasons
-			climate_dialog.popup_centered(Vector2i(440,300))
-		6: help_dialog.popup_centered(Vector2i(470,300))
-		7: _save(true); platform.save_cloud(world)
+			_popup_dialog(climate_dialog, Vector2i(440,300))
+		6: _popup_dialog(help_dialog, Vector2i(470,300))
+		7: _at_boundary(func(): _save(true); platform.save_cloud(world))
+		11: view.fit_map()
+		12: _toggle_hud()
 		8: platform.load_cloud()
 		9: platform.rewarded()
 		4:
@@ -633,9 +761,10 @@ func _world_menu_selected(id: int) -> void:
 			for town in world.towns:
 				destination_picker.add_item(town.name)
 				destination_picker.set_item_metadata(destination_picker.item_count - 1, Vector2i(town.x, town.y))
-			navigation_dialog.popup_centered(Vector2i(420, 250))
+			_popup_dialog(navigation_dialog, Vector2i(420, 250))
 
 func _set_world(value: WorldState) -> void:
+	step_job = null
 	if sculpt!=null:
 		sculpt.cancelled=true; sculpt.advance(); sculpt=null; sculpt_stop.hide()
 	if world != null and world.changed.is_connected(_refresh):
@@ -689,24 +818,38 @@ func _cycle_speed() -> void:
 
 func _process(delta: float) -> void:
 	if world == null: return
-	if sculpt!=null:
+	inspector_timer += delta
+	if save_job != null:
+		if save_job.advance(2500):
+			var result := save_job.result
+			save_job = null
+			view.edits_locked = false
+			if result != OK: show_message("Не удалось сохранить мир: %s." % error_string(result))
+			elif not save_automatic: show_message("Мир сохранён на этом устройстве.")
+	if step_job != null:
+		if step_job.advance(4000): step_job = null
+	if step_job == null and save_job == null:
+		view.flush_tools()
+		while not pending_actions.is_empty() and save_job == null:
+			var action: Callable = pending_actions.pop_front()
+			action.call()
+		if inspector_dirty and info_open and not hud_hidden and save_job == null and inspector_timer >= 0.25:
+			_refresh_inspector()
+	if sculpt != null and step_job == null and save_job == null:
 		sculpt.advance()
 		status_label.text="Создание материка · %d%%" % (sculpt.cursor*100/maxi(1,sculpt.total))
 		status_panel.show()
 		if sculpt.finished:
 			sculpt_stop.hide(); sculpt=null; show_message("Создание суши завершено. Можно поселить жителей.")
-	platform.gameplay(not paused and not suspended and not _modal_open() and sculpt==null)
-	if not paused and not suspended and not _modal_open() and sculpt==null:
-		accumulator += minf(delta, 0.25) * speed
-		var steps := 0
-		var budget:=Time.get_ticks_usec()+8000
-		while accumulator >= 0.2 and steps < 8 and Time.get_ticks_usec()<budget:
+	var running := not paused and not suspended and not _modal_open() and sculpt == null
+	platform.gameplay(running)
+	if running and save_job == null:
+		accumulator = minf(0.4, accumulator + minf(delta, 0.25) * speed)
+		if step_job == null and accumulator >= 0.2:
 			accumulator -= 0.2
-			world.step()
-			steps += 1
-
+			step_job = WorldStepJob.new(world)
 	autosave_timer += delta
-	if preferences.autosave and autosave_timer >= 60.0 and not suspended and sculpt==null:
+	if preferences.autosave and autosave_timer >= 60.0 and not suspended and sculpt == null and save_job == null:
 		autosave_timer = 0.0
 		_save(true)
 	if message_time > 0:
@@ -717,6 +860,17 @@ func _refresh() -> void:
 	stats_label.text = "%d жителей · %d поселений\n%s" % [world.people.size(), world.towns.size(),
 		"%d очагов огня" % world.fires.size() if not world.fires.is_empty() else ("Засуха" if world.ticks < world.drought_until else "Остров спокоен")]
 	day_label.text = "Год %d · день %d" % [world.year(), (world.day() - 1) % WorldEconomy.DAYS_PER_YEAR + 1]
+	inspector_dirty = true
+	if inspected_person_id != -1:
+		var person := WorldLife.person(world, inspected_person_id)
+		if not person.is_empty():
+			selected_cell = Vector2i(person.x, person.y)
+			view.selected = selected_cell
+
+func _refresh_inspector() -> void:
+	inspector_dirty = false
+	inspector_timer = 0.0
+	inspector_updates += 1
 	if selected_cell != WorldState.NO_CELL: _inspect(selected_cell, false)
 	var signature := JSON.stringify(world.history)
 	if signature != history_signature:
@@ -736,7 +890,11 @@ func _refresh() -> void:
 			description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			entry.add_child(description)
 
-func _inspect(cell: Vector2i, reveal: bool = true) -> void:
+func _request_inspection(cell: Vector2i) -> void:
+	if not hud_hidden: _set_drawer("info", true)
+	pending_actions.append(func(): _inspect(cell,true,false))
+
+func _inspect(cell: Vector2i, reveal: bool = true, open_panel: bool = true) -> void:
 	var person: Dictionary = {}
 	var structure := world.building_at(cell)
 	if reveal:
@@ -755,15 +913,19 @@ func _inspect(cell: Vector2i, reveal: bool = true) -> void:
 					person = occupants[next]
 					inspected_person_id = person.id
 	elif inspected_person_id != -1:
-		for candidate in world.people:
-			if candidate.id == inspected_person_id:
-				person = candidate
-				cell = Vector2i(candidate.x, candidate.y)
-				view.selected = cell
-				break
+		person = WorldLife.person(world, inspected_person_id)
+		if not person.is_empty():
+			cell = Vector2i(person.x, person.y)
+			view.selected = cell
 		if person.is_empty(): inspected_person_id = -1
 	selected_cell = cell
 	if not world.inside(cell): return
+	if not open_panel and (not info_open or hud_hidden):
+		inspector_dirty = true
+		return
+	world.population.active = true
+	world.population.rebuild(world)
+	world.workforce.begin(world)
 	var text_value := "%s · %d, %d\nЕда: %d · Древесина: %d" % [WorldState.TERRAIN_NAMES[world.terrain_at(cell)], cell.x, cell.y, world.food_at(cell), world.wood_at(cell)]
 	if not person.is_empty():
 		var activity: String = WorldEconomy.describe(person) if WorldLife.adult(world, person) else ("Под присмотром опекуна" if person.guardian != -1 else "Нуждается в опекуне")
@@ -795,8 +957,12 @@ func _inspect(cell: Vector2i, reveal: bool = true) -> void:
 				text_value += " · урожай: %d" % structure.stock if structure.stock > 0 else (" · рост: %d%%" % (structure.growth * 100 / grow_steps) if structure.planted else " · ждёт посева")
 	text_value += "\n\n" + WorldClimate.describe(world, cell)
 	text_value += "\n%d, %d" % [cell.x, cell.y]
-	inspector_label.text = text_value
-	if reveal and not hud_hidden: _set_drawer("info", true)
+	world.workforce.end()
+	world.population.active = false
+	if inspector_label.text != text_value: inspector_label.text = text_value
+	inspector_dirty = false
+	inspector_timer = 0.0
+	if reveal and open_panel and not hud_hidden: _set_drawer("info", true)
 
 func show_message(message: String) -> void:
 	status_label.text = message
@@ -808,7 +974,7 @@ func show_message(message: String) -> void:
 	toast_tween.tween_property(status_panel, "modulate:a", 1.0, 0.16)
 
 func _ask_generation() -> void:
-	generation_dialog.popup_centered(Vector2i(560, 230))
+	_popup_dialog(generation_dialog, Vector2i(560, 230))
 
 func _generate() -> void:
 	if not seed_input.text.is_valid_int():
@@ -821,13 +987,15 @@ func _generate() -> void:
 	show_message("Новый остров готов. Разместите минимум трёх жителей рядом, чтобы появилось поселение.")
 
 func _save(automatic: bool = false) -> void:
-	var result := SaveStore.save_world(world)
-	if result == OK:
-		if not automatic: show_message("Мир сохранён на этом устройстве.")
-	else:
-		show_message("Не удалось сохранить мир: %s." % error_string(result))
+	_at_boundary(func():
+		save_automatic = automatic
+		save_job = WorldSaveJob.new(world)
+		view.edits_locked = true)
 
 func _load() -> void:
+	_at_boundary(_load_now)
+
+func _load_now() -> void:
 	var loaded := SaveStore.load_world()
 	if loaded == null:
 		show_message("Сохранение отсутствует или повреждено. Текущий мир сохранён в памяти.")
@@ -886,10 +1054,12 @@ func _notification(what: int) -> void:
 	if world == null:
 		return
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		_finish_work()
 		SaveStore.save_world(world)
 		get_tree().quit()
 	elif what == NOTIFICATION_APPLICATION_PAUSED:
 		app_suspended=true; _update_suspension(); platform.gameplay(false)
+		_finish_work()
 		SaveStore.save_world(world)
 	elif what == NOTIFICATION_APPLICATION_RESUMED:
 		app_suspended=false; _update_suspension()
@@ -914,7 +1084,7 @@ func _build_climate_and_help() -> void:
 	climate_equator=SpinBox.new(); climate_equator.min_value=-999999; climate_equator.max_value=999999; latitude.add_child(climate_equator)
 	latitude.add_child(_label("Ширина пояса",12)); climate_scale=SpinBox.new(); climate_scale.min_value=32; climate_scale.max_value=1000000; latitude.add_child(climate_scale)
 	climate_seasons=CheckButton.new(); climate_seasons.text="Смена сезонов"; content.add_child(climate_seasons)
-	climate_dialog.confirmed.connect(func(): climate_scale.apply(); climate_equator.apply(); WorldClimate.configure(world,["uniform","belts","manual"][climate_mode.selected],climate_biome.selected,int(climate_equator.value),int(climate_scale.value),climate_seasons.button_pressed); show_message("Климат обновлён. Поселения приспосабливаются к новым условиям."))
+	climate_dialog.confirmed.connect(func(): _at_boundary(_apply_climate))
 	add_child(climate_dialog)
 	help_dialog=AcceptDialog.new(); help_dialog.title="Как играть"; help_dialog.exclusive=true; help_dialog.ok_button_text="В мир"
 	var help:=_label("1. Земля. Откройте инструменты и рисуйте сушу, лес и горы. Кисть до 64 клеток; за новым материком переходите к координатам (G).\n\n2. Жизнь. Разместите от трёх жителей рядом. Поселение само собирает еду, строит, растит детей и передаёт навыки. Нужны лес и доступные горы для ремёсел.\n\n3. История. Выберите жителя или лагерь: сведения покажут снабжение, семьи, открытия и причины задержек. Отдельные острова встретятся после освоения судов. Климат меняется в меню мира или кистью биомов.\n\n4. Управление. Колесо / два пальца — масштаб, правая кнопка / режим камеры — движение. Пробел — пауза, Tab — скрыть панели. Мир → Сохранить; в браузере хранение привязано к сайту и устройству.",12,MUTED)
@@ -930,10 +1100,74 @@ func _build_climate_and_help() -> void:
 	dimensions_row.add_child(_label("Ширина",12)); sculpt_width=SpinBox.new(); dimensions_row.add_child(sculpt_width)
 	dimensions_row.add_child(_label("Высота",12)); sculpt_height=SpinBox.new(); dimensions_row.add_child(sculpt_height)
 	for spin in [sculpt_width,sculpt_height]: spin.min_value=32; spin.max_value=2048; spin.step=32; spin.value=256
-	sculpt_dialog.confirmed.connect(func():
-		sculpt_width.apply(); sculpt_height.apply()
-		var job:=WorldSculpt.new()
-		if job.begin(world,view.local_to_cell(view.size*0.5),Vector2i(sculpt_width.value,sculpt_height.value),WorldState.Terrain.GRASS): sculpt=job; sculpt_stop.show()
-		else: show_message("Недостаточно свободных участков для этого размера материка. Уменьшите размеры или удалите лишнюю сушу."))
+	sculpt_dialog.confirmed.connect(func(): _at_boundary(_begin_sculpt))
 	add_child(sculpt_dialog)
-	sculpt_stop=_button("Остановить создание",func(): if sculpt!=null: sculpt.cancelled=true,Vector2(190,44)); sculpt_stop.position=Vector2(16,76); add_child(sculpt_stop); sculpt_stop.hide()
+	sculpt_stop=_button("Остановить создание",func(): if sculpt!=null: sculpt.cancelled=true,Vector2(190,48)); sculpt_stop.position=Vector2(16,76); add_child(sculpt_stop); sculpt_stop.hide()
+
+func _begin_sculpt() -> void:
+	sculpt_width.apply(); sculpt_height.apply()
+	var job:=WorldSculpt.new()
+	if job.begin(world,view.local_to_cell(view.size*0.5),Vector2i(sculpt_width.value,sculpt_height.value),WorldState.Terrain.GRASS): sculpt=job; sculpt_stop.show()
+	else: show_message("Недостаточно свободных участков для этого размера материка. Уменьшите размеры или удалите лишнюю сушу.")
+
+func _apply_climate() -> void:
+	climate_scale.apply(); climate_equator.apply()
+	WorldClimate.configure(world,["uniform","belts","manual"][climate_mode.selected],climate_biome.selected,int(climate_equator.value),int(climate_scale.value),climate_seasons.button_pressed)
+	show_message("Климат обновлён. Поселения приспосабливаются к новым условиям.")
+
+func _finish_work() -> void:
+	if step_job != null: step_job.advance(0); step_job = null
+	if save_job != null: save_job.finish(); save_job = null; view.edits_locked = false
+	view.flush_tools(0)
+	var actions := pending_actions.duplicate()
+	pending_actions.clear()
+	for action in actions: action.call()
+	if save_job != null: save_job.finish(); save_job = null; view.edits_locked = false
+
+func _popup_dialog(dialog: AcceptDialog, requested: Vector2i) -> void:
+	if touch_ui:
+		dialog.get_ok_button().custom_minimum_size = Vector2(120,48)
+		dialog.get_ok_button().add_theme_font_size_override("font_size",16)
+		if dialog is ConfirmationDialog:
+			dialog.get_cancel_button().custom_minimum_size = Vector2(96,48)
+			dialog.get_cancel_button().add_theme_font_size_override("font_size",16)
+		var usable := Vector2i(_screen_rect().size) - Vector2i(0, 32)
+		if not dialog.has_meta("touch_wrapped"):
+			var content: Control
+			for child in dialog.get_children():
+				if child is BoxContainer or child is ScrollContainer:
+					content = child
+					break
+			if content != null:
+				dialog.remove_child(content)
+				var scroll := ScrollContainer.new()
+				scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+				scroll.scroll_deadzone = 12
+				scroll.name = "TouchContent"
+				dialog.add_child(scroll)
+				scroll.add_child(content)
+				content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+				_fit_dialog_content(content)
+				_prepare_touch_ui(dialog)
+				dialog.set_meta("touch_wrapped", true)
+		var scroll := dialog.get_node_or_null("TouchContent")
+		if scroll != null: scroll.custom_minimum_size = Vector2(mini(400, usable.x - 32), maxi(80, mini(requested.y - 80, usable.y - 96)))
+		dialog.popup_centered(Vector2i(mini(requested.x, usable.x), mini(requested.y, usable.y)))
+		var bounds := _screen_rect()
+		dialog.position = Vector2i(bounds.position + Vector2((bounds.size.x - dialog.size.x) * .5, 32 + (bounds.size.y - 32 - dialog.size.y) * .5))
+	else: dialog.popup_centered(requested)
+
+func _fit_dialog_content(node: Node) -> void:
+	if node is Control: node.custom_minimum_size.x = 0
+	if node is HBoxContainer:
+		var parent := node.get_parent()
+		var index := node.get_index()
+		var replacement := VBoxContainer.new()
+		replacement.size_flags_horizontal = node.size_flags_horizontal
+		for child in node.get_children():
+			node.remove_child(child); replacement.add_child(child)
+		parent.remove_child(node)
+		parent.add_child(replacement); parent.move_child(replacement, index)
+		node.free()
+		node = replacement
+	for child in node.get_children(): _fit_dialog_content(child)

@@ -81,6 +81,7 @@ func capture() -> void:
  await snapshot("world-rain")
  game._select_tool("inspect")
  game.view.apply_tool(Vector2i(demo.towns[0].x, demo.towns[0].y))
+ await settle_layout()
  check(game.inspector_label.text.contains(demo.towns[0].name), "inspection displays town details")
  await snapshot("world-info")
  check(game.info_open, "inspection reveals info drawer")
@@ -232,6 +233,7 @@ func capture() -> void:
  game.view.brush_radius = 2
  game._select_tool("inspect")
  game.view.apply_tool(distant)
+ await settle_layout()
  check(game.inspector_label.text.contains("-900000"), "inspection supports negative world coordinates")
  game._toggle_info()
  await snapshot("world-distant")

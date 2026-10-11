@@ -8,39 +8,14 @@ static func away(world, id: int) -> bool:
 	return world.journey_people.has(id) or WorldMaritime.onboard(world, id)
 
 static func path(world, start: Vector2i, finish: Vector2i) -> Array:
-	if not world.walkable(start) or not world.walkable(finish): return []
-	if world.travel_path_revision!=world.revision:
-		world.travel_paths.clear(); world.travel_path_revision=world.revision
-	var cache_key:=Vector4i(start.x,start.y,finish.x,finish.y)
-	if world.fires.is_empty() and world.travel_paths.has(cache_key): return world.travel_paths[cache_key]
-	var queue: Array[Vector2i] = [start]
-	var parents := {start: start}
-	var cursor := 0
-	while cursor < queue.size() and parents.size() <= 8192:
-		var point := queue[cursor]
-		cursor += 1
-		if point == finish: break
-		for direction in WorldState.DIRECTIONS:
-			var next: Vector2i = point + direction
-			if parents.has(next) or not world.walkable(next) or world.fires.has(next): continue
-			parents[next] = point
-			queue.append(next)
-	if not parents.has(finish):
-		if world.travel_paths.size()<64 and world.fires.is_empty(): world.travel_paths[cache_key]=[]
-		return []
-	var result: Array = [[finish.x, finish.y]]
-	var point := finish
-	while point != start:
-		point = parents[point]
-		result.push_front([point.x, point.y])
-		if result.size() > MAX_PATH: return []
-	if world.travel_paths.size()<64 and world.fires.is_empty(): world.travel_paths[cache_key]=result
-	return result
+	var job := WorldTravelPathJob.new(world, start, finish)
+	job.advance(0)
+	return job.result
 
-static func launch(world, home: Dictionary, target: Dictionary, group: Array, purpose: String) -> bool:
+static func launch(world, home: Dictionary, target: Dictionary, group: Array, purpose: String, prepared_path: Variant = null) -> bool:
 	if world.journeys.size() >= LIMIT or home.id == target.id or group.is_empty() or group.size() > 8 or purpose not in ["migrate", "trade"]: return false
 	if purpose == "migrate" and WorldEconomy.housing(world, target) - WorldEconomy.members(world, target).size() < group.size(): return false
-	var points := path(world, Vector2i(home.x, home.y), Vector2i(target.x, target.y))
+	var points: Array = path(world, Vector2i(home.x, home.y), Vector2i(target.x, target.y)) if prepared_path == null else prepared_path
 	if points.is_empty(): return false
 	var food := ceili((points.size() * (2 if purpose == "trade" else 1) + 40) * group.size() * 0.625 / WorldEconomy.NUTRITION) + group.size() * 2
 	if food > 120 or home.food - food < WorldEconomy.members(world, home).size() * 2: return false
@@ -185,27 +160,8 @@ static func step(world) -> void:
 			else: journey.phase = "returning"
 
 static func daily(world) -> void:
-	if world.ticks % (WorldEconomy.DAY_TICKS * 6) != 0: return
-	for home in world.towns:
-		var busy := false
-		for journey in world.journeys:
-			if journey.home == home.id: busy = true
-		if busy or WorldEconomy.members(world, home).size() < 5: continue
-		for target in world.towns:
-			if target.id == home.id or Vector2i(home.x, home.y).distance_squared_to(Vector2i(target.x, target.y)) > 128 * 128: continue
-			var migrating: bool = WorldEconomy.food_days(world, home) < 4 or WorldEconomy.members(world, home).size() > WorldEconomy.housing(world, home)
-			if migrating and WorldEconomy.housing(world, target) <= WorldEconomy.members(world, target).size(): continue
-			if migrating and WorldEconomy.food_days(world, target) <= WorldEconomy.food_days(world, home) + 2: continue
-			if not migrating and WorldEconomy.count(world, home, "market") == 0: continue
-			for member in WorldEconomy.members(world, home):
-				if not WorldLife.adult(world, member) or away(world, member.id) or member.cargo > 0 or member.task.get("kind", "") in ["teach", "care", "research"]: continue
-				var group: Array = [int(member.id)]
-				if migrating:
-					var family := WorldLife.household(world, member.household)
-					if not family.is_empty(): group = family.members.duplicate()
-				elif not WorldLife.care_candidate(world, member).is_empty(): continue
-				if launch(world, home, target, group, "migrate" if migrating else "trade"): break
-			if not world.journeys.is_empty() and world.journeys.back().home == home.id: break
+	var job := WorldTravelDailyJob.new(world)
+	while not job.finished: job.unit()
 
 static func restore(world, source: Variant) -> bool:
 	if not source is Array or source.size() > LIMIT: return false

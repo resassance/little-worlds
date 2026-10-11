@@ -54,9 +54,17 @@ var alert_texture: ImageTexture
 var rain_texture: ImageTexture
 var label_font: Font
 var reduce_motion := false
-var show_minimap := false
+var show_minimap := false:
+	set(value):
+		if show_minimap != value: texture_dirty = true
+		show_minimap = value
 var interface_visible := true
 var last_view_size := Vector2.ZERO
+var edits_locked := false
+var pending_tools: Array[Dictionary] = []
+var bake_job: WorldChunkBakeJob
+var bake_queue: Array[Dictionary] = []
+var bake_pending: Dictionary = {}
 
 func _ready() -> void:
 	clip_contents = true
@@ -95,6 +103,8 @@ func set_world(value: WorldState) -> void:
 	camera_origin = Vector2i.ZERO
 	chunk_textures.clear()
 	overview_textures.clear()
+	bake_job = null; bake_queue.clear(); bake_pending.clear()
+	pending_tools.clear()
 	rebuild_texture()
 	selected = WorldState.NO_CELL
 	focus_island()
@@ -150,6 +160,10 @@ func zoom_by(factor: float) -> void:
 func rebuild_texture() -> void:
 	texture_dirty = false
 	minimap_bounds = world.land_bounds()
+	if not show_minimap:
+		texture = null
+		queue_redraw()
+		return
 	var image := Image.create(128, 128, false, Image.FORMAT_RGBA8)
 	image.fill(COLORS[0])
 	var ratio := Vector2.ONE * 128 / Vector2(minimap_bounds.size)
@@ -173,29 +187,42 @@ func _chunk_texture(coord: Vector2i, detailed: bool) -> ImageTexture:
 	if cache.has(coord) and cache[coord].revision == current_revision:
 		cache[coord].used = cache_clock
 		return cache[coord].image
-	var image_texture: ImageTexture
-	if detailed:
-		image_texture = _make_chunk_texture(coord)
-	else:
-		var image := Image.create(WorldState.CHUNK_SIZE, WorldState.CHUNK_SIZE, false, Image.FORMAT_RGBA8)
-		for y in WorldState.CHUNK_SIZE:
-			for x in WorldState.CHUNK_SIZE: image.set_pixel(x, y, COLORS[world.terrain_at(coord * WorldState.CHUNK_SIZE + Vector2i(x, y))])
-		image_texture = ImageTexture.create_from_image(image)
-	cache[coord] = {"image": image_texture, "revision": current_revision, "used": cache_clock, "shores": baking_shores.duplicate() if detailed else []}
-	if detailed and cache.size() > CACHE_LIMIT:
-		var oldest: Vector2i = coord
-		var oldest_time := cache_clock
+	var request := Vector3i(coord.x, coord.y, 1 if detailed else 0)
+	if not bake_pending.has(request) and bake_queue.size() < CACHE_LIMIT * 2:
+		bake_pending[request] = true
+		bake_queue.append({"coord":coord,"detailed":detailed,"request":request})
+	return cache[coord].image if cache.has(coord) else null
+
+func _advance_baking() -> void:
+	if bake_job == null and not bake_queue.is_empty():
+		var nearest := 0
+		var center := Vector2(local_to_cell(size * .5)) / WorldState.CHUNK_SIZE
+		var best := INF
+		for i in bake_queue.size():
+			var distance := Vector2(bake_queue[i].coord).distance_squared_to(center) - (1000000.0 if not bake_queue[i].detailed else 0.0)
+			if distance < best: best = distance; nearest = i
+		var request: Dictionary = bake_queue[nearest]
+		bake_queue.remove_at(nearest)
+		bake_job = WorldChunkBakeJob.new(world, request.coord, request.detailed)
+	if bake_job == null: return
+	if not bake_job.advance(1500): return
+	var job := bake_job
+	bake_job = null
+	bake_pending.erase(Vector3i(job.coord.x, job.coord.y, 1 if job.detailed else 0))
+	if job.revision != int(world.revisions.get(job.coord, 0)): return
+	var cache := chunk_textures if job.detailed else overview_textures
+	cache_clock += 1
+	cache[job.coord] = {"image":job.texture,"revision":job.revision,"used":cache_clock,"shores":job.shores}
+	if cache.size() > CACHE_LIMIT:
+		var oldest: Vector2i = job.coord
 		for key in cache:
-			if cache[key].used < oldest_time:
-				oldest = key
-				oldest_time = cache[key].used
+			if cache[key].used < cache[oldest].used: oldest = key
 		cache.erase(oldest)
-	return image_texture
 
 func _draw_regions() -> void:
 	var low := WorldState.chunk_of(local_to_cell(Vector2.ZERO))
 	var high := WorldState.chunk_of(local_to_cell(size))
-	var detailed := zoom >= 0.5 and (high.x - low.x + 1) * (high.y - low.y + 1) <= CACHE_LIMIT - 8
+	var detailed := zoom * get_window().content_scale_factor >= 0.5 and (high.x - low.x + 1) * (high.y - low.y + 1) <= CACHE_LIMIT - 8
 	var candidates := {}
 	if detailed:
 		for y in range(low.y, high.y + 1):
@@ -214,6 +241,10 @@ func _draw_regions() -> void:
 			draw_circle(rect.get_center(), 1.5, Color("a2bd78"))
 			continue
 		var region_texture := _chunk_texture(key, detailed)
+		if region_texture == null:
+			var preview := _chunk_texture(key, false) if detailed else null
+			if preview != null: draw_texture_rect(preview,rect,false)
+			continue
 		if detailed:
 			draw_texture_rect_region(region_texture, rect, Rect2(Vector2.ONE * HALO * TILE, Vector2.ONE * WorldState.CHUNK_SIZE * TILE))
 		else:
@@ -228,115 +259,13 @@ func _draw_regions() -> void:
 		if not world.has_region(key): overview_textures.erase(key)
 
 func _make_chunk_texture(coord: Vector2i) -> ImageTexture:
-	baking_shores.clear()
-	var render_width := WorldState.CHUNK_SIZE + HALO * 2
-	var render_height := render_width
-	var render_origin := coord * WorldState.CHUNK_SIZE - Vector2i(HALO, HALO)
-	var render_tiles := PackedInt32Array()
-	for y in render_height:
-		for x in render_width: render_tiles.append(world.terrain_at(render_origin + Vector2i(x, y)))
-	var image := Image.create(render_width * TILE, render_height * TILE, false, Image.FORMAT_RGBA8)
-	var depths := PackedInt32Array()
-	depths.resize(render_tiles.size())
-	depths.fill(999)
-	var frontier: Array[int] = []
-	for i in render_tiles.size():
-		if render_tiles[i] != WorldState.Terrain.WATER:
-			depths[i] = 0
-			frontier.append(i)
-	var head := 0
-	while head < frontier.size():
-		var idx := frontier[head]
-		head += 1
-		if depths[idx] >= 7:
-			continue
-		var cell := Vector2i(idx % render_width, idx / render_width)
-		for direction in WorldState.DIRECTIONS:
-			var other: Vector2i = cell + direction
-			if (other.x >= 0 and other.y >= 0 and other.x < render_width and other.y < render_height):
-				var ni := (other.y * render_width + other.x)
-				if depths[ni] > depths[idx] + 1:
-					depths[ni] = depths[idx] + 1
-					frontier.append(ni)
-	var noise := FastNoiseLite.new()
-	noise.seed = world.world_seed + 101
-	noise.frequency = 0.14
-	for y in render_height:
-		for x in render_width:
-			var cell := Vector2i(x, y)
-			var idx := (cell.y * render_width + cell.x)
-			var terrain: int = render_tiles[idx]
-			var px := x * TILE
-			var py := y * TILE
-			var detail := posmod(hash(Vector3i(x + render_origin.x, y + render_origin.y, world.world_seed)), 997)
-			var variation := noise.get_noise_2d(x + render_origin.x, y + render_origin.y) * 0.06
-			var color: Color = COLORS[terrain]
-			if terrain in [WorldState.Terrain.GRASS, WorldState.Terrain.FOREST] and WorldClimate.biome(world, cell + render_origin) != 0:
-				color = WorldClimate.COLORS[WorldClimate.biome(world, cell + render_origin)].darkened(0.12 if terrain == WorldState.Terrain.FOREST else 0.0)
-			if terrain in [WorldState.Terrain.GRASS,WorldState.Terrain.FOREST] and world.climate.seasons and WorldClimate.biome(world,cell+render_origin) in [0,3,4,5]:
-				if WorldClimate.season(world)==3: color=color.lerp(Color("dce5dd"),.55)
-				elif WorldClimate.season(world)==2: color=color.lerp(Color("bba776"),.25)
-			if terrain == WorldState.Terrain.WATER:
-				var water_colors := [Color("78b4ab"), Color("5e9c9e"), Color("43808b"), Color("356b7d"), Color("2e6477"), COLORS[0]]
-				color = water_colors[mini(depths[idx] - 1, water_colors.size() - 1)]
-				variation *= 0.22
-			color = color.lightened(variation) if variation > 0 else color.darkened(-variation)
-			image.fill_rect(Rect2i(px, py, TILE, TILE), color)
-			match terrain:
-				WorldState.Terrain.WATER:
-					if detail % 59 == 0:
-						image.fill_rect(Rect2i(px + 1, py + 4, 5, 1), color.lightened(0.09))
-					if depths[idx] == 1:
-						for direction in WorldState.DIRECTIONS:
-							var neighbor: Vector2i = cell + direction
-							if (neighbor.x >= 0 and neighbor.y >= 0 and neighbor.x < render_width and neighbor.y < render_height) and render_tiles[(neighbor.y * render_width + neighbor.x)] != WorldState.Terrain.WATER:
-								var edge := Rect2i(px, py, TILE, 1)
-								if direction == Vector2i.DOWN: edge = Rect2i(px, py + TILE - 1, TILE, 1)
-								if direction == Vector2i.LEFT: edge = Rect2i(px, py, 1, TILE)
-								if direction == Vector2i.RIGHT: edge = Rect2i(px + TILE - 1, py, 1, TILE)
-								image.fill_rect(edge, Color("b9d8bc"))
-						if detail % 7 == 0 and x >= HALO and y >= HALO and x < render_width - HALO and y < render_height - HALO:
-							baking_shores.append(cell + render_origin)
-				WorldState.Terrain.SAND:
-					if detail % 5 == 0:
-						image.fill_rect(Rect2i(px + 3, py + 4, 2, 1), Color("c9b68b"))
-				WorldState.Terrain.GRASS, WorldState.Terrain.FOREST:
-					if detail % 7 == 0:
-						image.fill_rect(Rect2i(px + 2, py + 3, 1, 2), color.darkened(0.14))
-						image.set_pixel(px + 3, py + 4, color.lightened(0.08))
-					if terrain == WorldState.Terrain.GRASS and detail % 31 == 0:
-						image.set_pixel(px + 5, py + 3, Color("f2da99"))
-						image.set_pixel(px + 6, py + 4, Color("e8b796"))
-				WorldState.Terrain.MOUNTAIN:
-					var north := cell + Vector2i.UP
-					var south := cell + Vector2i.DOWN
-					if (north.x >= 0 and north.y >= 0 and north.x < render_width and north.y < render_height) and render_tiles[(north.y * render_width + north.x)] != terrain:
-						image.fill_rect(Rect2i(px, py, TILE, 2), Color("bdc2a4"))
-					if (south.x >= 0 and south.y >= 0 and south.x < render_width and south.y < render_height) and render_tiles[(south.y * render_width + south.x)] != terrain:
-						image.fill_rect(Rect2i(px, py + 5, TILE, 3), Color("6e7d6a"))
-					if detail % 9 == 0:
-						image.fill_rect(Rect2i(px + 2, py + 4, 3, 1), Color("828d7c"))
-
-	var tree := PixelArt.sprite_image(PixelArt.TREE, {"o": Color("3e6548")})
-	var pine := PixelArt.sprite_image(PixelArt.PINE, {"o": Color("385d46")})
-	var autumn := PixelArt.sprite_image(PixelArt.TREE, {"o": Color("4b6a44"), "l": Color("b6b36b"), "g": Color("9a9e59"), "d": Color("687c48")})
-	var peak := PixelArt.sprite_image(PixelArt.PEAK)
-	for y in render_height:
-		for x in render_width:
-			var terrain := render_tiles[y * render_width + x]
-			var detail := posmod(hash(Vector3i(x + render_origin.x, y + render_origin.y, world.world_seed)), 997)
-			if terrain == WorldState.Terrain.FOREST and detail % 4 == 0 and world.building_at(render_origin + Vector2i(x, y)).is_empty():
-				var sprite := tree if detail % 5 != 0 else pine
-				if detail % 17 == 0: sprite = autumn
-				var biome:=WorldClimate.biome(world,render_origin+Vector2i(x,y))
-				if biome>=3: sprite=pine
-				elif world.climate.seasons and WorldClimate.season(world)==2 and biome==0: sprite=autumn
-				image.blend_rect(sprite, Rect2i(Vector2i.ZERO, sprite.get_size()), Vector2i(x * TILE - 2, y * TILE - 7))
-			elif terrain == WorldState.Terrain.MOUNTAIN and detail % 13 == 0:
-				image.blend_rect(peak, Rect2i(Vector2i.ZERO, peak.get_size()), Vector2i(x * TILE - 4, y * TILE - 3))
-	return ImageTexture.create_from_image(image)
+	var job := WorldChunkBakeJob.new(world, coord, true)
+	job.advance(0)
+	baking_shores = job.shores
+	return job.texture
 
 func _process(delta: float) -> void:
+	_advance_baking()
 	if texture_dirty:
 		rebuild_texture()
 	if not reduce_motion:
@@ -381,7 +310,7 @@ func _refresh_visible_people() -> void:
 
 func _draw() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), COLORS[0])
-	if texture == null or world == null:
+	if world == null:
 		return
 	_draw_regions()
 	draw_set_transform(offset, 0, Vector2.ONE * zoom)
@@ -545,7 +474,7 @@ func _name_style() -> StyleBoxFlat:
 	return style
 
 func _draw_minimap() -> void:
-	if not show_minimap or size.x < 450 or size.y < 330:
+	if texture == null or not show_minimap or size.x < 450 or size.y < 330:
 		return
 	var rect := Rect2(size - Vector2(112, 170), Vector2(88, 88))
 	draw_rect(rect.grow(5), Color("252934"))
@@ -623,8 +552,11 @@ func _gui_input(event: InputEvent) -> void:
 		if event.pressed:
 			touches[event.index] = event.position
 			last_touch = event.position
-			touch_painted = false
+			if touches.size() == 1:
+				touch_painted = false
+				last_painted = WorldState.NO_CELL
 			if touches.size() == 2:
+				touch_painted = true
 				pinch_distance = _touch_distance()
 		else:
 			if touches.size() == 1 and not touch_painted and tool != "pan":
@@ -644,6 +576,7 @@ func _gui_input(event: InputEvent) -> void:
 			pinch_distance = distance
 			touch_painted = true
 		elif tool == "pan" or tool == "inspect":
+			if not touch_painted and event.position.distance_to(last_touch) < 10: return
 			offset += event.position - previous
 			_clamp_camera()
 			touch_painted = true
@@ -669,6 +602,24 @@ func apply_tool(cell: Vector2i) -> void:
 	if not world.inside(cell) or cell == last_painted:
 		return
 	last_painted = cell
+	if (world.stepping or edits_locked) and tool != "inspect":
+		if pending_tools.size() < 512: pending_tools.append({"cell":cell,"tool":tool,"radius":brush_radius})
+		return
+	_apply_tool_now(cell)
+
+func flush_tools(budget_usec: int = 2000) -> void:
+	if world.stepping or edits_locked: return
+	var previous_tool := tool
+	var previous_radius := brush_radius
+	var deadline := Time.get_ticks_usec() + budget_usec
+	while not pending_tools.is_empty():
+		var command: Dictionary = pending_tools.pop_front()
+		tool = command.tool; brush_radius = command.radius
+		_apply_tool_now(command.cell)
+		if budget_usec > 0 and Time.get_ticks_usec() >= deadline: break
+	tool = previous_tool; brush_radius = previous_radius
+
+func _apply_tool_now(cell: Vector2i) -> void:
 	if tool.begins_with("biome_"):
 		if not WorldClimate.paint(world,cell,brush_radius,int(tool.trim_prefix("biome_"))): feedback.emit("Достигнут лимит ручных биомов. Используйте климатические пояса.")
 		return

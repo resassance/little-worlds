@@ -193,21 +193,23 @@ static func tool_credit(world, member: Dictionary, home: Dictionary) -> int:
 	return 1
 
 static func daily(world) -> void:
-	for home in world.towns:
-		var data := ensure(world, home)
-		if WorldEconomy.count(world, home, "council") == 0: continue
-		var leader := -1
-		var best := -1
-		for member in WorldEconomy.members(world, home):
-			if not WorldLife.adult(world, member): continue
-			var score: int = int(member.skills.food) + int(member.skills.build) + WorldLife.years(world, member)
-			if score > best:
-				best = score
-				leader = int(member.id)
-		if data.leader != leader:
-			data.leader = leader
-			if leader != -1: world.log_event("Совет поселения", "%s: старейшина — %s." % [home.name, WorldLife.label(world, leader)])
-		if leader != -1: WorldSociety.use(world, home, "governance")
+	for home in world.towns: daily_town(world, home)
+
+static func daily_town(world, home: Dictionary) -> void:
+	var data := ensure(world, home)
+	if WorldEconomy.count(world, home, "council") == 0: return
+	var leader := -1
+	var best := -1
+	for member in WorldEconomy.members(world, home):
+		if not WorldLife.adult(world, member): continue
+		var score: int = int(member.skills.food) + int(member.skills.build) + WorldLife.years(world, member)
+		if score > best:
+			best = score
+			leader = int(member.id)
+	if data.leader != leader:
+		data.leader = leader
+		if leader != -1: world.log_event("Совет поселения", "%s: старейшина — %s." % [home.name, WorldLife.label(world, leader)])
+	if leader != -1: WorldSociety.use(world, home, "governance")
 
 static func lost_building(world, value: Dictionary) -> void:
 	for key in value.get("materials", {}): world.industry.lost[key] += int(value.materials[key])

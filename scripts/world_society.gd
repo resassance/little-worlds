@@ -158,43 +158,45 @@ static func era_reason(world, home: Dictionary, society: Dictionary, target: int
 	return ""
 
 static func daily(world) -> void:
-	for home in world.towns:
-		var society := ensure_town(world, home)
+	for home in world.towns: daily_town(world, home)
 
-		for member in WorldEconomy.members(world, home):
-			if WorldTravel.away(world, member.id): continue
-			if not WorldEconomy.navigation(world, home).parents.has(Vector2i(member.x, member.y)): continue
-			for key in member.ideas:
-				if not society.tech[key].known:
-					society.tech[key].known = true
-					world.log_event("Новая идея", "%s: %s прин%s знание «%s»." % [home.name, member.name, "есла" if member.sex == "female" else "ёс", TECH[key].name])
-		for key in TECH:
-			var state: Dictionary = society.tech[key]
-			if state.mastered:
-				var operating := active(world, home, key)
-				if state.operating != operating:
-					state.operating = operating
-					world.log_event("Технология в деле" if operating else "Ремесло простаивает", "%s: %s%s." % [home.name, TECH[key].name, "" if operating else " — " + reason(world, home, key, true)])
-			if society.tech[key].known: continue
-			var enough := true
-			for skill in TECH[key].practice:
-				if society.practice[skill] < TECH[key].practice[skill]: enough = false
-			if enough:
+static func daily_town(world, home: Dictionary) -> void:
+	var society := ensure_town(world, home)
+
+	for member in WorldEconomy.members(world, home):
+		if WorldTravel.away(world, member.id): continue
+		if not WorldEconomy.navigation(world, home).parents.has(Vector2i(member.x, member.y)): continue
+		for key in member.ideas:
+			if not society.tech[key].known:
 				society.tech[key].known = true
-				world.log_event("Идея общины", "%s: практика подсказала «%s». Нужно выделить время на освоение." % [home.name, TECH[key].name])
-		if society.worker == -1 and not society.project.is_empty() and not reason(world, home, society.project).is_empty(): society.project = ""
-		if society.worker == -1 and society.project.is_empty() and WorldEconomy.food_days(world, home) >= 6:
-			for key in TECH:
-				if society.tech[key].known and not society.tech[key].mastered and reason(world, home, key).is_empty():
-					society.project = key
-					break
-		if society.era < ERAS.size() - 1:
-			if era_ready(world, home, society, society.era + 1): society.era_days += 1
-			else: society.era_days = 0
-			if society.era_days >= 3:
-				society.era += 1
-				society.era_days = 0
-				world.log_event("Новый этап общества", "%s: %s. Технологии уже используются и обеспечивают устойчивое хозяйство." % [home.name, ERAS[society.era]])
+				world.log_event("Новая идея", "%s: %s прин%s знание «%s»." % [home.name, member.name, "есла" if member.sex == "female" else "ёс", TECH[key].name])
+	for key in TECH:
+		var state: Dictionary = society.tech[key]
+		if state.mastered:
+			var operating := active(world, home, key)
+			if state.operating != operating:
+				state.operating = operating
+				world.log_event("Технология в деле" if operating else "Ремесло простаивает", "%s: %s%s." % [home.name, TECH[key].name, "" if operating else " — " + reason(world, home, key, true)])
+		if society.tech[key].known: continue
+		var enough := true
+		for skill in TECH[key].practice:
+			if society.practice[skill] < TECH[key].practice[skill]: enough = false
+		if enough:
+			society.tech[key].known = true
+			world.log_event("Идея общины", "%s: практика подсказала «%s». Нужно выделить время на освоение." % [home.name, TECH[key].name])
+	if society.worker == -1 and not society.project.is_empty() and not reason(world, home, society.project).is_empty(): society.project = ""
+	if society.worker == -1 and society.project.is_empty() and WorldEconomy.food_days(world, home) >= 6:
+		for key in TECH:
+			if society.tech[key].known and not society.tech[key].mastered and reason(world, home, key).is_empty():
+				society.project = key
+				break
+	if society.era < ERAS.size() - 1:
+		if era_ready(world, home, society, society.era + 1): society.era_days += 1
+		else: society.era_days = 0
+		if society.era_days >= 3:
+			society.era += 1
+			society.era_days = 0
+			world.log_event("Новый этап общества", "%s: %s. Технологии уже используются и обеспечивают устойчивое хозяйство." % [home.name, ERAS[society.era]])
 
 static func reconcile(world) -> void:
 	for i in range(world.societies.size() - 1, -1, -1):

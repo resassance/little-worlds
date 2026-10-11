@@ -85,6 +85,7 @@ var journey_people: Dictionary = {}
 var travel_paths: Dictionary = {}
 var travel_path_revision := -1
 var regions := WorldRegions.new()
+var stepping := false
 var profiling := false
 var timings: Dictionary = {}
 
@@ -459,56 +460,8 @@ func rain(center: Vector2i, radius: int) -> void:
 	changed.emit()
 
 func step() -> void:
-	if regions.failed: return
-	var measured:=Time.get_ticks_usec() if profiling else 0
-	population.active = true
-	population.town_count = -1
-	population.rebuild(self)
-	ticks += 1
-	WorldClimate.step(self)
-	if ticks % WorldEconomy.DAY_TICKS == 0 and ticks >= drought_until: regrowth += 1
-	measured=_profile_stage("climate",measured)
-	var terrain_dirty := _step_fire() if not fires.is_empty() else false
-	_repair_buildings()
-	measured=_profile_stage("repair",measured)
-	WorldSociety.invalidate(self)
-	for home in towns:
-		if fires.has(Vector2i(home.x, home.y)):
-			var burnt_food := mini(1, int(home.food))
-			var burnt_wood := mini(1, int(home.wood))
-			home.food -= burnt_food
-			home.wood -= burnt_wood
-			metrics.lost_food += burnt_food
-			metrics.lost_wood += burnt_wood
-	for home in towns: WorldSociety.ensure_town(self, home)
-	measured=_profile_stage("burn",measured)
-	workforce.begin(self)
-	WorldEconomy.step(self)
-	measured=_profile_stage("economy",measured)
-	WorldTravel.step(self)
-	WorldMaritime.step(self)
-	population.ready = false
-	workforce.plans.clear(); workforce.contributions.clear()
-	measured=_profile_stage("maritime",measured)
-	if life_dirty: WorldLife.reconcile(self)
-	if ticks % 15 == 0: _found_towns()
-	if ticks % WorldEconomy.DAY_TICKS == 0: WorldLife.daily(self)
-	measured=_profile_stage("life",measured)
-	if ticks % WorldEconomy.DAY_TICKS == 0: WorldSocial.daily(self)
-	measured=_profile_stage("social",measured)
-	if ticks % WorldEconomy.DAY_TICKS == 0: WorldSociety.daily(self)
-	measured=_profile_stage("society",measured)
-	if ticks % WorldEconomy.DAY_TICKS == 0: WorldCivilization.daily(self)
-	if ticks % WorldEconomy.DAY_TICKS == 0: WorldTravel.daily(self)
-	if ticks % WorldEconomy.DAY_TICKS == 0: WorldMaritime.daily(self)
-	measured=_profile_stage("travel",measured)
-	if ticks % 300 == 0: _random_event()
-	if terrain_dirty: terrain_changed.emit()
-	if ticks % WorldEconomy.DAY_TICKS == 0: regions.trim(self)
-	measured=_profile_stage("other",measured)
-	workforce.end()
-	population.active = false
-	changed.emit()
+	var job := WorldStepJob.new(self)
+	job.advance(0)
 
 func track_person_move(member: Dictionary, previous: Vector2i) -> void:
 	population.moved(self, member)
@@ -572,32 +525,35 @@ func _town_near(cell: Vector2i, radius: int) -> Dictionary:
 	return best
 
 func _found_towns() -> void:
-	for p in people:
-		if WorldTravel.away(self,p.id): continue
-		if not WorldLife.adult(self, p): continue
-		var cell := Vector2i(p.x, p.y)
-		if p.home != -1: continue
-		if not _town_near(cell, 28).is_empty():
-			continue
-		var nearby: Array[Dictionary] = []
-		nearby = population.nearby(self, cell, 143)
-		if nearby.size() < 3: continue
-		var neighbors := 0
-		var probe := {"id": -p.id, "x": cell.x, "y": cell.y}
-		var parents: Dictionary = WorldEconomy.navigation(self, probe).parents
-		for other in nearby:
-			if parents.has(Vector2i(other.x, other.y)): neighbors += 1
-		navigation.erase(probe.id)
-		if neighbors >= 3:
-			var names := ["Ивовый берег", "Тихая роща", "Солнечный дол", "Лесной приют", "Новый рассвет"]
-			var name_value: String = names[towns.size() % names.size()]
-			if towns.size() >= names.size():
-				name_value += " %d" % (towns.size() + 1)
-			var home := {"id": next_id, "name": name_value, "x": cell.x, "y": cell.y, "food": 0, "wood": 0, "level": 1}
-			next_id += 1
-			towns.append(home)
-			WorldEconomy.add_building(self, home, "camp", cell, true)
-			log_event("Основано поселение", "%s: жители обустроили общий лагерь." % name_value)
+	for person in people: _found_town(person)
+
+func _found_town(p: Dictionary) -> void:
+	if WorldTravel.away(self,p.id): return
+	if not WorldLife.adult(self, p): return
+	var cell := Vector2i(p.x, p.y)
+	if p.home != -1: return
+	if not _town_near(cell, 28).is_empty():
+		return
+	var nearby: Array[Dictionary] = []
+	nearby = population.nearby(self, cell, 143)
+	if nearby.size() < 3: return
+	var neighbors := 0
+	var probe := {"id": -p.id, "x": cell.x, "y": cell.y}
+	var parents: Dictionary = WorldEconomy.navigation(self, probe).parents
+	for other in nearby:
+		if parents.has(Vector2i(other.x, other.y)): neighbors += 1
+	navigation.erase(probe.id)
+	if neighbors >= 3:
+		var names := ["Ивовый берег", "Тихая роща", "Солнечный дол", "Лесной приют", "Новый рассвет"]
+		var name_value: String = names[towns.size() % names.size()]
+		if towns.size() >= names.size():
+			name_value += " %d" % (towns.size() + 1)
+		var home := {"id": next_id, "name": name_value, "x": cell.x, "y": cell.y, "food": 0, "wood": 0, "level": 1}
+		next_id += 1
+		towns.append(home)
+		WorldEconomy.add_building(self, home, "camp", cell, true)
+		log_event("Основано поселение", "%s: жители обустроили общий лагерь." % name_value)
+
 
 func _step_fire() -> bool:
 	var dirty := false
@@ -640,7 +596,7 @@ func log_event(title: String, message: String) -> void:
 	if history.size() > 60:
 		history.resize(60)
 
-func to_dict(include_regions: bool = true) -> Dictionary:
+func to_dict(include_regions: bool = true, include_residents: bool = true) -> Dictionary:
 	var saved_regions: Array[Dictionary] = []
 	var keys := region_keys()
 	keys.sort_custom(func(a: Vector2i, b: Vector2i): return a.y < b.y or (a.y == b.y and a.x < b.x))
@@ -653,7 +609,7 @@ func to_dict(include_regions: bool = true) -> Dictionary:
 	return {"version": SAVE_VERSION, "chunk_size": CHUNK_SIZE, "seed": world_seed,
 		"climate": WorldClimate.save(self), "civilization": WorldCivilization.save(self), "maritime": WorldMaritime.save(self), "journeys": journeys.duplicate(true),
 		"ticks": ticks, "next_id": next_id, "chunks": saved_regions, "regrowth": regrowth,
-		"people": people.duplicate(true), "towns": towns.duplicate(true), "buildings": buildings.duplicate(true), "metrics": metrics.duplicate(), "fires": saved_fires,
+		"people": people.duplicate(true) if include_residents else [], "towns": towns.duplicate(true), "buildings": buildings.duplicate(true), "metrics": metrics.duplicate(), "fires": saved_fires,
 		"societies": societies.duplicate(true), "households": households.duplicate(true), "ancestry_archive": ancestry_archive.duplicate(true),
 		"history": history.duplicate(true), "rng_state": str(rng.state),
 		"wet_until": wet_until, "drought_until": drought_until}

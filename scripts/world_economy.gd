@@ -43,32 +43,9 @@ static func at(world, cell: Vector2i) -> Dictionary:
 
 static func navigation(world, home: Dictionary) -> Dictionary:
 	if world.navigation.has(home.id): return world.navigation[home.id]
-	var origin := Vector2i(home.x, home.y)
-	var parents := {origin: origin}
-	var cells: Array[Vector2i] = [origin]
-	var food_cells: Array[Vector2i] = []
-	var wood_cells: Array[Vector2i] = []
-	var quarries: Array[Dictionary] = []
-	var coasts: Array[Dictionary] = []
-	var head := 0
-	while head < cells.size():
-		var cell := cells[head]
-		head += 1
-		var terrain: int = world.terrain_at(cell)
-		if terrain in [WorldState.Terrain.GRASS, WorldState.Terrain.FOREST]: food_cells.append(cell)
-		if terrain == WorldState.Terrain.FOREST: wood_cells.append(cell)
-		for direction in WorldState.DIRECTIONS:
-			var other: Vector2i = cell + direction
-			var ground: int = world.terrain_at(other)
-			if ground == WorldState.Terrain.MOUNTAIN: quarries.append({"land": cell, "rock": other})
-			if ground == WorldState.Terrain.WATER: coasts.append({"land": cell, "water": other})
-			if parents.has(other) or absi(other.x - origin.x) + absi(other.y - origin.y) > RANGE: continue
-			if ground in [WorldState.Terrain.WATER,WorldState.Terrain.MOUNTAIN] or not world.inside(other): continue
-			parents[other] = cell
-			cells.append(other)
-	var result := {"parents": parents, "cells": cells, "food": food_cells, "wood": wood_cells, "quarries": quarries, "coasts": coasts, "routes": {}}
-	world.navigation[home.id] = result
-	return result
+	var job := WorldNavigationJob.new(world, home)
+	job.advance(0)
+	return job.result
 
 static func move(world, person: Dictionary, target: Vector2i, home: Dictionary) -> bool:
 	var current := Vector2i(person.x, person.y)
@@ -514,118 +491,126 @@ static func lose_cargo(world, person: Dictionary) -> void:
 static func step(world) -> void:
 	WorldSocial.tick(world)
 	world.claims.clear()
-	for person in world.people:
-		if not person.task.is_empty():
-			var key := claim_key(person.task)
-			if not key.is_empty(): world.claims[key] = person.id
-
-	for value in world.buildings:
-		if not value.ready or value.kind != "farm" or not value.planted: continue
-		if world.ticks < world.drought_until or world.fires.has(Vector2i(value.x, value.y)): continue
-		var home := town(world, value.town)
-		var advanced := WorldSociety.active(world, home, "rotation")
-		value.growth += 1
-		if value.growth >= (50 if advanced else 60):
-			value.stock = clampi(roundi((24 if advanced else 18) * WorldClimate.yield_factor(world, Vector2i(value.x, value.y))), 1, 36)
-			if advanced: WorldSociety.use(world, home, "rotation")
-			value.planted = false
-			value.growth = 0
-			world.metrics.crop_food += value.stock
+	for person in world.people: step_claim(world, person)
+	for value in world.buildings: step_farm(world, value)
 	if world.ticks % DAY_TICKS == 0:
 		for home in world.towns: plan(world, home)
 	if world.ticks % (DAY_TICKS * 4) == 0:
-		for home in world.towns:
-			var rate := 0.01 if count(world, home, "store") > 0 else 0.04
-			if home.food > 0 and WorldSociety.active(world, home, "preservation"):
-				rate = 0.005
-				WorldSociety.use(world, home, "preservation")
-			var amount := floori(home.food * rate)
-			home.food -= amount
-			world.metrics.spoiled_food += amount
-	for i in range(world.people.size() - 1, -1, -1):
-		var person: Dictionary = world.people[i]
-		person.age += 1
-		person.hunger += WorldLife.hunger_rate(world, person)
-		if world.journey_people.has(person.id):
-			WorldTravel.member_step(world, person)
-			continue
-		if WorldMaritime.onboard(world, person.id):
-			WorldMaritime.crew_step(world, person)
-			continue
-		var current := Vector2i(person.x, person.y)
-		if world.fires.has(current):
-			person.hunger += 6
-			person.health = maxf(0, person.health - 8)
-			WorldSociety.invalidate(world)
-			set_task(world, person, {})
-			for direction in WorldState.DIRECTIONS:
-				var safe: Vector2i = current + direction
-				if world.walkable(safe) and not world.fires.has(safe):
-					person.x = safe.x
-					person.y = safe.y
-					world.track_person_move(person, current)
-					break
-		if person.hunger >= NUTRITION:
-			if person.rations > 0:
-				person.rations -= 1
-				person.hunger -= NUTRITION
-				world.metrics.eaten_food += 1
-			elif person.cargo_kind == "food" and person.cargo > 0:
-				person.cargo -= 1
-				person.hunger -= NUTRITION
-				world.metrics.eaten_food += 1
-				if person.cargo == 0:
-					person.cargo_kind = ""
-					set_task(world, person, {})
-			elif WorldLife.adult(world, person) and person.hunger >= 40 and world.food_at(current) > 0:
-				world._set_food(current, world.food_at(current) - 1)
-				person.hunger -= NUTRITION
-				world.metrics.harvested_food += 1
-				world.metrics.eaten_food += 1
-		if person.hunger > 100 or person.health <= 0:
-			world.remove_person(i, "голод" if person.hunger > 100 else "огонь или отсутствие ухода")
-			continue
-		var home := town(world, person.home)
-		if home.is_empty() or not navigation(world, home).parents.has(Vector2i(person.x, person.y)):
-			home = {}
-			for candidate in world.towns:
-				if current.distance_squared_to(Vector2i(candidate.x, candidate.y)) <= RANGE * RANGE and navigation(world, candidate).parents.has(current):
-					home = candidate
-					break
-			var new_home: int = int(home.id) if not home.is_empty() else -1
-			if person.home != new_home:
-				world.life_dirty = true
-				WorldSociety.invalidate(world)
-				world.population_dirty = true
-				world.workforce.plans.clear(); world.workforce.contributions.clear()
-			person.home = new_home
-			set_task(world, person, {})
-		if not WorldLife.adult(world, person):
-			WorldLife.dependent_step(world, person, home)
-			if person.health <= 0: world.remove_person(i, "отсутствие ухода")
-			continue
-		person.guardian = -1
-		if person.job in ["child", "teen"]: person.job = "settler"
-		if home.is_empty():
+		for home in world.towns: step_spoil(world, home)
+	for i in range(world.people.size() - 1, -1, -1): step_person(world, i)
 
-			var best := -INF
-			var next := Vector2i(person.x, person.y)
-			for direction in WorldState.DIRECTIONS:
-				var cell: Vector2i = next + direction
-				if not world.walkable(cell) or world.fires.has(cell): continue
-				var score: float = world.food_at(cell) + world.rng.randf()
-				if score > best:
-					best = score
-					current = cell
-			var previous := Vector2i(person.x, person.y)
-			person.x = current.x
-			person.y = current.y
-			world.track_person_move(person, previous)
-			continue
-		if not person.lesson.is_empty() and WorldSocial.student_step(world, person, home): continue
-		if not prepare_seed(world, person, home): continue
-		if person.cargo == 0 and person.task.get("kind", "") != "care" and not WorldLife.care_candidate(world, person).is_empty(): WorldLife.assign_care(world, person, home)
-		execute(world, person, home)
+static func step_claim(world, person: Dictionary) -> void:
+	if not person.task.is_empty():
+		var key := claim_key(person.task)
+		if not key.is_empty(): world.claims[key] = person.id
+
+static func step_farm(world, value: Dictionary) -> void:
+	if not value.ready or value.kind != "farm" or not value.planted: return
+	if world.ticks < world.drought_until or world.fires.has(Vector2i(value.x, value.y)): return
+	var home := town(world, value.town)
+	var advanced := WorldSociety.active(world, home, "rotation")
+	value.growth += 1
+	if value.growth >= (50 if advanced else 60):
+		value.stock = clampi(roundi((24 if advanced else 18) * WorldClimate.yield_factor(world, Vector2i(value.x, value.y))), 1, 36)
+		if advanced: WorldSociety.use(world, home, "rotation")
+		value.planted = false
+		value.growth = 0
+		world.metrics.crop_food += value.stock
+
+static func step_spoil(world, home: Dictionary) -> void:
+	var rate := 0.01 if count(world, home, "store") > 0 else 0.04
+	if home.food > 0 and WorldSociety.active(world, home, "preservation"):
+		rate = 0.005
+		WorldSociety.use(world, home, "preservation")
+	var amount := floori(home.food * rate)
+	home.food -= amount
+	world.metrics.spoiled_food += amount
+
+static func step_person(world, i: int) -> void:
+	var person: Dictionary = world.people[i]
+	person.age += 1
+	person.hunger += WorldLife.hunger_rate(world, person)
+	if world.journey_people.has(person.id):
+		WorldTravel.member_step(world, person)
+		return
+	if WorldMaritime.onboard(world, person.id):
+		WorldMaritime.crew_step(world, person)
+		return
+	var current := Vector2i(person.x, person.y)
+	if world.fires.has(current):
+		person.hunger += 6
+		person.health = maxf(0, person.health - 8)
+		WorldSociety.invalidate(world)
+		set_task(world, person, {})
+		for direction in WorldState.DIRECTIONS:
+			var safe: Vector2i = current + direction
+			if world.walkable(safe) and not world.fires.has(safe):
+				person.x = safe.x
+				person.y = safe.y
+				world.track_person_move(person, current)
+				break
+	if person.hunger >= NUTRITION:
+		if person.rations > 0:
+			person.rations -= 1
+			person.hunger -= NUTRITION
+			world.metrics.eaten_food += 1
+		elif person.cargo_kind == "food" and person.cargo > 0:
+			person.cargo -= 1
+			person.hunger -= NUTRITION
+			world.metrics.eaten_food += 1
+			if person.cargo == 0:
+				person.cargo_kind = ""
+				set_task(world, person, {})
+		elif WorldLife.adult(world, person) and person.hunger >= 40 and world.food_at(current) > 0:
+			world._set_food(current, world.food_at(current) - 1)
+			person.hunger -= NUTRITION
+			world.metrics.harvested_food += 1
+			world.metrics.eaten_food += 1
+	if person.hunger > 100 or person.health <= 0:
+		world.remove_person(i, "голод" if person.hunger > 100 else "огонь или отсутствие ухода")
+		return
+	var home := town(world, person.home)
+	if home.is_empty() or not navigation(world, home).parents.has(Vector2i(person.x, person.y)):
+		home = {}
+		for candidate in world.towns:
+			if current.distance_squared_to(Vector2i(candidate.x, candidate.y)) <= RANGE * RANGE and navigation(world, candidate).parents.has(current):
+				home = candidate
+				break
+		var new_home: int = int(home.id) if not home.is_empty() else -1
+		if person.home != new_home:
+			world.life_dirty = true
+			WorldSociety.invalidate(world)
+			world.population_dirty = true
+			world.workforce.plans.clear(); world.workforce.contributions.clear()
+		person.home = new_home
+		set_task(world, person, {})
+	if not WorldLife.adult(world, person):
+		WorldLife.dependent_step(world, person, home)
+		if person.health <= 0: world.remove_person(i, "отсутствие ухода")
+		return
+	person.guardian = -1
+	if person.job in ["child", "teen"]: person.job = "settler"
+	if home.is_empty():
+
+		var best := -INF
+		var next := Vector2i(person.x, person.y)
+		for direction in WorldState.DIRECTIONS:
+			var cell: Vector2i = next + direction
+			if not world.walkable(cell) or world.fires.has(cell): continue
+			var score: float = world.food_at(cell) + world.rng.randf()
+			if score > best:
+				best = score
+				current = cell
+		var previous := Vector2i(person.x, person.y)
+		person.x = current.x
+		person.y = current.y
+		world.track_person_move(person, previous)
+		return
+	if not person.lesson.is_empty() and WorldSocial.student_step(world, person, home): return
+	if not prepare_seed(world, person, home): return
+	if person.cargo == 0 and person.task.get("kind", "") != "care" and not WorldLife.care_candidate(world, person).is_empty(): WorldLife.assign_care(world, person, home)
+	execute(world, person, home)
+
 
 static func describe(person: Dictionary) -> String:
 	if person.task.is_empty(): return "Выбирает следующую задачу"

@@ -1,0 +1,8 @@
+{
+  "engine": "Godot 4.7.2",
+  "version": "0.2.0",
+  "seed": 42817,
+  "population": 2000,
+  "steps": 120,
+  "sha256": "b9723ad5f53f38f1b2b7bace406742bb0ebd08be91149c3c1e19de3ad25a7375"
+}

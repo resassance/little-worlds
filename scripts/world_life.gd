@@ -244,37 +244,39 @@ static func make_pair(world, a: Dictionary, b: Dictionary) -> void:
 
 static func court(world) -> void:
 	for home in world.towns:
-		var residents := WorldEconomy.members(world, home)
-		for a in residents:
-			if WorldTravel.away(world, a.id): continue
-			if not adult(world, a) or a.partner != -1 or a.hunger > 40 or a.health < 60: continue
-			var candidate := person(world, a.courting)
-			if candidate.is_empty() or WorldTravel.away(world,candidate.id) or candidate.partner != -1 or candidate.courting != a.id or not partner_valid(world, a, candidate):
-				if not candidate.is_empty() and candidate.courting == a.id:
-					candidate.courting = -1
-					candidate.bond = 0
-				a.courting = -1
-				a.bond = 0
-				candidate = {}
-				var best_score := -INF
-				for b in world.population.nearby(world, Vector2i(a.x, a.y), 9, home.id):
-					if WorldTravel.away(world, b.id) or WorldSocial.tension(a,b)>=30 or b.partner != -1 or b.courting != -1 or b.hunger > 40 or not partner_valid(world, a, b): continue
-					if absi(years(world, a) - years(world, b)) > 20: continue
-					if Vector2i(a.x, a.y).distance_squared_to(Vector2i(b.x, b.y)) > 9: continue
-					var score: float = WorldSocial.closeness(a, b) * 2 - absi(years(world, a) - years(world, b))
-					if a.traits.sociability == b.traits.sociability: score += 4
-					if score > best_score:
-						best_score = score
-						candidate = b
-				if not candidate.is_empty():
-					a.courting = int(candidate.id)
-					candidate.courting = int(a.id)
-					candidate.bond = 0
-			if candidate.is_empty() or a.id > candidate.id: continue
-			if Vector2i(a.x, a.y).distance_squared_to(Vector2i(candidate.x, candidate.y)) <= 9:
-				a.bond += 1
-				candidate.bond = a.bond
-			if a.bond >= 3: make_pair(world, a, candidate)
+		for member in WorldEconomy.members(world, home): court_member(world, home, member)
+
+static func court_member(world, home: Dictionary, a: Dictionary) -> void:
+	if WorldTravel.away(world, a.id): return
+	if not adult(world, a) or a.partner != -1 or a.hunger > 40 or a.health < 60: return
+	var candidate := person(world, a.courting)
+	if candidate.is_empty() or WorldTravel.away(world,candidate.id) or candidate.partner != -1 or candidate.courting != a.id or not partner_valid(world, a, candidate):
+		if not candidate.is_empty() and candidate.courting == a.id:
+			candidate.courting = -1
+			candidate.bond = 0
+		a.courting = -1
+		a.bond = 0
+		candidate = {}
+		var best_score := -INF
+		for b in world.population.nearby(world, Vector2i(a.x, a.y), 9, home.id):
+			if WorldTravel.away(world, b.id) or WorldSocial.tension(a,b)>=30 or b.partner != -1 or b.courting != -1 or b.hunger > 40 or not partner_valid(world, a, b): continue
+			if absi(years(world, a) - years(world, b)) > 20: continue
+			if Vector2i(a.x, a.y).distance_squared_to(Vector2i(b.x, b.y)) > 9: continue
+			var score: float = WorldSocial.closeness(a, b) * 2 - absi(years(world, a) - years(world, b))
+			if a.traits.sociability == b.traits.sociability: score += 4
+			if score > best_score:
+				best_score = score
+				candidate = b
+		if not candidate.is_empty():
+			a.courting = int(candidate.id)
+			candidate.courting = int(a.id)
+			candidate.bond = 0
+	if candidate.is_empty() or a.id > candidate.id: return
+	if Vector2i(a.x, a.y).distance_squared_to(Vector2i(candidate.x, candidate.y)) <= 9:
+		a.bond += 1
+		candidate.bond = a.bond
+	if a.bond >= 3: make_pair(world, a, candidate)
+
 
 static func pending(world, dwelling: int = -1) -> int:
 	var result := 0
@@ -345,24 +347,26 @@ static func give_birth(world, mother: Dictionary) -> bool:
 static func daily(world) -> void:
 	reconcile(world)
 	court(world)
-
 	var ids: Array[int] = []
 	for member in world.people: ids.append(int(member.id))
-	for id in ids:
-		var member := person(world, id)
-		if member.is_empty(): continue
-		var age: int = years(world, member)
-		if age >= 60:
-			var annual: float = 0.02 + pow(maxf(0, (age - 60) / 40.0), 3) * 0.6 + (100 - member.health) * 0.001
-			if world.rng.randf() < minf(0.95, annual) / WorldEconomy.DAYS_PER_YEAR:
-				world.remove_person(world.people.find(member), "старость")
-				continue
-		if member.birth_due >= 0:
-			var mate := person(world, member.partner)
-			if not partner_valid(world, member, mate) or age >= 45:
-				member.birth_due = -1
-			else: give_birth(world, member)
-		elif birth_conditions(world, member, true): member.birth_due = world.ticks + YEAR * 3 / 4
+	for id in ids: daily_member(world, id)
+
+static func daily_member(world, id: int) -> void:
+	var member := person(world, id)
+	if member.is_empty(): return
+	var age: int = years(world, member)
+	if age >= 60:
+		var annual: float = 0.02 + pow(maxf(0, (age - 60) / 40.0), 3) * 0.6 + (100 - member.health) * 0.001
+		if world.rng.randf() < minf(0.95, annual) / WorldEconomy.DAYS_PER_YEAR:
+			world.remove_person(world.people.find(member), "старость")
+			return
+	if member.birth_due >= 0:
+		var mate := person(world, member.partner)
+		if not partner_valid(world, member, mate) or age >= 45:
+			member.birth_due = -1
+		else: give_birth(world, member)
+	elif birth_conditions(world, member, true): member.birth_due = world.ticks + YEAR * 3 / 4
+
 
 static func care_candidate(world, carer: Dictionary) -> Dictionary:
 	if not adult(world, carer): return {}

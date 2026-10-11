@@ -246,45 +246,53 @@ static func teach(world, mentor: Dictionary, home: Dictionary) -> void:
 	cancel_lesson(world, student)
 
 static func tick(world) -> void:
-	for member in world.people:
-		member.social_need = minf(100, member.social_need + (0.0625 if member.traits.sociability == 0 else (0.25 if member.traits.sociability == 2 else 0.125)))
-		if not member.lesson.is_empty() and WorldLife.adult(world, member) and WorldEconomy.count(world, WorldEconomy.town(world, member.home), "school") == 0: cancel_lesson(world, member)
+	for member in world.people: tick_member(world, member)
+
+static func tick_member(world, member: Dictionary) -> void:
+	member.social_need = minf(100, member.social_need + (0.0625 if member.traits.sociability == 0 else (0.25 if member.traits.sociability == 2 else 0.125)))
+	if not member.lesson.is_empty() and WorldLife.adult(world, member) and WorldEconomy.count(world, WorldEconomy.town(world, member.home), "school") == 0: cancel_lesson(world, member)
+
 
 static func daily(world) -> void:
 	for home in world.towns:
 		var residents := WorldEconomy.members(world, home)
-		for member in residents:
-			if WorldTravel.away(world, member.id): continue
-			var contacts := 0
-			for other in world.population.nearby(world, Vector2i(member.x, member.y), 9, home.id, {"limit": 3, "after_id": member.id, "local": true}):
-				if WorldTravel.away(world, other.id) or other.id <= member.id or not near(member, other): continue
-				dispute(world,member,other,home)
-				contact(world, member, other)
-				contacts += 1
-				if contacts >= 3: break
-			if not member.lesson.is_empty(): continue
-			if WorldLife.years(world, member) in range(6, 18) or (WorldEconomy.count(world, home, "school") > 0 and member.cargo == 0 and member.task.get("kind", "") in ["", "rest", "visit"]): offer_lesson(world, member, home)
+		for member in residents: daily_member(world, home, member)
 		if world.ticks % WorldLife.YEAR == 0:
-			for member in residents:
-				for i in range(member.rivals.size()-1,-1,-1):
-					var rival: Dictionary=member.rivals[i]
-					if rival.id<member.id or world.ticks-int(rival.last_tick)<WorldLife.YEAR: continue
-					var other:=WorldLife.person(world,rival.id)
-					if other.is_empty(): continue
-					var reverse:=rivalry(other,member.id)
-					rival.resentment=maxi(0,int(rival.resentment)-8); reverse.resentment=rival.resentment
-					if rival.resentment==0: member.rivals.remove_at(i); other.rivals.erase(reverse)
-				for i in range(member.links.size() - 1, -1, -1):
-					var link: Dictionary = member.links[i]
-					if world.ticks - int(link.last_tick) < WorldLife.YEAR or link.id < member.id: continue
-					var other := WorldLife.person(world, link.id)
-					if other.is_empty(): continue
-					var reverse := relation(other, member.id)
-					link.bond = maxi(0, int(link.bond) - 2)
-					reverse.bond = link.bond
-					if link.bond == 0:
-						member.links.remove_at(i)
-						other.links.erase(reverse)
+			for member in residents: fade_member(world, member)
+
+static func daily_member(world, home: Dictionary, member: Dictionary) -> void:
+	if WorldTravel.away(world, member.id): return
+	var contacts := 0
+	for other in world.population.nearby(world, Vector2i(member.x, member.y), 9, home.id, {"limit": 3, "after_id": member.id, "local": true}):
+		if WorldTravel.away(world, other.id) or other.id <= member.id or not near(member, other): continue
+		dispute(world,member,other,home)
+		contact(world, member, other)
+		contacts += 1
+		if contacts >= 3: break
+	if not member.lesson.is_empty(): return
+	if WorldLife.years(world, member) in range(6, 18) or (WorldEconomy.count(world, home, "school") > 0 and member.cargo == 0 and member.task.get("kind", "") in ["", "rest", "visit"]): offer_lesson(world, member, home)
+
+static func fade_member(world, member: Dictionary) -> void:
+	for i in range(member.rivals.size()-1,-1,-1):
+		var rival: Dictionary=member.rivals[i]
+		if rival.id<member.id or world.ticks-int(rival.last_tick)<WorldLife.YEAR: continue
+		var other:=WorldLife.person(world,rival.id)
+		if other.is_empty(): continue
+		var reverse:=rivalry(other,member.id)
+		rival.resentment=maxi(0,int(rival.resentment)-8); reverse.resentment=rival.resentment
+		if rival.resentment==0: member.rivals.remove_at(i); other.rivals.erase(reverse)
+	for i in range(member.links.size() - 1, -1, -1):
+		var link: Dictionary = member.links[i]
+		if world.ticks - int(link.last_tick) < WorldLife.YEAR or link.id < member.id: continue
+		var other := WorldLife.person(world, link.id)
+		if other.is_empty(): continue
+		var reverse := relation(other, member.id)
+		link.bond = maxi(0, int(link.bond) - 2)
+		reverse.bond = link.bond
+		if link.bond == 0:
+			member.links.remove_at(i)
+			other.links.erase(reverse)
+
 
 static func remove(world, member: Dictionary) -> void:
 	cancel_lesson(world, member)

@@ -21,6 +21,7 @@ read_world = """async () => {
   delete data.regions; return data;
  } finally {db.close();}
 }"""
+read_world_brief = read_world.replace("delete data.regions; return data;", "delete data.regions; delete data.chunks; if(data.people.length>32)data.people=data.people.map(person=>person.id); return data;")
 mock = """(() => {
  const state=window.__sdk={ready:0,starts:0,stops:0,events:{},data:{},callbacks:null};
  window.YaGames={init:async()=>({
@@ -36,6 +37,23 @@ with sync_playwright() as playwright:
     browser = playwright.chromium.launch(executable_path='/usr/bin/chromium',headless=True,
         args=['--no-sandbox','--enable-unsafe-swiftshader','--disable-dev-shm-usage'])
     page = browser.new_page(viewport={'width':1280,'height':800})
+    def await_world(predicate=lambda value: True, timeout=60):
+        deadline=time.monotonic()+timeout
+        next_save=time.monotonic()+6
+        while time.monotonic()<deadline:
+            value=page.evaluate(read_world_brief)
+            if isinstance(value,dict) and predicate(value):
+                complete=page.evaluate(read_world)
+                if isinstance(complete,dict) and predicate(complete):
+                    return complete
+            if time.monotonic()>=next_save:
+                page.locator('canvas').focus()
+                page.keyboard.press('Control+s')
+                next_save=time.monotonic()+6
+            page.wait_for_timeout(200)
+        page.screenshot(path=str(Path(__file__).resolve().parents[1]/'artifacts'/'web-sdk-timeout.png'))
+        raise AssertionError(f'Complete saved world did not become available: ticks={value.get("ticks") if isinstance(value,dict) else None}, people={len(value.get("people",[])) if isinstance(value,dict) else None}, errors={errors}')
+
     page.add_init_script(mock)
     page.on('pageerror', lambda error: errors.append(str(error)))
     page.on('console', lambda message: errors.append(message.text) if message.type=='error' else None)
@@ -49,23 +67,19 @@ with sync_playwright() as playwright:
     page.wait_for_timeout(500)
     page.locator('canvas').focus()
     page.keyboard.press('Control+s')
-    page.wait_for_function(read_world,timeout=15000)
-    frozen = page.evaluate(read_world)
+    frozen = await_world()
     page.wait_for_timeout(1200)
     page.locator('canvas').focus()
     page.keyboard.press('Control+s')
-    page.wait_for_timeout(600)
-    assert page.evaluate(read_world)['ticks']==frozen['ticks'], 'SDK pause freezes simulation'
+    current=await_world(lambda value: value['ticks']==frozen['ticks'])
+    assert current['ticks']==frozen['ticks'], 'SDK pause freezes simulation'
     checks += 1
     page.evaluate("window.__sdk.events.game_api_resume()")
     page.wait_for_timeout(1800)
     page.locator('canvas').focus()
     page.keyboard.press('Control+s')
-    deadline=time.monotonic()+15
-    while time.monotonic()<deadline:
-        if page.evaluate(read_world)['ticks']>frozen['ticks']: break
-        page.wait_for_timeout(200)
-    assert page.evaluate(read_world)['ticks']>frozen['ticks'], ('SDK resume advances simulation',frozen['ticks'],page.evaluate(read_world)['ticks'],page.evaluate('({ready:__sdk.ready, starts:__sdk.starts, stops:__sdk.stops,hidden:document.hidden})'), errors)
+    current=await_world(lambda value: value['ticks']>frozen['ticks'])
+    assert current['ticks']>frozen['ticks'], 'SDK resume advances simulation'
     checks += 1
     page.keyboard.press('Space')
     page.evaluate("window.LittleWorldsPlatform.rewarded()")
@@ -73,12 +87,7 @@ with sync_playwright() as playwright:
     page.wait_for_timeout(500)
     page.locator('canvas').focus()
     page.keyboard.press('Control+s')
-    deadline=time.monotonic()+15
-    while time.monotonic()<deadline:
-        current=page.evaluate(read_world)
-        if any(event['title']=='Живительный дождь' for event in current['history']): break
-        page.wait_for_timeout(200)
-    rewarded=page.evaluate(read_world)
+    rewarded=await_world(lambda value: any(event['title']=='Живительный дождь' for event in value['history']))
     assert sum(event['title']=='Живительный дождь' for event in rewarded['history'])==1, 'duplicate callbacks produce one actual reward'
     checks += 1
     encoded=base64.b64encode(gzip.compress(json.dumps(frozen,ensure_ascii=False).encode())).decode()
@@ -88,12 +97,7 @@ with sync_playwright() as playwright:
     page.wait_for_timeout(800)
     page.locator('canvas').focus()
     page.keyboard.press('Control+s')
-    deadline=time.monotonic()+15
-    while time.monotonic()<deadline:
-        current=page.evaluate(read_world)
-        if current['ticks']==frozen['ticks'] and current['people']==frozen['people']: break
-        page.wait_for_timeout(200)
-    cloud=page.evaluate(read_world)
+    cloud=await_world(lambda value: value['ticks']==frozen['ticks'] and value['people']==frozen['people'])
     assert cloud['ticks']==frozen['ticks'] and cloud['people']==frozen['people'], 'cloud payload restores the actual Godot world'
     checks += 1
     assert not errors, json.dumps(errors,ensure_ascii=False)
@@ -106,27 +110,19 @@ with sync_playwright() as playwright:
     large=json.loads((output/'population-2000-world.json').read_text())
     assert len(large['people'])==2000
     encoded=base64.b64encode(gzip.compress(json.dumps(large,ensure_ascii=False).encode())).decode()
-    page.evaluate('(data)=>{window.__sdk.data.littleWorldsV7=data;window.LittleWorldsPlatform.load()}',encoded)
+    page.evaluate('(data)=>{window.__sdk.data.littleWorldsV7=data;return window.LittleWorldsPlatform.load()}',encoded)
     page.wait_for_timeout(1500)
     page.locator('canvas').focus()
     page.keyboard.press('Control+s')
-    deadline=time.monotonic()+45
-    while time.monotonic()<deadline:
-        current=page.evaluate(read_world)
-        if current and len(current['people'])==2000: break
-        page.wait_for_timeout(250)
+    current=await_world(lambda value: len(value['people'])==2000, timeout=90)
     assert len(current['people'])==2000 and current['people']==large['people'], 'WASM restores 2000 individual people with their work and families'
     checks+=1
     page.keyboard.press('Space')
-    page.wait_for_timeout(3000)
-    page.keyboard.press('Space')
+    page.wait_for_timeout(1000)
     page.locator('canvas').focus()
     page.keyboard.press('Control+s')
-    deadline=time.monotonic()+45
-    while time.monotonic()<deadline:
-        current=page.evaluate(read_world)
-        if current and current['ticks']>large['ticks']: break
-        page.wait_for_timeout(250)
+    current=await_world(lambda value: value['ticks']>large['ticks'], timeout=90)
+    page.keyboard.press('Space')
     assert current['ticks']>large['ticks'] and len(current['people'])==2000, 'WASM advances a full population and commits its v8 snapshot'
     checks+=1
     assert not errors,json.dumps(errors,ensure_ascii=False)

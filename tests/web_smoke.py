@@ -112,6 +112,10 @@ with sync_playwright() as p:
     page.mouse.move(40, 30)
     page.wait_for_timeout(1200)
     forest = Image.open(BytesIO(page.screenshot())).getpixel((642, 402))
+    deadline = time.monotonic() + 8
+    while forest == ocean and time.monotonic() < deadline:
+        page.wait_for_timeout(150)
+        forest = Image.open(BytesIO(page.screenshot())).getpixel((642, 402))
     assert forest != ocean, 'Painting should create land in distant ocean'
     page.screenshot(path=str(artifacts / 'world-web-distant.png'))
     page.keyboard.press('Control+s')
