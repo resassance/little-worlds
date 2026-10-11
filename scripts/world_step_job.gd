@@ -16,6 +16,15 @@ var navigation_job: WorldNavigationJob
 var travel_job: WorldTravelDailyJob
 var max_unit_usec := 0
 var peak_phase := ""
+var population_job: WorldPopulationRebuildJob
+var climate_job: WorldClimateStepJob
+var repair_job: WorldBuildingRepairJob
+var life_job: WorldLifeReconcileJob
+var sea_daily_job: WorldMaritimeDailyJob
+var sea_step_job: WorldMaritimeStepJob
+var fire_job: WorldFireStepJob
+var journeys: Array = []
+var construction_job: WorldConstructionPlanJob
 
 func _init(value) -> void:
 	world = value
@@ -23,10 +32,13 @@ func _init(value) -> void:
 	if not finished: world.stepping = true
 
 func advance(budget_usec: int = 4000) -> bool:
+	if budget_usec == 0 and not world.profiling:
+		while not finished: _unit(); units += 1
+		return finished
 	var deadline := Time.get_ticks_usec() + budget_usec
 	while not finished:
 		var before := Time.get_ticks_usec()
-		var label := _label()
+		var label := _label() if world.profiling else ""
 		var previous_phase := phase
 		_unit()
 		var elapsed := Time.get_ticks_usec() - before
@@ -71,17 +83,24 @@ func _next_town() -> void:
 func _unit() -> void:
 	match phase:
 		Phase.CLIMATE:
-			world.population.active = true
-			world.population.town_count = -1
-			world.population.rebuild(world)
-			world.ticks += 1
-			WorldClimate.step(world)
-			if world.ticks % WorldEconomy.DAY_TICKS == 0 and world.ticks >= world.drought_until: world.regrowth += 1
-			_next()
+			if cursor == 0:
+				world.population.active = true
+				world.population.town_count = -1
+				population_job = null if world.population.ready else WorldPopulationRebuildJob.new(world); cursor = 1
+			elif cursor == 1:
+				if population_job != null and not population_job.finished: population_job.unit(); return
+				world.ticks += 1
+				climate_job = WorldClimateStepJob.new(world); cursor = 2
+			else:
+				if not climate_job.finished: climate_job.unit(); return
+				if world.ticks % WorldEconomy.DAY_TICKS == 0 and world.ticks >= world.drought_until: world.regrowth += 1
+				_next()
 		Phase.REPAIR:
-			terrain_dirty = world._step_fire() if not world.fires.is_empty() else false
-			world._repair_buildings()
-			WorldSociety.invalidate(world)
+			if fire_job == null: fire_job = WorldFireStepJob.new(world)
+			if not fire_job.finished: fire_job.unit(); return
+			terrain_dirty = fire_job.dirty
+			if repair_job == null: repair_job = WorldBuildingRepairJob.new(world)
+			if not repair_job.finished: repair_job.unit(); return
 			_next()
 		Phase.HOMES:
 			if cursor < world.towns.size():
@@ -108,7 +127,7 @@ func _unit() -> void:
 				navigation_job = WorldNavigationJob.new(world, home); cursor += 1
 			else: navigation_job = null; _next()
 		Phase.WORKFORCE:
-			world.workforce.begin(world)
+			world.workforce.begin(world, false)
 			_next()
 		Phase.SOCIAL_TICK:
 			if cursor < world.people.size():
@@ -126,7 +145,9 @@ func _unit() -> void:
 			else: _next()
 		Phase.PLANS:
 			if world.ticks % WorldEconomy.DAY_TICKS == 0 and cursor < world.towns.size():
-				WorldEconomy.plan(world, world.towns[cursor]); cursor += 1
+				if construction_job == null: construction_job = WorldConstructionPlanJob.new(world, world.towns[cursor])
+				if not construction_job.finished: construction_job.unit()
+				else: construction_job = null; cursor += 1
 			else: _next()
 		Phase.SPOIL:
 			if world.ticks % (WorldEconomy.DAY_TICKS * 4) == 0 and cursor < world.towns.size():
@@ -138,14 +159,22 @@ func _unit() -> void:
 				WorldEconomy.step_person(world, cursor); cursor -= 1
 			else: _next()
 		Phase.TRAVEL:
-			WorldTravel.step(world)
-			WorldMaritime.step(world)
-			world.population.ready = false
-			world.workforce.plans.clear(); world.workforce.contributions.clear()
-			_next()
+			if cursor == 0: journeys = world.journeys.duplicate(); cursor = 1
+			elif cursor <= journeys.size(): WorldTravel.step_journey(world, journeys[cursor - 1]); cursor += 1
+			else:
+				if sea_step_job == null: sea_step_job = WorldMaritimeStepJob.new(world)
+				if not sea_step_job.finished: sea_step_job.unit(); return
+				if not journeys.is_empty() or not sea_step_job.ships.is_empty(): world.population.ready = false
+				population_job = null
+				world.workforce.plans.clear(); world.workforce.contributions.clear()
+				_next()
 		Phase.LIFE_REPAIR:
-			if world.life_dirty: WorldLife.reconcile(world)
-			_next()
+			if life_job == null and world.life_dirty: life_job = WorldLifeReconcileJob.new(world)
+			if life_job != null and not life_job.finished: life_job.unit(); return
+			if world.population.ready: life_job = null; population_job = null; _next(); return
+			if population_job == null: population_job = WorldPopulationRebuildJob.new(world); return
+			population_job.unit()
+			if population_job.finished: life_job = null; population_job = null; _next()
 		Phase.FOUND:
 			if world.ticks % 15 != 0 or cursor >= world.people.size():
 				navigation_job = null; _next(); return
@@ -161,8 +190,11 @@ func _unit() -> void:
 			if world.ticks % WorldEconomy.DAY_TICKS != 0:
 				phase = Phase.FINISH
 			else:
-				WorldLife.reconcile(world)
-				_next()
+				if life_job == null: life_job = WorldLifeReconcileJob.new(world)
+				if not life_job.finished: life_job.unit(); return
+				if population_job == null: population_job = WorldPopulationRebuildJob.new(world); return
+				population_job.unit()
+				if population_job.finished: life_job = null; population_job = null; _next()
 		Phase.COURT:
 			if not _members():
 				_next()
@@ -197,12 +229,16 @@ func _unit() -> void:
 				if not travel_job.finished: travel_job.unit()
 				else: cursor = 1
 			else:
-				WorldMaritime.daily(world)
-				_next()
+				if sea_daily_job == null: sea_daily_job = WorldMaritimeDailyJob.new(world)
+				if not sea_daily_job.finished: sea_daily_job.unit()
+				else: _next()
 		Phase.FINISH:
-			if world.ticks % 300 == 0: world._random_event()
+			if cursor == 0:
+				if world.ticks % 300 == 0: world._random_event()
+				population_job = null if world.population.ready else WorldPopulationRebuildJob.new(world); cursor = 1
+			if population_job != null and not population_job.finished: population_job.unit(); return
 			if terrain_dirty: world.terrain_changed.emit()
-			if world.ticks % WorldEconomy.DAY_TICKS == 0: world.regions.trim(world)
+			if world.ticks % WorldEconomy.DAY_TICKS == 0: world.regions.trim(world, WorldState.NO_CELL, 1)
 			world.workforce.end()
 			world.population.active = false
 			world.stepping = false

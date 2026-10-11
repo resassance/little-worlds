@@ -16,6 +16,7 @@ var finished := false
 var web_regions: Array[Dictionary] = []
 var web_people := PackedStringArray()
 var web_header := ""
+var header_job: WorldSaveHeaderJob
 
 func _init(value: WorldState, destination: String = SaveStore.SAVE_PATH) -> void:
 	world = value
@@ -70,18 +71,18 @@ func _unit() -> void:
 			used[name_value] = true
 			cursor += 1
 		1:
-			var data := world.to_dict(false, false)
-			data.erase("chunks"); data.erase("people")
-			data.regions = references
+			if header_job == null: header_job = WorldSaveHeaderJob.new(world, references)
+			if not header_job.finished: header_job.unit(); return
 			file = FileAccess.open(path + ".tmp", FileAccess.WRITE)
 			if file == null: _fail(FileAccess.get_open_error()); return
-			var header := JSON.stringify(data)
+			var header := header_job.result
 			file.store_string(header.left(header.length() - 1) + ',"people":[')
+			header_job = null
 			phase = 2
 		2:
 			if cursor < world.people.size():
 				if cursor > 0: file.store_string(",")
-				file.store_string(JSON.stringify(world.people[cursor]))
+				file.store_string(JSON.stringify(world.people[cursor], "", true, true))
 				cursor += 1
 			else:
 				file.store_string("]}")
@@ -118,14 +119,14 @@ func _unit_web() -> void:
 			used[name_value] = true
 			cursor += 1
 		1:
-			var data := world.to_dict(false,false)
-			data.erase("chunks"); data.erase("people")
-			data.regions = references
-			web_header = JSON.stringify(data)
+			if header_job == null: header_job = WorldSaveHeaderJob.new(world, references)
+			if not header_job.finished: header_job.unit(); return
+			web_header = header_job.result
+			header_job = null
 			phase = 2
 		2:
 			if cursor < world.people.size():
-				web_people.append(JSON.stringify(world.people[cursor])); cursor += 1
+				web_people.append(JSON.stringify(world.people[cursor], "", true, true)); cursor += 1
 			else: cursor = 0; phase = 3
 		3:
 			if cursor >= web_regions.size(): phase = 4; return

@@ -155,68 +155,57 @@ static func choose_guardian(world, child: Dictionary) -> int:
 	return best
 
 static func reconcile(world) -> void:
-	world.life_dirty = false
-	for member in world.people:
-		var family := household(world, member.household)
-		if family.is_empty():
-			if not adult(world, member):
-				var guardian := person(world, member.guardian)
-				if guardian.is_empty() or guardian.home != member.home: member.guardian = choose_guardian(world, member)
-				guardian = person(world, member.guardian)
-				if not guardian.is_empty(): family = household(world, guardian.household)
-			if family.is_empty(): family = new_household(world, member)
-			elif member.household != family.id: join(world, member, family)
-		elif family.town != member.home:
+	var job := WorldLifeReconcileJob.new(world)
+	while not job.finished: job.unit()
 
-			if family.members.size() == 1:
-				family.town = member.home
-				family.dwelling = -1
-			else: new_household(world, member)
-		if adult(world, member):
-			member.guardian = -1
-			if member.job in ["child", "teen"]: member.job = "settler"
-		else:
+static func reconcile_member(world, member: Dictionary) -> void:
+	var family := household(world, member.household)
+	if family.is_empty():
+		if not adult(world, member):
 			var guardian := person(world, member.guardian)
-			if guardian.is_empty() or not adult(world, guardian) or guardian.home != member.home:
-				member.guardian = choose_guardian(world, member)
-				guardian = person(world, member.guardian)
-				if not guardian.is_empty():
-					var adopted := household(world, guardian.household)
-					if not adopted.is_empty(): join(world, member, adopted)
-					world.log_event("Опека", "%s: заботу принял%s %s." % [member.name, "а" if guardian.sex == "female" else "", guardian.name])
+			if guardian.is_empty() or guardian.home != member.home: member.guardian = choose_guardian(world, member)
+			guardian = person(world, member.guardian)
+			if not guardian.is_empty(): family = household(world, guardian.household)
+		if family.is_empty(): family = new_household(world, member)
+		elif member.household != family.id: join(world, member, family)
+	elif family.town != member.home:
 
+		if family.members.size() == 1:
+			family.town = member.home
+			family.dwelling = -1
+		else: new_household(world, member)
+	if adult(world, member):
+		member.guardian = -1
+		if member.job in ["child", "teen"]: member.job = "settler"
+	else:
+		var guardian := person(world, member.guardian)
+		if guardian.is_empty() or not adult(world, guardian) or guardian.home != member.home:
+			member.guardian = choose_guardian(world, member)
+			guardian = person(world, member.guardian)
+			if not guardian.is_empty():
+				var adopted := household(world, guardian.household)
+				if not adopted.is_empty(): join(world, member, adopted)
+				world.log_event("Опека", "%s: заботу принял%s %s." % [member.name, "а" if guardian.sex == "female" else "", guardian.name])
 
-	for member in world.people:
-		var mate := person(world, member.partner)
-		if mate.is_empty() or mate.home != member.home or mate.household == member.household: continue
-		var family := household(world, member.household)
-		if family.is_empty(): continue
-		join(world, mate, family)
-		for child in world.people:
-			if child.guardian in [member.id, mate.id] and child.home == member.home and not adult(world, child): join(world, child, family)
-	clean_households(world)
-	world.population.begin_settlement(world)
-	for value in world.households: settle(world, value)
-	world.population.end_settlement()
-	world.population.ready = false
-	for member in world.people:
-		var mate := person(world, member.partner)
-		if member.partner != -1 and (mate.is_empty() or member.home != mate.home):
-			if not mate.is_empty():
-				mate.partner = -1
-				mate.birth_due = -1
-			member.partner = -1
-			member.birth_due = -1
-		var courting := person(world, member.courting)
-		if member.courting != -1 and (courting.is_empty() or member.home != courting.home):
-			if not courting.is_empty():
-				courting.courting = -1
-				courting.bond = 0
-			member.courting = -1
-			member.bond = 0
-		if member.task.get("kind", "") == "care":
-			var child := person(world, member.task.dependent)
-			if child.is_empty() or child.guardian != member.id or adult(world, child): WorldEconomy.set_task(world, member, {})
+static func reconcile_links(world, member: Dictionary) -> void:
+	var mate := person(world, member.partner)
+	if member.partner != -1 and (mate.is_empty() or member.home != mate.home):
+		if not mate.is_empty():
+			mate.partner = -1
+			mate.birth_due = -1
+		member.partner = -1
+		member.birth_due = -1
+	var courting := person(world, member.courting)
+	if member.courting != -1 and (courting.is_empty() or member.home != courting.home):
+		if not courting.is_empty():
+			courting.courting = -1
+			courting.bond = 0
+		member.courting = -1
+		member.bond = 0
+	if member.task.get("kind", "") == "care":
+		var child := person(world, member.task.dependent)
+		if child.is_empty() or child.guardian != member.id or adult(world, child): WorldEconomy.set_task(world, member, {})
+
 
 static func partner_valid(world, a: Dictionary, b: Dictionary) -> bool:
 	return not b.is_empty() and adult(world, a) and adult(world, b) and a.home == b.home and a.sex != b.sex and not related(a, b)

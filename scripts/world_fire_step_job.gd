@@ -1,0 +1,33 @@
+class_name WorldFireStepJob
+extends RefCounted
+
+var world
+var keys: Array
+var spreading: Array[Vector2i] = []
+var cursor := 0
+var dirty := false
+var finished := false
+
+func _init(value) -> void:
+	world = value
+	keys = world.fires.keys()
+
+func unit() -> void:
+	if finished: return
+	if cursor >= keys.size():
+		for cell in spreading: world.fires[cell] = 24
+		finished = true
+		return
+	var cell: Vector2i = keys[cursor]; cursor += 1
+	world.fires[cell] -= 1
+	world._set_food(cell, 0)
+	if world.fires[cell] <= 0:
+		world.fires.erase(cell)
+		if world.terrain_at(cell) == WorldState.Terrain.FOREST:
+			world._set_terrain(cell, WorldState.Terrain.GRASS)
+			world._set_food(cell, 0)
+			dirty = true
+		return
+	if world.ticks < world.wet_until or world.rng.randf() > 0.12: return
+	var target: Vector2i = cell + WorldState.DIRECTIONS[world.rng.randi_range(0, 3)]
+	if world.inside(target) and world.terrain_at(target) in [WorldState.Terrain.GRASS, WorldState.Terrain.FOREST] and not world.fires.has(target): spreading.append(target)

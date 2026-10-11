@@ -54,31 +54,24 @@ static func paint(world, center: Vector2i, radius: int, value: int) -> bool:
 	return true
 
 static func configure(world, mode: String, value: int, equator: int, scale: int, seasons: bool) -> void:
-	if mode not in ["uniform", "belts", "manual"] or value < 0 or value >= NAMES.size(): return
-	for key in world.region_keys(): world._grow(world.regions.get_region(world, key))
-	world.climate = {"mode": mode, "biome": value, "equator": clampi(equator, -999999, 999999), "scale": clampi(scale, 32, 1000000), "seasons": seasons, "forest_regrowth": bool(world.climate.forest_regrowth)}
-	world.revision += 1
-	for key in world.region_keys(): world.revisions[key] = world.revision
-	world.terrain_changed.emit()
-	world.changed.emit()
+	var job := WorldClimateConfigureJob.new(world, mode, value, equator, scale, seasons)
+	job.advance(0)
 
 static func step(world) -> void:
-	if world.climate.seasons and world.ticks%(WorldLife.YEAR/4)==0:
-		world.revision+=1
-		for key in world.region_keys(): world.revisions[key]=world.revision
-		world.terrain_changed.emit()
-	if world.ticks % WorldEconomy.DAY_TICKS != 0 or not world.climate.forest_regrowth: return
-	for cell in world.stumps.keys():
-		if world.ticks - int(world.stumps[cell]) < WorldLife.YEAR * 2: continue
-		if world.terrain_at(cell) != WorldState.Terrain.GRASS:
-			world.stumps.erase(cell)
-			continue
-		if biome(world, cell) in [1, 4, 5] or world.fires.has(cell) or not world.building_at(cell).is_empty(): continue
-		var food: int = world.food_at(cell)
-		world._set_terrain(cell, WorldState.Terrain.FOREST)
-		world._set_food(cell, food)
+	var job := WorldClimateStepJob.new(world)
+	while not job.finished: job.unit()
+
+static func regrow(world, cell: Vector2i) -> bool:
+	if world.ticks - int(world.stumps[cell]) < WorldLife.YEAR * 2: return false
+	if world.terrain_at(cell) != WorldState.Terrain.GRASS:
 		world.stumps.erase(cell)
-		world.terrain_changed.emit()
+		return false
+	if biome(world, cell) in [1, 4, 5] or world.fires.has(cell) or not world.building_at(cell).is_empty(): return false
+	var food: int = world.food_at(cell)
+	world._set_terrain(cell, WorldState.Terrain.FOREST)
+	world._set_food(cell, food)
+	world.stumps.erase(cell)
+	return true
 
 static func describe(world, cell: Vector2i) -> String:
 	return "Климат: %s%s" % [NAMES[biome(world, cell)], " · " + ["весна", "лето", "осень", "зима"][season(world)] if world.climate.seasons else ""]

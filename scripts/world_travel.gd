@@ -113,51 +113,54 @@ static func finish(world, journey: Dictionary, home: Dictionary) -> void:
 	world.journeys.erase(journey)
 
 static func step(world) -> void:
-	for journey in world.journeys.duplicate():
-		if journey.phase == "unload":
-			finish(world, journey, WorldEconomy.town(world, journey.target if journey.purpose == "migrate" else journey.home))
-			continue
-		if journey.crew.is_empty():
-			finish(world, journey, {})
-			continue
-		if journey.phase == "boarding":
-			var ready := true
-			for id in journey.crew:
-				var member := WorldLife.person(world, id)
-				if Vector2i(member.x, member.y) != Vector2i(journey.route[0][0], journey.route[0][1]): ready = false
-			if ready: journey.phase = "outbound"
-			continue
-		var direction := -1 if journey.phase == "returning" else 1
-		var next: int = int(journey.progress) + direction
-		var point := Vector2i(journey.route[next][0], journey.route[next][1])
-		if not world.walkable(point) or world.fires.has(point):
+	for journey in world.journeys.duplicate(): step_journey(world, journey)
 
-			finish(world, journey, {})
-			world.log_event("Путь прерван", "Караван остановился: дорога стала недоступна.")
-			continue
-		journey.progress = next
+static func step_journey(world, journey: Dictionary) -> void:
+	if journey.phase == "unload":
+		finish(world, journey, WorldEconomy.town(world, journey.target if journey.purpose == "migrate" else journey.home))
+		return
+	if journey.crew.is_empty():
+		finish(world, journey, {})
+		return
+	if journey.phase == "boarding":
+		var ready := true
 		for id in journey.crew:
 			var member := WorldLife.person(world, id)
-			member.x = point.x
-			member.y = point.y
-		if journey.phase == "returning" and next == 0:
-			finish(world, journey, WorldEconomy.town(world, journey.home))
-		elif journey.phase == "outbound" and next == journey.route.size() - 1:
-			var home := WorldEconomy.town(world, journey.home)
-			var target := WorldEconomy.town(world, journey.target)
-			if not target.is_empty():
-				WorldMaritime.meet(world, home, target, journey.crew)
-				if journey.purpose == "trade" and journey.cargo > 0 and target.food >= journey.cargo * 2 + 12:
-					var stock: Dictionary = WorldCivilization.ensure(world, target).stock
-					if stock[journey.cargo_kind] + journey.cargo <= WorldCivilization.CAPACITY:
-						stock[journey.cargo_kind] += journey.cargo
-						target.food -= journey.cargo * 2
-						journey.cargo *= 2
-						journey.cargo_kind = "food"
-			if journey.purpose == "migrate":
-				finish(world, journey, target)
-				world.log_event("Новый дом", "Переселенцы добрались до нового поселения. Возраст, родство и навыки сохранены.")
-			else: journey.phase = "returning"
+			if Vector2i(member.x, member.y) != Vector2i(journey.route[0][0], journey.route[0][1]): ready = false
+		if ready: journey.phase = "outbound"
+		return
+	var direction := -1 if journey.phase == "returning" else 1
+	var next: int = int(journey.progress) + direction
+	var point := Vector2i(journey.route[next][0], journey.route[next][1])
+	if not world.walkable(point) or world.fires.has(point):
+
+		finish(world, journey, {})
+		world.log_event("Путь прерван", "Караван остановился: дорога стала недоступна.")
+		return
+	journey.progress = next
+	for id in journey.crew:
+		var member := WorldLife.person(world, id)
+		member.x = point.x
+		member.y = point.y
+	if journey.phase == "returning" and next == 0:
+		finish(world, journey, WorldEconomy.town(world, journey.home))
+	elif journey.phase == "outbound" and next == journey.route.size() - 1:
+		var home := WorldEconomy.town(world, journey.home)
+		var target := WorldEconomy.town(world, journey.target)
+		if not target.is_empty():
+			WorldMaritime.meet(world, home, target, journey.crew)
+			if journey.purpose == "trade" and journey.cargo > 0 and target.food >= journey.cargo * 2 + 12:
+				var stock: Dictionary = WorldCivilization.ensure(world, target).stock
+				if stock[journey.cargo_kind] + journey.cargo <= WorldCivilization.CAPACITY:
+					stock[journey.cargo_kind] += journey.cargo
+					target.food -= journey.cargo * 2
+					journey.cargo *= 2
+					journey.cargo_kind = "food"
+		if journey.purpose == "migrate":
+			finish(world, journey, target)
+			world.log_event("Новый дом", "Переселенцы добрались до нового поселения. Возраст, родство и навыки сохранены.")
+		else: journey.phase = "returning"
+
 
 static func daily(world) -> void:
 	var job := WorldTravelDailyJob.new(world)

@@ -84,11 +84,14 @@ var ui_scale_picker: OptionButton
 var safe_rect := Rect2()
 var step_job: WorldStepJob
 var pending_actions: Array[Callable] = []
+var pending_inspection := WorldState.NO_CELL
+var pending_inspection_cycles := 0
 var inspector_dirty := true
 var inspector_timer := 0.0
 var inspector_updates := 0
 var save_job: WorldSaveJob
 var save_automatic := false
+var climate_update_job: WorldClimateConfigureJob
 
 func _ready() -> void:
 	get_window().content_scale_size = Vector2i.ZERO
@@ -195,7 +198,7 @@ func _screen_rect() -> Rect2:
 	return area.grow(-12.0 if touch_ui else -16.0)
 
 func _at_boundary(action: Callable) -> void:
-	if world.stepping or save_job != null: pending_actions.append(action)
+	if world.stepping or save_job != null or climate_update_job != null: pending_actions.append(action)
 	else: action.call()
 
 func _style(color: Color, border: Color = Color.TRANSPARENT, radius: int = 8) -> StyleBoxFlat:
@@ -356,7 +359,7 @@ func _build_ui() -> void:
 	var day_panel := PanelContainer.new()
 	day_panel.add_theme_stylebox_override("panel", _style(Color("252934"), Color("51464b"), 6))
 	top_time.add_child(day_panel)
-	day_label = _label("День 1", 12, ACCENT)
+	day_label = _label("Месяц 1", 12, ACCENT)
 	day_panel.add_child(day_label)
 	pause_button = _button("", _toggle_pause, Vector2(44, 44))
 	pause_button.icon = PixelArt.icon("pause")
@@ -774,6 +777,7 @@ func _set_world(value: WorldState) -> void:
 	view.set_world(world)
 	seed_input.text = str(world.world_seed)
 	selected_cell = WorldState.NO_CELL
+	pending_inspection = WorldState.NO_CELL; pending_inspection_cycles = 0
 	inspected_person_id = -1
 	inspector_label.text = "Выберите клетку, чтобы узнать о её ресурсах и поселении."
 	accumulator = 0.0
@@ -819,6 +823,13 @@ func _cycle_speed() -> void:
 func _process(delta: float) -> void:
 	if world == null: return
 	inspector_timer += delta
+	if climate_update_job != null:
+		if climate_update_job.advance(2000):
+			climate_update_job = null; view.edits_locked = false
+			show_message("Климат обновлён. Поселения приспосабливаются к новым условиям.")
+		else:
+			status_label.text = "Климат · %d%%" % (climate_update_job.cursor * 100 / maxi(1, climate_update_job.keys.size()))
+			status_panel.show()
 	if save_job != null:
 		if save_job.advance(2500):
 			var result := save_job.result
@@ -828,20 +839,25 @@ func _process(delta: float) -> void:
 			elif not save_automatic: show_message("Мир сохранён на этом устройстве.")
 	if step_job != null:
 		if step_job.advance(4000): step_job = null
-	if step_job == null and save_job == null:
+	if step_job == null and save_job == null and climate_update_job == null:
 		view.flush_tools()
-		while not pending_actions.is_empty() and save_job == null:
+		while not pending_actions.is_empty() and save_job == null and climate_update_job == null:
 			var action: Callable = pending_actions.pop_front()
 			action.call()
+		if pending_inspection != WorldState.NO_CELL and save_job == null and climate_update_job == null:
+			var cell := pending_inspection
+			var cycles := pending_inspection_cycles
+			pending_inspection = WorldState.NO_CELL; pending_inspection_cycles = 0
+			_inspect(cell, true, false, cycles)
 		if inspector_dirty and info_open and not hud_hidden and save_job == null and inspector_timer >= 0.25:
 			_refresh_inspector()
-	if sculpt != null and step_job == null and save_job == null:
+	if sculpt != null and step_job == null and save_job == null and climate_update_job == null:
 		sculpt.advance()
 		status_label.text="Создание материка · %d%%" % (sculpt.cursor*100/maxi(1,sculpt.total))
 		status_panel.show()
 		if sculpt.finished:
 			sculpt_stop.hide(); sculpt=null; show_message("Создание суши завершено. Можно поселить жителей.")
-	var running := not paused and not suspended and not _modal_open() and sculpt == null
+	var running := not paused and not suspended and not _modal_open() and sculpt == null and climate_update_job == null
 	platform.gameplay(running)
 	if running and save_job == null:
 		accumulator = minf(0.4, accumulator + minf(delta, 0.25) * speed)
@@ -849,7 +865,7 @@ func _process(delta: float) -> void:
 			accumulator -= 0.2
 			step_job = WorldStepJob.new(world)
 	autosave_timer += delta
-	if preferences.autosave and autosave_timer >= 60.0 and not suspended and sculpt == null and save_job == null:
+	if preferences.autosave and autosave_timer >= 60.0 and not suspended and sculpt == null and save_job == null and climate_update_job == null:
 		autosave_timer = 0.0
 		_save(true)
 	if message_time > 0:
@@ -859,7 +875,7 @@ func _process(delta: float) -> void:
 func _refresh() -> void:
 	stats_label.text = "%d жителей · %d поселений\n%s" % [world.people.size(), world.towns.size(),
 		"%d очагов огня" % world.fires.size() if not world.fires.is_empty() else ("Засуха" if world.ticks < world.drought_until else "Остров спокоен")]
-	day_label.text = "Год %d · день %d" % [world.year(), (world.day() - 1) % WorldEconomy.DAYS_PER_YEAR + 1]
+	day_label.text = "Год %d · месяц %d" % [world.year(), (world.month() - 1) % WorldEconomy.DAYS_PER_YEAR + 1]
 	inspector_dirty = true
 	if inspected_person_id != -1:
 		var person := WorldLife.person(world, inspected_person_id)
@@ -882,7 +898,7 @@ func _refresh_inspector() -> void:
 			var entry := VBoxContainer.new()
 			entry.add_theme_constant_override("separation", 4)
 			history_box.add_child(entry)
-			entry.add_child(_label("ДЕНЬ %d" % (int(event.tick) / 20 + 1), 10, ACCENT))
+			entry.add_child(_label("ГОД %d · МЕСЯЦ %d" % [int(event.tick) / WorldLife.YEAR + 1, (int(event.tick) / WorldEconomy.DAY_TICKS) % WorldEconomy.DAYS_PER_YEAR + 1], 10, ACCENT))
 			var title := _label(event.title, 13)
 			title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			entry.add_child(title)
@@ -892,23 +908,25 @@ func _refresh_inspector() -> void:
 
 func _request_inspection(cell: Vector2i) -> void:
 	if not hud_hidden: _set_drawer("info", true)
-	pending_actions.append(func(): _inspect(cell,true,false))
+	pending_inspection_cycles = pending_inspection_cycles + 1 if pending_inspection == cell else 1
+	pending_inspection = cell
 
-func _inspect(cell: Vector2i, reveal: bool = true, open_panel: bool = true) -> void:
+func _inspect(cell: Vector2i, reveal: bool = true, open_panel: bool = true, cycles: int = 1) -> void:
 	var person: Dictionary = {}
 	var structure := world.building_at(cell)
 	if reveal:
 		var repeated_cell := selected_cell == cell
 		var previous_person_id := inspected_person_id if selected_cell == cell else -1
 		inspected_person_id = -1
-		if structure.is_empty() or structure.kind != "camp" or repeated_cell:
+		if structure.is_empty() or structure.kind != "camp" or repeated_cell or cycles > 1:
 			var occupants: Array[Dictionary] = []
-			for candidate in world.people:
-				if Vector2i(candidate.x, candidate.y) == cell: occupants.append(candidate)
+			occupants = world.population.nearby(world, cell, 0)
 			if not occupants.is_empty():
-				var next := 0
+				var camp: bool = not structure.is_empty() and structure.kind == "camp"
+				var slots := occupants.size() + (1 if camp else 0)
+				var next := posmod(cycles - (2 if camp and not repeated_cell else 1), slots)
 				for i in occupants.size():
-					if occupants[i].id == previous_person_id: next = (i + 1) % (occupants.size() + (1 if not structure.is_empty() and structure.kind == "camp" else 0))
+					if occupants[i].id == previous_person_id: next = (i + cycles) % slots
 				if next < occupants.size():
 					person = occupants[next]
 					inspected_person_id = person.id
@@ -923,9 +941,7 @@ func _inspect(cell: Vector2i, reveal: bool = true, open_panel: bool = true) -> v
 	if not open_panel and (not info_open or hud_hidden):
 		inspector_dirty = true
 		return
-	world.population.active = true
-	world.population.rebuild(world)
-	world.workforce.begin(world)
+	world.workforce.begin(world, false)
 	var text_value := "%s · %d, %d\nЕда: %d · Древесина: %d" % [WorldState.TERRAIN_NAMES[world.terrain_at(cell)], cell.x, cell.y, world.food_at(cell), world.wood_at(cell)]
 	if not person.is_empty():
 		var activity: String = WorldEconomy.describe(person) if WorldLife.adult(world, person) else ("Под присмотром опекуна" if person.guardian != -1 else "Нуждается в опекуне")
@@ -944,7 +960,7 @@ func _inspect(cell: Vector2i, reveal: bool = true, open_panel: bool = true) -> v
 					nearest = home
 					distance = gap
 		if not nearest.is_empty():
-			text_value = "%s\n%d жителей · %d мест\nЕда: %d/%d · %.1f дней\nДревесина: %d/%d\nДома: %d · Поля: %d · Склады: %d\n\n%s" % [nearest.name, WorldEconomy.members(world, nearest).size(), WorldEconomy.housing(world, nearest), nearest.food, WorldEconomy.food_capacity(world, nearest), WorldEconomy.food_days(world, nearest), nearest.wood, WorldEconomy.wood_capacity(world, nearest), WorldEconomy.count(world, nearest, "house"), WorldEconomy.count(world, nearest, "farm"), WorldEconomy.count(world, nearest, "store"), WorldEconomy.status(world, nearest)]
+			text_value = "%s\n%d жителей · %d мест\nЕда: %d/%d · %.1f мес.\nДревесина: %d/%d\nДома: %d · Поля: %d · Склады: %d\n\n%s" % [nearest.name, WorldEconomy.members(world, nearest).size(), WorldEconomy.housing(world, nearest), nearest.food, WorldEconomy.food_capacity(world, nearest), WorldEconomy.food_days(world, nearest), nearest.wood, WorldEconomy.wood_capacity(world, nearest), WorldEconomy.count(world, nearest, "house"), WorldEconomy.count(world, nearest, "farm"), WorldEconomy.count(world, nearest, "store"), WorldEconomy.status(world, nearest)]
 			text_value += WorldSociety.description(world, nearest)
 			text_value += WorldCivilization.description(world, nearest)
 			text_value += WorldMaritime.description(world, nearest)
@@ -1112,10 +1128,11 @@ func _begin_sculpt() -> void:
 
 func _apply_climate() -> void:
 	climate_scale.apply(); climate_equator.apply()
-	WorldClimate.configure(world,["uniform","belts","manual"][climate_mode.selected],climate_biome.selected,int(climate_equator.value),int(climate_scale.value),climate_seasons.button_pressed)
-	show_message("Климат обновлён. Поселения приспосабливаются к новым условиям.")
+	climate_update_job = WorldClimateConfigureJob.new(world,["uniform","belts","manual"][climate_mode.selected],climate_biome.selected,int(climate_equator.value),int(climate_scale.value),climate_seasons.button_pressed)
+	view.edits_locked = true
 
 func _finish_work() -> void:
+	if climate_update_job != null: climate_update_job.advance(0); climate_update_job = null; view.edits_locked = false
 	if step_job != null: step_job.advance(0); step_job = null
 	if save_job != null: save_job.finish(); save_job = null; view.edits_locked = false
 	view.flush_tools(0)

@@ -48,7 +48,7 @@ static func save_world(world: WorldState, path: String = SAVE_PATH) -> Error:
 		used[name_value] = true
 	data.erase("chunks")
 	data.regions = regions
-	error = _write_atomic(path, JSON.stringify(data))
+	error = _write_atomic(path, JSON.stringify(data, "", true, true))
 	if error != OK: return error
 
 	var folder := DirAccess.open(directory)

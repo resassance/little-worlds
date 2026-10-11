@@ -57,6 +57,26 @@ func run() -> void:
 	game._set_drawer("info",false,false)
 	game._process(.016)
 	check(not game.info_open, "closing drawer cancels deferred reopening")
+	var occupants := world.population.nearby(world, cell, 0)
+	if occupants.is_empty():
+		var member: Dictionary = world.people[0]
+		var old_cell := Vector2i(member.x, member.y)
+		member.x = cell.x; member.y = cell.y
+		world.track_person_move(member, old_cell)
+		occupants = world.population.nearby(world, cell, 0)
+	game.selected_cell = WorldState.NO_CELL; game.inspected_person_id = -1
+	game._request_inspection(cell); game._process(.016)
+	check(game.inspected_person_id == -1, "first camp tap selects the settlement")
+	game._request_inspection(cell); game._process(.016)
+	check(game.inspected_person_id == occupants[0].id, "second camp tap selects its first actual occupant")
+	for i in occupants.size(): game._request_inspection(cell)
+	check(game.pending_actions.is_empty(), "rapid camp taps do not accumulate individual inspector actions")
+	game._process(.016)
+	check(game.inspected_person_id == -1, "coalesced taps preserve cycling through every occupant and the camp")
+	var latest := cell + Vector2i(4, 0)
+	for i in 100: game._request_inspection(cell + Vector2i(i % 5, 0))
+	game._process(.016)
+	check(game.selected_cell == latest and game.pending_inspection == WorldState.NO_CELL, "rapid taps inspect only the latest requested cell")
 	durations.sort()
 	print("Interactive 2000 residents: %d completed ticks, script p95 %.2f ms, max %.2f ms" % [world.ticks-before,durations[int(durations.size()*.95)]/1000.0,maximum/1000.0])
 	print("Mobile responsiveness: %d checks, %d failures" % [checks,failures])

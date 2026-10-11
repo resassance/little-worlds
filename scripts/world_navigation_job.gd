@@ -21,7 +21,7 @@ func _init(value, settlement: Dictionary) -> void:
 		var wood: Array[Vector2i] = []
 		var quarries: Array[Dictionary] = []
 		var coasts: Array[Dictionary] = []
-		result = {"parents":{origin:origin},"distances":{origin:0},"cells":cells,"food":food,"wood":wood,"quarries":quarries,"coasts":coasts,"routes":{}}
+		result = {"parents":{origin:origin},"distances":{origin:0},"cells":cells,"food":food,"wood":wood,"quarries":quarries,"coasts":coasts,"routes":{},"order":{origin:0}}
 
 func advance(budget_usec: int = 1000) -> bool:
 	var deadline := Time.get_ticks_usec() + budget_usec
@@ -49,4 +49,5 @@ func unit() -> void:
 		if ground in [WorldState.Terrain.WATER,WorldState.Terrain.MOUNTAIN] or not world.inside(other): continue
 		result.parents[other] = cell
 		result.distances[other] = int(result.distances[cell]) + 1
+		result.order[other] = result.cells.size()
 		result.cells.append(other)

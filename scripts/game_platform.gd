@@ -54,7 +54,7 @@ func save_cloud(world: WorldState) -> void:
 		message.emit("Облачное сохранение доступно при запуске в Яндекс Играх."); return
 	var data:=world.to_dict()
 	if data.is_empty(): message.emit("Не удалось прочитать карту для облака."); return
-	var raw:=JSON.stringify(data).to_utf8_buffer()
+	var raw:=JSON.stringify(data,"",true,true).to_utf8_buffer()
 	if raw.size()>SaveStore.MAX_SAVE_BYTES:
 		message.emit("Мир превышает размер облачного снимка. Локальное сохранение доступно."); return
 	var encoded:=Marshalls.raw_to_base64(raw.compress(FileAccess.COMPRESSION_GZIP))

@@ -25,25 +25,11 @@ static func bucket(cell: Vector2i) -> Vector2i:
 	return Vector2i(floori(float(cell.x) / CELL_SIZE), floori(float(cell.y) / CELL_SIZE))
 
 func rebuild(world) -> void:
-	cells.clear(); locations.clear(); order.clear(); dependents.clear()
-	monotonic_ids = true
-	var previous_id := -1
-	for i in world.people.size():
-		var member: Dictionary = world.people[i]
-		if member.id <= previous_id: monotonic_ids = false
-		previous_id = int(member.id)
-		var key := bucket(Vector2i(member.x, member.y))
-		if not cells.has(key): cells[key] = []
-		cells[key].append(int(member.id))
-		locations[member.id] = key
-		order[member.id] = i
-		if member.guardian != -1:
-			if not dependents.has(member.guardian): dependents[member.guardian] = []
-			dependents[member.guardian].append(int(member.id))
-	ready = true
+	var job := WorldPopulationRebuildJob.new(world)
+	while not job.finished: job.unit()
 
 func moved(world, member: Dictionary) -> void:
-	if not active or not ready: return
+	if not ready: return
 	var key := bucket(Vector2i(member.x, member.y))
 	var previous: Vector2i = locations.get(member.id, key)
 	if previous == key: return
@@ -63,7 +49,7 @@ func moved(world, member: Dictionary) -> void:
 func nearby(world, center: Vector2i, radius_squared: int, home: Variant = null, options: Dictionary = {}) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	var limit: int = int(options.get("limit", 0))
-	if not active:
+	if not active and not ready:
 		for member in world.people:
 			if home != null and member.home != home: continue
 			if not accepts(world, member, options): continue
@@ -110,7 +96,7 @@ static func accepts(world, member: Dictionary, options: Dictionary) -> bool:
 
 func children(world, guardian: Dictionary) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
-	if not active:
+	if not active and not ready:
 		for member in world.people:
 			if member.guardian == guardian.id and member.home == guardian.home: result.append(member)
 		return result

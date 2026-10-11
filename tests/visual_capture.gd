@@ -85,7 +85,7 @@ func capture() -> void:
  check(game.inspector_label.text.contains(demo.towns[0].name), "inspection displays town details")
  await snapshot("world-info")
  check(game.info_open, "inspection reveals info drawer")
- check(game.inspector_label.text.contains("Дома:") and game.inspector_label.text.contains("дней"), "town inspection shows real buildings and food runway")
+ check(game.inspector_label.text.contains("Дома:") and game.inspector_label.text.contains("мес."), "town inspection shows real buildings and food runway")
  game.view.go_to_cell(Vector2i(demo.towns[0].x, demo.towns[0].y))
  game.view.zoom_by(3.0 / game.view.zoom)
  await snapshot("world-economy")
@@ -299,6 +299,7 @@ func capture() -> void:
  check(game.climate_dialog.size.y < root.size.y - 60,"climate dialog fits short phone screen")
  game.climate_mode.selected=1; game.climate_scale.value=1024; game.climate_seasons.button_pressed=true
  game.climate_dialog.confirmed.emit(); game.climate_dialog.hide()
+ while game.climate_update_job != null: await process_frame
  check(game.world.climate.mode=="belts" and game.world.climate.seasons,"climate dialog changes real simulation settings")
  game._select_tool("biome_5")
  game.view.apply_tool(Vector2i(home.x,home.y))

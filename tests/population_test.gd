@@ -48,6 +48,7 @@ func run() -> void:
 	world.population.active = true
 	check(ids(world.population.nearby(world, center, 100, home.id, options)) == bounded, "bounded contact queries preserve the same first three eligible people")
 	world.people.reverse()
+	world.population.ready = false
 	world.population.active = false
 	bounded = ids(world.population.nearby(world, center, 100, home.id, options))
 	world.population.active = true; world.population.rebuild(world)
@@ -97,6 +98,17 @@ func run() -> void:
 	check(WorldEconomy.in_transit(world, supplied.id) == 0, "interruption releases the construction reservation")
 	worker.cargo = 0; worker.cargo_kind = ""
 	check(WorldEconomy.count(world, home, "house", false) == 1, "new construction immediately joins the shared building index")
+	var other_home := {"id": world.next_id, "x": center.x, "y": center.y, "food": 24, "wood": 24, "level": 1}
+	world.next_id += 1; world.towns.append(other_home)
+	var other_plan := world.workforce.context(world, other_home)
+	var original_count: int = plan.population
+	var original_need: float = plan.warm_need + plan.cold_need
+	WorldEconomy.set_home(world, worker, other_home.id)
+	check(not WorldEconomy.members(world, home).has(worker) and WorldEconomy.members(world, other_home) == [worker], "rehoming updates both membership lists without a global rebuild")
+	check(plan.population == original_count - 1 and other_plan.population == 1, "rehoming updates both shared adult counts")
+	check(is_equal_approx(plan.warm_need + plan.cold_need + other_plan.warm_need + other_plan.cold_need, original_need), "rehoming preserves total individual food demand")
+	WorldEconomy.set_home(world, worker, home.id)
+	check(WorldEconomy.members(world, home)[0].id == worker.id and other_plan.population == 0, "returning a resident preserves global order and removes the old contribution")
 	world.workforce.end(); world.population.active = false
 	WorldLife.reconcile(world)
 	var saved := JSON.stringify(world.to_dict())

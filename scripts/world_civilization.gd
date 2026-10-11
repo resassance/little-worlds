@@ -85,7 +85,7 @@ static func assign(world, member: Dictionary, home: Dictionary) -> bool:
 	for key in RECIPES:
 		var recipe: Dictionary = RECIPES[key]
 		if data.stock[key] >= (8 if key == "tools" else 12) or not WorldSociety.active(world, home, recipe.tech) or not inputs_available(world, home, recipe.inputs): continue
-		for building in world.buildings:
+		for building in world.workforce.buildings(world, home):
 			if building.town != home.id or not building.ready or building.kind != recipe.building: continue
 			if world.claims.has("manufacture:%d" % building.id): continue
 			WorldEconomy.set_task(world, member, WorldEconomy.task("manufacture", Vector2i(building.x, building.y), building.id))
@@ -169,18 +169,8 @@ static func execute(world, member: Dictionary, home: Dictionary) -> bool:
 	return true
 
 static func plan(world, home: Dictionary) -> void:
-	var options := ["dock", "kiln", "loom", "forge", "market", "school", "council", "port"]
-	var ship_kind := "sailboat" if WorldSociety.mastered(world, home, "sailing") else "boat"
-	if (WorldSociety.mastered(world, home, "navigation") or WorldSociety.mastered(world, home, "sailing")) and WorldEconomy.count(world, home, ship_kind, false) == 0:
-		options.push_front(ship_kind)
-	for kind in options:
-		if not WorldDevelopment.construction_ready(world, home, kind) or WorldEconomy.count(world, home, kind, false) > 0: continue
-		if not inputs_available(world, home, EXTRA.get(kind, {})) or WorldEconomy.available_wood(world, home) < int(WorldEconomy.COST[kind]): continue
-		var cell := WorldEconomy.site(world, home, kind)
-		if cell == WorldState.NO_CELL: continue
-		WorldEconomy.add_building(world, home, kind, cell)
-		world.log_event("Начата стройка", "%s: %s. Все материалы доставят жители." % [home.name, WorldEconomy.NAMES[kind]])
-		return
+	var job := WorldConstructionPlanJob.new(world, home, true)
+	while not job.finished: job.unit()
 
 static func tool_credit(world, member: Dictionary, home: Dictionary) -> int:
 	var data := ensure(world, home)

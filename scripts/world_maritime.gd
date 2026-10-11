@@ -58,65 +58,14 @@ static func meet(world, home: Dictionary, target: Dictionary, carriers: Array) -
 				break
 
 static func segment_clear(world, a: Vector2i, b: Vector2i) -> bool:
-
-	var delta := Vector2(b - a)
-	for key in world.region_keys():
-		var low := Vector2(key * WorldState.CHUNK_SIZE)
-		var high := low + Vector2.ONE * WorldState.CHUNK_SIZE
-		var start := 0.0
-		var end := 1.0
-		var intersects := true
-		for axis in 2:
-			if absf(delta[axis]) < 0.0001:
-				if a[axis] < low[axis] or a[axis] >= high[axis]: intersects = false
-			else:
-				var t0: float = (low[axis] - a[axis]) / delta[axis]
-				var t1: float = (high[axis] - a[axis]) / delta[axis]
-				start = maxf(start, minf(t0, t1))
-				end = minf(end, maxf(t0, t1))
-		if not intersects or start > end: continue
-		var count := maxi(1, ceili(delta.length() * (end - start) * 2))
-		for i in count + 1:
-			var point := Vector2i((Vector2(a) + delta * lerpf(start, end, float(i) / count)).floor())
-			if world.terrain_at(point) != WorldState.Terrain.WATER: return false
-	return true
+	var job := WorldSeaSegmentJob.new(world, a, b)
+	while not job.finished: job.unit()
+	return job.clear
 
 static func route(world, a: Vector2i, b: Vector2i) -> Array:
-	if segment_clear(world, a, b): return [[a.x, a.y], [b.x, b.y]]
-
-	var vertices: Array[Vector2i] = [a, b]
-	for key in world.region_keys():
-		var low: Vector2i = key * WorldState.CHUNK_SIZE - Vector2i(2, 2)
-		var high := low + Vector2i(35, 35)
-		if vertices.size() >= 126: break
-		for point in [low, Vector2i(high.x, low.y), high, Vector2i(low.x, high.y)]:
-			if world.inside(point) and world.terrain_at(point) == WorldState.Terrain.WATER: vertices.append(point)
-	var distances := {0: 0.0}
-	var parents := {}
-	var done := {}
-	while done.size() < vertices.size():
-		var current := -1
-		var best := INF
-		for index in distances:
-			if not done.has(index) and distances[index] < best:
-				best = distances[index]
-				current = index
-		if current == -1: return []
-		if current == 1: break
-		done[current] = true
-		for index in vertices.size():
-			if index == current or done.has(index): continue
-			var score: float = best + vertices[current].distance_to(vertices[index])
-			if score >= distances.get(index, INF) or not segment_clear(world, vertices[current], vertices[index]): continue
-			distances[index] = score
-			parents[index] = current
-	if not parents.has(1): return []
-	var result: Array = [[b.x, b.y]]
-	var cursor := 1
-	while cursor != 0:
-		cursor = parents[cursor]
-		result.push_front([vertices[cursor].x, vertices[cursor].y])
-	return result
+	var job := WorldSeaRouteJob.new(world, a, b)
+	job.advance(0)
+	return job.result
 
 static func route_length(points: Array) -> float:
 	var length := 0.0
@@ -196,14 +145,14 @@ static func survival(world, member: Dictionary) -> bool:
 		return true
 	return false
 
-static func launch(world, home: Dictionary, vessel: Dictionary, destination: Dictionary, purpose: String = "explore") -> bool:
+static func launch(world, home: Dictionary, vessel: Dictionary, destination: Dictionary, purpose: String = "explore", prepared_route: Variant = null) -> bool:
 	if world.voyages.size() >= MAX_VOYAGES or not vessel.ready or WorldEconomy.food_days(world, home) < 10: return false
 	for ship in world.voyages:
 		if ship.home == home.id: return false
 	var landing: Vector2i = destination.land
 	var departure := shore(world, home, landing)
 	if departure.is_empty(): return false
-	var points := route(world, departure.water, destination.water)
+	var points: Array = route(world, departure.water, destination.water) if prepared_route == null else prepared_route
 	if points.is_empty(): return false
 	var duration: int = maxi(20, ceili(route_length(points) / int(SPEED[vessel.kind])))
 	var count := 3 if purpose == "colony" else 1
@@ -238,6 +187,7 @@ static func launch(world, home: Dictionary, vessel: Dictionary, destination: Dic
 	world.building_index.erase(vessel.id)
 	for y in WorldEconomy.SIZE[vessel.kind]:
 		for x in WorldEconomy.SIZE[vessel.kind]: world.occupied.erase(Vector2i(vessel.x + x, vessel.y + y))
+	world.workforce.building_removed(vessel)
 	world.buildings.erase(vessel)
 	world.touch_terrain(Vector2i(vessel.x, vessel.y), WorldEconomy.SIZE[vessel.kind])
 	WorldSociety.use(world, home, "sailing" if ship.kind == "sailboat" else "navigation")
@@ -359,102 +309,53 @@ static func arrive(world, ship: Dictionary) -> void:
 	ship.progress = 0
 
 static func step(world) -> void:
-	for ship in world.voyages.duplicate():
-		if ship.phase == "unload":
-			unload(world, ship)
-			continue
-		if ship.crew.is_empty():
+	var job := WorldMaritimeStepJob.new(world)
+	while not job.finished: job.unit()
+
+static func step_ship(world, ship: Dictionary) -> void:
+	if ship.phase == "unload":
+		unload(world, ship)
+		return
+	if ship.crew.is_empty():
+		lose(world, ship)
+		return
+	if ship.phase == "boarding":
+		var ready := true
+		for id in ship.crew:
+			var member := WorldLife.person(world, id)
+			if member.is_empty() or Vector2i(member.x, member.y) != Vector2i(ship.origin[0], ship.origin[1]): ready = false
+		if ready:
+			ship.phase = "outbound"
+			world.log_event("Выход в море", "Экспедиция покинула берег. Длина маршрута: %d клеток." % roundi(route_length(ship.route)))
+		return
+	if world.ticks % WorldEconomy.DAY_TICKS == 0 and world.rng.randf() < (0.012 if ship.kind == "boat" else 0.003):
+		ship.integrity -= 2
+		ship.wait = WorldEconomy.DAY_TICKS
+		world.log_event("Шторм", "Корабль пережидает непогоду, расходуя запасы.")
+	if ship.integrity <= 0:
+		lose(world, ship)
+		return
+	if ship.wait > 0:
+		ship.wait -= 1
+		return
+	ship.progress += 1
+	if ship.progress < ship.duration: return
+	if ship.phase == "outbound": arrive(world, ship)
+	else:
+		var cell: Vector2i = world.nearest_land(Vector2i(ship.origin[0], ship.origin[1]), 12)
+		if cell == WorldState.NO_CELL:
 			lose(world, ship)
-			continue
-		if ship.phase == "boarding":
-			var ready := true
-			for id in ship.crew:
-				var member := WorldLife.person(world, id)
-				if member.is_empty() or Vector2i(member.x, member.y) != Vector2i(ship.origin[0], ship.origin[1]): ready = false
-			if ready:
-				ship.phase = "outbound"
-				world.log_event("Выход в море", "Экспедиция покинула берег. Длина маршрута: %d клеток." % roundi(route_length(ship.route)))
-			continue
-		if world.voyage_route_versions.get(ship.id,-1)!=world.revision:
-			world.voyage_route_versions[ship.id]=world.revision
-			var clear:=true
-			for i in range(1,ship.route.size()):
-				if not segment_clear(world,Vector2i(ship.route[i-1][0],ship.route[i-1][1]),Vector2i(ship.route[i][0],ship.route[i][1])): clear=false; break
-			if not clear:
-				var current:=position(ship)
-				var destination: Array=ship.route.back() if ship.phase=="outbound" else ship.route.front()
-				var changed: Array=route(world,current,Vector2i(destination[0],destination[1])) if world.terrain_at(current)==WorldState.Terrain.WATER else []
-				if changed.is_empty():
-					lose(world,ship); continue
-				if ship.phase=="returning": changed.reverse()
-				ship.route=changed; ship.progress=0; ship.duration=maxi(20,ceili(route_length(changed)/int(SPEED[ship.kind])))
-				world.log_event("Изменён курс","Мореплаватели обошли новую сушу. Дальнейший путь зависит от оставшихся запасов.")
-		if world.ticks % WorldEconomy.DAY_TICKS == 0 and world.rng.randf() < (0.012 if ship.kind == "boat" else 0.003):
-			ship.integrity -= 2
-			ship.wait = WorldEconomy.DAY_TICKS
-			world.log_event("Шторм", "Корабль пережидает непогоду, расходуя запасы.")
-		if ship.integrity <= 0:
-			lose(world, ship)
-			continue
-		if ship.wait > 0:
-			ship.wait -= 1
-			continue
-		ship.progress += 1
-		if ship.progress < ship.duration: continue
-		if ship.phase == "outbound": arrive(world, ship)
-		else:
-			var cell: Vector2i = world.nearest_land(Vector2i(ship.origin[0], ship.origin[1]), 12)
-			if cell == WorldState.NO_CELL:
-				lose(world, ship)
-				continue
-			var home := WorldEconomy.town(world, ship.home)
-			land_crew(world, ship, home, cell)
-			ship.phase = "unload"
-			ship.progress = 0
-			world.log_event("Экспедиция вернулась", "Мореплаватели вернулись с известиями и оставшимися запасами.")
+			return
+		var home := WorldEconomy.town(world, ship.home)
+		land_crew(world, ship, home, cell)
+		ship.phase = "unload"
+		ship.progress = 0
+		world.log_event("Экспедиция вернулась", "Мореплаватели вернулись с известиями и оставшимися запасами.")
+
 
 static func daily(world) -> void:
-	for cell in world.fishing.keys():
-		if world.fishing[cell].day < world.ticks / WorldEconomy.DAY_TICKS - 1: world.fishing.erase(cell)
-	if world.ticks % (WorldEconomy.DAY_TICKS * 3) != 0: return
-	for home in world.towns.duplicate():
-		var active := false
-		for ship in world.voyages:
-			if ship.home == home.id: active = true
-		if active: continue
-		for vessel in world.buildings.duplicate():
-			if vessel.town != home.id or vessel.kind not in ["boat", "sailboat"] or not vessel.ready: continue
-			var destinations: Array = []
-			for target in world.towns:
-				if target.id == home.id: continue
-				var coast := shore(world, target, Vector2i(home.x, home.y))
-				if coast.is_empty(): continue
-				coast.town = int(target.id)
-				destinations.append(coast)
-			for key in world.region_keys():
-				if key == WorldState.chunk_of(Vector2i(home.x, home.y)): continue
-				var probe: Vector2i = key * WorldState.CHUNK_SIZE + Vector2i(16, 16)
-				var land: Vector2i = world.nearest_land(probe, 16)
-				if land == WorldState.NO_CELL or WorldEconomy.navigation(world, home).parents.has(land): continue
-				var candidate := {"id": -vessel.id - 1, "x": land.x, "y": land.y}
-				var coast := shore(world, candidate, Vector2i(home.x, home.y))
-				world.navigation.erase(candidate.id)
-				var resident: Dictionary=world._town_near(land,28)
-				if not resident.is_empty() and not coast.is_empty(): coast.town=int(resident.id)
-				if not coast.is_empty(): destinations.append(coast)
-			destinations.sort_custom(func(a: Dictionary, b: Dictionary):
-				var priority_a:=destination_priority(world,home,a)
-				var priority_b:=destination_priority(world,home,b)
-				return priority_a<priority_b if priority_a!=priority_b else a.land.distance_squared_to(Vector2i(home.x,home.y))<b.land.distance_squared_to(Vector2i(home.x,home.y)))
-			for destination in destinations:
-				var known: bool = not contact(world, home.id, destination.get("town", -1)).is_empty()
-				var mark := "%d:%d:%d" % [home.id, destination.land.x, destination.land.y]
-				if not known and world.explored_coasts.has(mark): continue
-				var purpose := "trade" if known else "explore"
-				if not known and destination.get("town", -1) == -1 and WorldEconomy.members(world, home).size() >= 12: purpose = "colony"
-				if known and WorldEconomy.food_days(world, home) < 12 and WorldEconomy.housing(world, WorldEconomy.town(world, destination.town)) > WorldEconomy.members(world, WorldEconomy.town(world, destination.town)).size() + 1: purpose = "migrate"
-				if launch(world, home, vessel, destination, purpose): break
-			break
+	var job := WorldMaritimeDailyJob.new(world)
+	while not job.finished: job.unit()
 
 static func destination_priority(world, home: Dictionary, destination: Dictionary) -> int:
 	if destination.get("town",-1)==home.id: return 3

@@ -65,8 +65,39 @@ var pending_tools: Array[Dictionary] = []
 var bake_job: WorldChunkBakeJob
 var bake_queue: Array[Dictionary] = []
 var bake_pending: Dictionary = {}
+var drawn_textures: Array[Texture2D] = []
+var season_material: ShaderMaterial
+var visual_season := -1
+var minimap_job: WorldMinimapBakeJob
+var minimap_revision := -1
+var name_style: StyleBoxFlat
+var people_multimesh: MultiMesh
+var ornaments_multimesh: MultiMesh
+var people_atlas: ImageTexture
+var atlas_jobs: Dictionary = {}
+var people_buffer := PackedFloat32Array()
+var ornaments_buffer := PackedFloat32Array()
+var live_visible_ids: Dictionary = {}
+var draw_usec := 0
+var process_usec := 0
+var visible_regions: Array[Vector2i] = []
+var region_view_signature: Array = []
+var visible_shores: Array[Vector2i] = []
+var population_view_epoch := 0
+var mesh_dirty := true
+var people_animating := false
+var render_ids := PackedInt32Array()
+var render_targets := PackedVector2Array()
+var render_scales := PackedFloat32Array()
+var render_sprites := PackedInt32Array()
+var render_elder := PackedByteArray()
+var render_cargo := PackedByteArray()
 
 func _ready() -> void:
+	season_material = ShaderMaterial.new()
+	season_material.shader = preload("res://assets/terrain_seasons.gdshader")
+	material = season_material
+	name_style = _name_style()
 	clip_contents = true
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	house_texture = PixelArt.sprite_texture(PixelArt.HOUSE)
@@ -83,6 +114,7 @@ func _ready() -> void:
 		job_textures[job] = PixelArt.sprite_texture(PixelArt.PERSON, {"c": Color(colors[0]), "a": Color(colors[1])})
 	person_texture = PixelArt.sprite_texture(PixelArt.PERSON)
 	alert_texture = PixelArt.sprite_texture(PixelArt.PERSON, {"c": Color("e9946d"), "a": Color("b96757")})
+	_prepare_people_meshes()
 	rain_texture = PixelArt.icon("rain")
 	label_font = preload("res://assets/fonts/DejaVuSans.ttf")
 	resized.connect(_on_resize)
@@ -99,11 +131,14 @@ func set_world(value: WorldState) -> void:
 	person_positions.clear()
 	person_directions.clear()
 	visible_people.clear(); population_view_signature.clear()
+	visible_regions.clear(); region_view_signature.clear(); visible_shores.clear()
+	if people_multimesh != null: people_multimesh.visible_instance_count = 0; ornaments_multimesh.visible_instance_count = 0
 	effects.clear()
 	camera_origin = Vector2i.ZERO
 	chunk_textures.clear()
 	overview_textures.clear()
 	bake_job = null; bake_queue.clear(); bake_pending.clear()
+	minimap_job = null; minimap_revision = -1; visual_season = -1
 	pending_tools.clear()
 	rebuild_texture()
 	selected = WorldState.NO_CELL
@@ -159,26 +194,22 @@ func zoom_by(factor: float) -> void:
 
 func rebuild_texture() -> void:
 	texture_dirty = false
-	minimap_bounds = world.land_bounds()
 	if not show_minimap:
 		texture = null
-		queue_redraw()
+		minimap_job = null
 		return
-	var image := Image.create(128, 128, false, Image.FORMAT_RGBA8)
-	image.fill(COLORS[0])
-	var ratio := Vector2.ONE * 128 / Vector2(minimap_bounds.size)
-	for coord in world.region_keys():
-		var rect := Rect2i(Vector2(coord * WorldState.CHUNK_SIZE - minimap_bounds.position) * ratio, Vector2.ONE * WorldState.CHUNK_SIZE * ratio)
-		if rect.size.x > 2 and rect.size.y > 2:
-			for y in WorldState.CHUNK_SIZE:
-				for x in WorldState.CHUNK_SIZE:
-					var cell: Vector2i = coord * WorldState.CHUNK_SIZE + Vector2i(x, y)
-					var point := Vector2i(Vector2(cell - minimap_bounds.position) * ratio)
-					image.fill_rect(Rect2i(point, Vector2i(maxi(1, ceili(ratio.x)), maxi(1, ceili(ratio.y)))), COLORS[world.terrain_at(cell)])
-		else:
-			image.fill_rect(Rect2i(rect.position, Vector2i(maxi(1, rect.size.x), maxi(1, rect.size.y))), COLORS[WorldState.Terrain.GRASS])
-	texture = ImageTexture.create_from_image(image)
-	queue_redraw()
+	if minimap_job == null and minimap_revision != world.revision:
+		minimap_job = WorldMinimapBakeJob.new(world)
+
+func _advance_minimap() -> void:
+	if minimap_job == null: return
+	if not minimap_job.advance(500): return
+	minimap_bounds = minimap_job.bounds
+	if texture == null: texture = ImageTexture.create_from_image(minimap_job.image)
+	else: texture.update(minimap_job.image)
+	minimap_revision = minimap_job.revision
+	minimap_job = null
+	texture_dirty = minimap_revision != world.revision
 
 func _chunk_texture(coord: Vector2i, detailed: bool) -> ImageTexture:
 	var cache: Dictionary = chunk_textures if detailed else overview_textures
@@ -212,7 +243,12 @@ func _advance_baking() -> void:
 	if job.revision != int(world.revisions.get(job.coord, 0)): return
 	var cache := chunk_textures if job.detailed else overview_textures
 	cache_clock += 1
-	cache[job.coord] = {"image":job.texture,"revision":job.revision,"used":cache_clock,"shores":job.shores}
+	var ready_texture: ImageTexture
+	if cache.has(job.coord):
+		ready_texture = cache[job.coord].image
+		ready_texture.update(job.image)
+	else: ready_texture = ImageTexture.create_from_image(job.image)
+	cache[job.coord] = {"image":ready_texture,"revision":job.revision,"used":cache_clock,"shores":job.shores}
 	if cache.size() > CACHE_LIMIT:
 		var oldest: Vector2i = job.coord
 		for key in cache:
@@ -223,18 +259,25 @@ func _draw_regions() -> void:
 	var low := WorldState.chunk_of(local_to_cell(Vector2.ZERO))
 	var high := WorldState.chunk_of(local_to_cell(size))
 	var detailed := zoom * get_window().content_scale_factor >= 0.5 and (high.x - low.x + 1) * (high.y - low.y + 1) <= CACHE_LIMIT - 8
-	var candidates := {}
-	if detailed:
-		for y in range(low.y, high.y + 1):
-			for x in range(low.x, high.x + 1):
-				var coord := Vector2i(x, y)
-				for dy in range(-1, 2):
-					for dx in range(-1, 2):
-						if world.has_region(coord + Vector2i(dx, dy)): candidates[coord] = true
-	else:
-		for key in world.region_bounds: candidates[key] = true
-	for key in candidates:
-		if key.x < low.x or key.y < low.y or key.x > high.x or key.y > high.y: continue
+	var signature := [low, high, detailed, world.revision, world.region_count()]
+	if signature != region_view_signature:
+		region_view_signature = signature
+		visible_regions.clear()
+		if detailed:
+			for y in range(low.y, high.y + 1):
+				for x in range(low.x, high.x + 1):
+					var coord := Vector2i(x, y)
+					var exists := false
+					for dy in range(-1, 2):
+						for dx in range(-1, 2):
+							if world.has_region(coord + Vector2i(dx, dy)): exists = true; break
+						if exists: break
+					if exists: visible_regions.append(coord)
+		else:
+			for key in world.region_bounds:
+				if key.x >= low.x and key.y >= low.y and key.x <= high.x and key.y <= high.y and world.has_region(key): visible_regions.append(key)
+	visible_shores.clear()
+	for key in visible_regions:
 		var corner := Vector2(key * WorldState.CHUNK_SIZE - camera_origin) * TILE
 		var rect := Rect2(offset + corner * zoom, Vector2.ONE * WorldState.CHUNK_SIZE * TILE * zoom)
 		if not detailed and rect.size.x < 2:
@@ -243,17 +286,20 @@ func _draw_regions() -> void:
 		var region_texture := _chunk_texture(key, detailed)
 		if region_texture == null:
 			var preview := _chunk_texture(key, false) if detailed else null
-			if preview != null: draw_texture_rect(preview,rect,false)
+			if preview != null:
+				drawn_textures.append(preview)
+				draw_texture_rect(preview,rect,false)
 			continue
+		drawn_textures.append(region_texture)
 		if detailed:
 			draw_texture_rect_region(region_texture, rect, Rect2(Vector2.ONE * HALO * TILE, Vector2.ONE * WorldState.CHUNK_SIZE * TILE))
 		else:
 			draw_texture_rect(region_texture, rect, false)
-		if detailed:
-			for shore in chunk_textures[key].shores:
-				var alpha := 0.1 + (sin(visual_time * 1.4 + shore.x * 0.5 + shore.y) + 1.0) * 0.12
-				var point := offset + (Vector2(shore - camera_origin) * TILE + Vector2(2, 3)) * zoom
-				draw_line(point, point + Vector2(4, 0) * zoom, Color(0.82, 0.93, 0.79, alpha), zoom)
+		if detailed: visible_shores.append_array(chunk_textures[key].shores)
+	for shore in visible_shores:
+		var alpha := 0.1 + (sin(visual_time * 1.4 + shore.x * 0.5 + shore.y) + 1.0) * 0.12
+		var point := offset + (Vector2(shore - camera_origin) * TILE + Vector2(2, 2.5)) * zoom
+		draw_rect(Rect2(point, Vector2(4, 1) * zoom), Color(0.82, 0.93, 0.79, alpha))
 
 	for key in overview_textures.keys():
 		if not world.has_region(key): overview_textures.erase(key)
@@ -262,10 +308,18 @@ func _make_chunk_texture(coord: Vector2i) -> ImageTexture:
 	var job := WorldChunkBakeJob.new(world, coord, true)
 	job.advance(0)
 	baking_shores = job.shores
-	return job.texture
+	return ImageTexture.create_from_image(job.image)
 
 func _process(delta: float) -> void:
+	var started := Time.get_ticks_usec()
+	if world == null: return
+	var season := WorldClimate.season(world) if world.climate.seasons else 1
+	if season != visual_season:
+		visual_season = season
+		season_material.set_shader_parameter("autumn_amount", 0.25 if season == 2 else 0.0)
+		season_material.set_shader_parameter("winter_amount", 0.55 if season == 3 else 0.0)
 	_advance_baking()
+	_advance_minimap()
 	if texture_dirty:
 		rebuild_texture()
 	if not reduce_motion:
@@ -274,41 +328,114 @@ func _process(delta: float) -> void:
 		effects[i].age += delta
 		if effects[i].age >= effects[i].duration:
 			effects.remove_at(i)
-	if world != null:
-		var live_ids := {}
-		_refresh_visible_people()
-		for p in visible_people:
-			live_ids[p.id] = true
-			var target := Vector2(Vector2i(p.x, p.y) - camera_origin) * TILE + Vector2(4, 4)
-			var current: Vector2 = person_positions.get(p.id, target)
-			var movement := target - current
-			if absf(movement.x) > 0.1:
-				person_directions[p.id] = signf(movement.x)
-			person_positions[p.id] = current.lerp(target, 1.0 - exp(-delta * 16.0)) if not reduce_motion else target
-		for id in person_positions.keys():
-			if not live_ids.has(id):
-				person_positions.erase(id)
-				person_directions.erase(id)
+	_refresh_visible_people()
+	_update_people_meshes(delta)
 	queue_redraw()
+	process_usec = Time.get_ticks_usec() - started
 
 func _invalidate_texture() -> void:
 	texture_dirty = true
-	population_view_signature.clear()
 
 func _invalidate_population_view() -> void:
+	population_view_epoch += 1
 	population_view_signature.clear()
 
 func _refresh_visible_people() -> void:
-	var signature := [world.ticks, world.revision, world.people.size(), camera_origin, offset, zoom, size]
+	var signature := [population_view_epoch, world.people.size(), camera_origin, offset, zoom, size]
 	if signature == population_view_signature: return
 	population_view_signature = signature
-	visible_people.clear()
-	if zoom < 0.15: return
-	var viewport := Rect2(Vector2.ZERO, size).grow(60)
-	for member in world.people:
-		if not WorldMaritime.onboard(world, member.id) and viewport.has_point(cell_to_local(Vector2i(member.x, member.y))): visible_people.append(member)
+	visible_people.clear(); live_visible_ids.clear()
+	render_ids.clear(); render_targets.clear(); render_scales.clear(); render_sprites.clear(); render_elder.clear(); render_cargo.clear()
+	mesh_dirty = true
+	var base_scale := maxf(0.85, 0.7 / zoom)
+	if zoom >= 0.15:
+		var viewport := Rect2(Vector2.ZERO, size).grow(60)
+		for member in world.people:
+			if not WorldMaritime.onboard(world, member.id) and viewport.has_point(cell_to_local(Vector2i(member.x, member.y))):
+				visible_people.append(member); live_visible_ids[member.id] = true
+				render_ids.append(int(member.id))
+				render_targets.append(Vector2(Vector2i(member.x, member.y) - camera_origin) * TILE + Vector2(4, 4))
+				var life_stage := WorldLife.stage(world, member)
+				render_scales.append(base_scale * ([0.5, 0.65, 0.8][life_stage] if life_stage < 3 else 1.0))
+				render_sprites.append(atlas_jobs.get(member.job, atlas_jobs.default) if member.hunger < 60 else atlas_jobs.alert)
+				render_elder.append(1 if life_stage == 5 else 0)
+				render_cargo.append(0 if member.cargo == 0 else (1 if member.cargo_kind == "wood" else 2))
+	for id in person_positions.keys():
+		if not live_visible_ids.has(id): person_positions.erase(id); person_directions.erase(id)
+
+func _prepare_people_meshes() -> void:
+	var atlas := Image.create((job_textures.size() + 2) * 8, 12, false, Image.FORMAT_RGBA8)
+	var index := 0
+	for job in job_textures:
+		atlas_jobs[job] = index
+		atlas.blit_rect(job_textures[job].get_image(), Rect2i(0, 0, 8, 12), Vector2i(index * 8, 0)); index += 1
+	atlas_jobs["default"] = index
+	atlas.blit_rect(person_texture.get_image(), Rect2i(0, 0, 8, 12), Vector2i(index * 8, 0)); index += 1
+	atlas_jobs["alert"] = index
+	atlas.blit_rect(alert_texture.get_image(), Rect2i(0, 0, 8, 12), Vector2i(index * 8, 0))
+	people_atlas = ImageTexture.create_from_image(atlas)
+	season_material.set_shader_parameter("atlas_columns", float(job_textures.size() + 2))
+	people_multimesh = _multimesh(Vector2(8, 12), WorldState.MAX_PEOPLE, true)
+	ornaments_multimesh = _multimesh(Vector2.ONE, WorldState.MAX_PEOPLE * 3, false)
+	people_buffer.resize(WorldState.MAX_PEOPLE * 12)
+	ornaments_buffer.resize(WorldState.MAX_PEOPLE * 3 * 12)
+
+func _multimesh(dimensions: Vector2, capacity: int, custom: bool) -> MultiMesh:
+	var mesh := QuadMesh.new()
+	mesh.size = dimensions
+	var instances := MultiMesh.new()
+	instances.transform_format = MultiMesh.TRANSFORM_2D
+	instances.use_custom_data = custom
+	instances.use_colors = not custom
+	instances.mesh = mesh
+	instances.instance_count = capacity
+	instances.visible_instance_count = 0
+	return instances
+
+func _ornament(index: int, rect: Rect2, color: Color) -> int:
+	var base := index * 12
+	var center := rect.get_center()
+	ornaments_buffer[base] = rect.size.x; ornaments_buffer[base + 5] = rect.size.y
+	ornaments_buffer[base + 3] = center.x; ornaments_buffer[base + 7] = center.y
+	ornaments_buffer[base + 8] = color.r; ornaments_buffer[base + 9] = color.g
+	ornaments_buffer[base + 10] = color.b; ornaments_buffer[base + 11] = color.a
+	return index + 1
+
+func _update_people_meshes(delta: float) -> void:
+	if not mesh_dirty and not people_animating: return
+	mesh_dirty = false; people_animating = false
+	var ornaments := 0
+	var smoothing := 1.0 - exp(-delta * 16.0)
+	for index in render_ids.size():
+		var id := render_ids[index]
+		var target := render_targets[index]
+		var current: Vector2 = person_positions.get(id, target)
+		var movement := target - current
+		if absf(movement.x) > 0.1: person_directions[id] = signf(movement.x)
+		var pos := current.lerp(target, smoothing) if not reduce_motion else target
+		var walking := pos.distance_squared_to(target) > 0.01
+		if not walking: pos = target
+		people_animating = walking or people_animating
+		person_positions[id] = pos
+		var bob := -absf(sin(visual_time * 14.0 + id)) * 0.8 if walking and not reduce_motion else 0.0
+		var scale_value := render_scales[index]
+		var facing: float = person_directions.get(id, 1.0)
+		var base := index * 12
+		people_buffer[base] = scale_value * facing; people_buffer[base + 5] = scale_value
+		people_buffer[base + 3] = pos.x; people_buffer[base + 7] = pos.y + (-4 + bob) * scale_value
+		people_buffer[base + 8] = float(render_sprites[index]); people_buffer[base + 9] = 1.0
+		if render_elder[index]: ornaments = _ornament(ornaments, Rect2(pos + Vector2(-2, -9 + bob) * scale_value, Vector2(4, 2) * scale_value), Color("e3dfcc"))
+		if render_cargo[index]:
+			ornaments = _ornament(ornaments, Rect2(pos + Vector2(3, -5) * scale_value, Vector2(4, 4) * scale_value), Color("334c40"))
+			ornaments = _ornament(ornaments, Rect2(pos + Vector2(4, -5) * scale_value, Vector2(3, 3) * scale_value), Color("956945") if render_cargo[index] == 1 else Color("e6c879"))
+	people_multimesh.visible_instance_count = render_ids.size()
+	ornaments_multimesh.visible_instance_count = ornaments
+	if not render_ids.is_empty(): people_multimesh.buffer = people_buffer
+	if ornaments > 0: ornaments_multimesh.buffer = ornaments_buffer
 
 func _draw() -> void:
+	var started := Time.get_ticks_usec()
+	drawn_textures.clear()
 	draw_rect(Rect2(Vector2.ZERO, size), COLORS[0])
 	if world == null:
 		return
@@ -326,29 +453,8 @@ func _draw() -> void:
 		draw_rect(Rect2(pos + Vector2(7, -10 + flutter), Vector2(7, 4)), Color("f2c879"))
 	if zoom >= 0.15:
 		for value in world.buildings: _draw_building(value)
-	_refresh_visible_people()
-	for p in visible_people:
-		if WorldMaritime.onboard(world, p.id): continue
-		if zoom < 0.15 or not Rect2(Vector2.ZERO, size).grow(30).has_point(cell_to_local(Vector2i(p.x, p.y))): continue
-		var target := Vector2(Vector2i(p.x, p.y) - camera_origin) * TILE + Vector2(4, 4)
-		var pos: Vector2 = person_positions.get(p.id, target)
-		var walking := pos.distance_to(target) > 0.2
-		var bob := -absf(sin(visual_time * 14.0 + p.id)) * 0.8 if walking and not reduce_motion else 0.0
-		var scale_value := maxf(0.85, 0.7 / zoom)
-		var life_stage: int = WorldLife.stage(world, p)
-		if life_stage < 3: scale_value *= [0.5, 0.65, 0.8][life_stage]
-		var sprite: ImageTexture = job_textures.get(p.job, person_texture) if p.hunger < 60 else alert_texture
-		var rect := Rect2(pos + Vector2(-4, -10 + bob) * scale_value, Vector2(8, 12) * scale_value)
-		if person_directions.get(p.id, 1.0) < 0:
-			rect.position.x += rect.size.x
-			rect.size.x *= -1
-		draw_texture_rect(sprite, rect, false)
-		if life_stage == 5:
-			draw_rect(Rect2(pos + Vector2(-2, -9 + bob) * scale_value, Vector2(4, 2) * scale_value), Color("e3dfcc"))
-		if p.cargo > 0:
-			var cargo_color := Color("956945") if p.cargo_kind == "wood" else Color("e6c879")
-			draw_rect(Rect2(pos + Vector2(3, -5) * scale_value, Vector2(4, 4) * scale_value), Color("334c40"))
-			draw_rect(Rect2(pos + Vector2(4, -5) * scale_value, Vector2(3, 3) * scale_value), cargo_color)
+	if people_multimesh.visible_instance_count > 0: draw_multimesh(people_multimesh, people_atlas)
+	if ornaments_multimesh.visible_instance_count > 0: draw_multimesh(ornaments_multimesh, null)
 	for key in world.fires:
 		if not Rect2(Vector2.ZERO, size).grow(30).has_point(cell_to_local(key)): continue
 		var index := hash(key) % 10000
@@ -379,6 +485,7 @@ func _draw() -> void:
 	if interface_visible:
 		_draw_labels()
 		_draw_minimap()
+	draw_usec = Time.get_ticks_usec() - started
 
 func _draw_building(value: Dictionary) -> void:
 	var cell := Vector2i(value.x, value.y)
@@ -464,7 +571,7 @@ func _draw_labels() -> void:
 		var rect := Rect2(pos - Vector2(label_size.x * 0.5 + 7, 15), label_size + Vector2(14, 6))
 		if not Rect2(Vector2.ZERO, size).encloses(rect):
 			continue
-		draw_style_box(_name_style(), rect)
+		draw_style_box(name_style, rect)
 		draw_string(label_font, rect.position + Vector2(7, 13), text_value, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color("f4e5bc"))
 
 func _name_style() -> StyleBoxFlat:
@@ -478,6 +585,7 @@ func _draw_minimap() -> void:
 		return
 	var rect := Rect2(size - Vector2(112, 170), Vector2(88, 88))
 	draw_rect(rect.grow(5), Color("252934"))
+	drawn_textures.append(texture)
 	draw_texture_rect(texture, rect, false, Color(1, 1, 1, 0.86))
 	var ratio := rect.size / (Vector2(minimap_bounds.size) * TILE)
 	var visible_rect := Rect2(rect.position + (Vector2(camera_origin - minimap_bounds.position) * TILE - offset / zoom) * ratio, size / zoom * ratio)

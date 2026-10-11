@@ -5,16 +5,22 @@ const GROUP_SIZE := 32
 var active := false
 var plans: Dictionary = {}
 var building_lists: Dictionary = {}
+var building_counts: Dictionary = {}
 var contributions: Dictionary = {}
 var plan_builds := 0
+var building_count := -1
 
-func begin(world) -> void:
+func begin(world, refresh_buildings: bool = true) -> void:
 	active = true
-	plans.clear(); building_lists.clear(); contributions.clear()
+	plans.clear(); contributions.clear()
+	if not refresh_buildings and building_count == world.buildings.size(): return
+	building_count = world.buildings.size()
+	building_lists.clear(); building_counts.clear()
 	plan_builds = 0
 	for value in world.buildings:
 		if not building_lists.has(value.town): building_lists[value.town] = []
 		building_lists[value.town].append(value)
+		_count_building(value, 1)
 
 func end() -> void:
 	active = false
@@ -27,9 +33,31 @@ func buildings(world, home: Dictionary) -> Array:
 	return result
 
 func building_added(value: Dictionary) -> void:
-	if not active: return
+	if not active: building_count = -1; return
+	building_count += 1
 	if not building_lists.has(value.town): building_lists[value.town] = []
 	building_lists[value.town].append(value)
+	_count_building(value, 1)
+
+func _count_building(value: Dictionary, amount: int) -> void:
+	if not building_counts.has(value.town): building_counts[value.town] = {}
+	var counts: Dictionary = building_counts[value.town]
+	if not counts.has(value.kind): counts[value.kind] = [0, 0]
+	counts[value.kind][0] += amount
+	if value.ready: counts[value.kind][1] += amount
+
+func building_removed(value: Dictionary) -> void:
+	if building_lists.has(value.town):
+		building_lists[value.town].erase(value)
+		_count_building(value, -1)
+	building_count -= 1
+
+func building_ready(value: Dictionary) -> void:
+	if building_counts.has(value.town) and building_counts[value.town].has(value.kind): building_counts[value.town][value.kind][1] += 1
+
+func count(home: Dictionary, kind: String, ready_only: bool) -> int:
+	var counts: Dictionary = building_counts.get(home.id, {})
+	return int(counts.get(kind, [0, 0])[1 if ready_only else 0])
 
 static func role(member: Dictionary) -> String:
 	var kind: String = member.task.get("kind", "")
@@ -85,6 +113,28 @@ func task_changed(world, member: Dictionary) -> void:
 		add_contribution(plan, member)
 		for skill in plan.available: update_rank(world, plan.available[skill], member, skill)
 	contributions[member.id] = {"home": int(member.home), "role": role(member)}
+
+func rehomed(world, member: Dictionary, previous: int) -> void:
+	if not active: plans.clear(); contributions.clear(); return
+	var adult: bool = WorldLife.adult(world, member)
+	var field := "cold_need" if cold(world, Vector2i(member.x, member.y)) else "warm_need"
+	var need := base_need(world, member)
+	var job := role(member)
+	if plans.has(previous):
+		var plan: Dictionary = plans[previous]
+		if adult: plan.population -= 1
+		plan[field] -= need
+		if job in ["food", "farm"]: plan.food_workers -= 1
+		if job == "wood": plan.wood_workers -= 1
+		if plan.teams.has(job): plan.teams[job].erase(member.id)
+		for skill in plan.available: plan.available[skill].erase(int(member.id))
+	if plans.has(member.home):
+		var plan: Dictionary = plans[member.home]
+		if adult: plan.population += 1
+		plan[field] += need
+		add_contribution(plan, member)
+		for skill in plan.available: update_rank(world, plan.available[skill], member, skill)
+	contributions[member.id] = {"home": int(member.home), "role": job}
 
 func daily_need(world, home: Dictionary) -> float:
 	var plan := context(world, home)

@@ -40,14 +40,14 @@ func advance(budget_usec: int = 4000) -> void:
 		elif detail<3: ground=WorldState.Terrain.MOUNTAIN
 		elif detail<20: ground=WorldState.Terrain.FOREST
 		world._set_terrain(cell,ground)
-	world.regions.trim(world,WorldState.chunk_of(origin+Vector2i(cursor%dimensions.x,cursor/dimensions.x)))
+	world.regions.trim(world,WorldState.chunk_of(origin+Vector2i(cursor%dimensions.x,cursor/dimensions.x)),1)
 	world.terrain_changed.emit()
 	if cursor>=total: complete()
 
 func complete() -> void:
 	finished=true
 	world.population_dirty=true
-	world.regions.trim(world)
+	world.regions.trim(world,WorldState.NO_CELL,4)
 	world.terrain_changed.emit()
 	world.changed.emit()
 	world.log_event("Создана суша","%s. Размер области: %d × %d клеток." % ["Создание остановлено, готовая земля сохранена" if cancelled else "Новый материк готов",dimensions.x,dimensions.y])

@@ -200,7 +200,7 @@ static func description(world, home: Dictionary) -> String:
 			var why := reason(world, home, key, state.mastered)
 			if state.mastered: status = ("применяется" if state.used > 0 else "готово к применению") if why.is_empty() else "освоено · " + why
 			elif not why.is_empty(): status = why
-			elif WorldEconomy.food_days(world, home) < 6: status = "нужен запас еды на 6 дней"
+			elif WorldEconomy.food_days(world, home) < 6: status = "нужен запас еды на 6 месяцев"
 			else: status = "опыты: %d шагов · попытка %d" % [state.work_done, state.attempts]
 		text += "\n%s: %s" % [TECH[key].name, status]
 	text += "\nМастерские: %d · Архивы: %d" % [WorldEconomy.count(world, home, "workshop"), WorldEconomy.count(world, home, "archive")]

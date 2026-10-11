@@ -72,8 +72,10 @@ static func move(world, person: Dictionary, target: Vector2i, home: Dictionary) 
 
 static func members(world, home: Dictionary) -> Array[Dictionary]:
 	if world.population_dirty:
-		world.population_index.clear()
+		world.population_index.clear(); world.population_member_order.clear()
+		var rank := 0
 		for person in world.people:
+			world.population_member_order[person.id] = rank; rank += 1
 			if not world.population_index.has(person.home):
 				var residents: Array[Dictionary] = []
 				world.population_index[person.home] = residents
@@ -84,8 +86,26 @@ static func members(world, home: Dictionary) -> Array[Dictionary]:
 		world.population_index[home.id] = empty
 	return world.population_index[home.id]
 
+static func set_home(world, person: Dictionary, id: int) -> void:
+	if person.home == id: return
+	var previous: int = person.home
+	var residents := members(world, {"id": id})
+	if world.population_index.has(previous): world.population_index[previous].erase(person)
+	var first := 0
+	var last := residents.size()
+	var rank: int = world.population_member_order[person.id]
+	while first < last:
+		var mid := (first + last) / 2
+		if int(world.population_member_order[residents[mid].id]) < rank: first = mid + 1
+		else: last = mid
+	residents.insert(first, person)
+	person.home = id
+	world.workforce.rehomed(world, person, previous)
+	world.society_cache.erase(previous); world.society_cache.erase(id)
+
 static func count(world, home: Dictionary, kind: String, ready_only: bool = true) -> int:
 	if home.is_empty(): return 0
+	if world.workforce.active: return world.workforce.count(home, kind, ready_only)
 	var result := 0
 	for value in world.workforce.buildings(world, home):
 		if value.town == home.id and value.kind == kind and (value.ready or not ready_only): result += 1
@@ -149,17 +169,9 @@ static func add_building(world, home: Dictionary, kind: String, cell: Vector2i, 
 	return value
 
 static func site(world, home: Dictionary, kind: String) -> Vector2i:
-	var center := Vector2i(home.x, home.y)
-	var parents: Dictionary = navigation(world, home).parents
-	for radius in range(3, 16):
-		for direction in [Vector2i(-1, -1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(1, 1), Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
-			var cell: Vector2i = center + direction * radius
-			if valid_site(world, parents, kind, cell): return cell
-
-	for cell in navigation(world, home).cells:
-		if absi(cell.x - center.x) + absi(cell.y - center.y) < 3: continue
-		if valid_site(world, parents, kind, cell): return cell
-	return WorldState.NO_CELL
+	var job := WorldSiteJob.new(world, home, kind)
+	while not job.finished: job.unit()
+	return job.result
 
 static func valid_site(world, parents: Dictionary, kind: String, cell: Vector2i) -> bool:
 	var dim: int = SIZE[kind]
@@ -180,29 +192,8 @@ static func valid_site(world, parents: Dictionary, kind: String, cell: Vector2i)
 	return true
 
 static func plan(world, home: Dictionary) -> void:
-	var residents := members(world, home)
-	if residents.is_empty(): return
-	var expand_storage := storage_pressure(world, home)
-	home.level = 3 if count(world, home, "store") > 0 and count(world, home, "farm") > 0 else (2 if count(world, home, "house") > 0 else 1)
-	for value in world.workforce.buildings(world, home):
-		if value.town == home.id and not value.ready and (not expand_storage or value.kind == "store"): return
-	if food_days(world, home) < 2 and not expand_storage: return
-	var kind := ""
-	if expand_storage: kind = "store"
-	elif housing(world, home) < residents.size() + 1: kind = "house"
-	elif count(world, home, "farm", false) < maxi(1, ceili(residents.size() / 12.0)) and site(world, home, "farm") != WorldState.NO_CELL: kind = "farm"
-	elif count(world, home, "store", false) == 0: kind = "store"
-	elif WorldLife.needs_home(world, home): kind = "house"
-	elif WorldDevelopment.construction_ready(world, home, "workshop") and count(world, home, "workshop", false) == 0: kind = "workshop"
-	elif WorldDevelopment.construction_ready(world, home, "archive") and count(world, home, "archive", false) == 0: kind = "archive"
-	if kind.is_empty():
-		WorldCivilization.plan(world, home)
-		return
-	if available_wood(world, home) < int(COST[kind]): return
-	var cell := site(world, home, kind)
-	if cell == WorldState.NO_CELL: return
-	if not add_building(world, home, kind, cell).is_empty():
-		world.log_event("Начата стройка", "%s: %s. Материалы доставят жители." % [home.name, NAMES[kind].to_lower()])
+	var job := WorldConstructionPlanJob.new(world, home)
+	while not job.finished: job.unit()
 
 static func claim_key(value: Dictionary) -> String:
 	if value.kind == "explore": return "explore:%d" % value.building
@@ -444,6 +435,7 @@ static func execute(world, person: Dictionary, home: Dictionary) -> void:
 				return
 			value.work = mini(int(WORK[value.kind]), int(value.work) + credit)
 			if value.work >= int(WORK[value.kind]):
+				world.workforce.building_ready(value)
 				value.ready = true
 				WorldSociety.invalidate(world)
 				world.metrics.built_wood += int(COST[value.kind])
@@ -589,10 +581,7 @@ static func step_person(world, i: int) -> void:
 		var new_home: int = int(home.id) if not home.is_empty() else -1
 		if person.home != new_home:
 			world.life_dirty = true
-			WorldSociety.invalidate(world)
-			world.population_dirty = true
-			world.workforce.plans.clear(); world.workforce.contributions.clear()
-		person.home = new_home
+		set_home(world, person, new_home)
 		if new_home != -1 or person.task.get("kind", "") != "fish": set_task(world, person, {})
 	if not WorldLife.adult(world, person):
 		WorldLife.dependent_step(world, person, home)

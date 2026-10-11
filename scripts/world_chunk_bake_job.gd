@@ -9,7 +9,6 @@ var coord: Vector2i
 var detailed: bool
 var revision: int
 var image: Image
-var texture: ImageTexture
 var shores: Array[Vector2i] = []
 var render_width: int
 var render_height: int
@@ -19,7 +18,9 @@ var depths := PackedInt32Array()
 var frontier: Array[int] = []
 var head := 0
 var cursor := 0
-var phase := 0
+var phase := -1
+var source_keys: Array[Vector2i] = []
+var source_cursor := 0
 var finished := false
 var noise := FastNoiseLite.new()
 var tree: Image
@@ -37,9 +38,7 @@ func _init(value: WorldState, key: Vector2i, detail: bool) -> void:
 	for dy in range(-1,2) if detailed else [0]:
 		for dx in range(-1,2) if detailed else [0]:
 			var region := coord + Vector2i(dx,dy)
-			if world.has_region(region):
-				var chunk := world.regions.get_region(world,region)
-				if not chunk.is_empty(): source_tiles[region] = chunk.tiles
+			if world.has_region(region): source_keys.append(region)
 	image = Image.create(render_width * (TILE if detailed else 1), render_height * (TILE if detailed else 1), false, Image.FORMAT_RGBA8)
 	depths.resize(render_width * render_height); depths.fill(999)
 	noise.seed = world.world_seed + 101
@@ -58,6 +57,12 @@ func advance(budget_usec: int = 1500) -> bool:
 
 func _unit() -> void:
 	match phase:
+		-1:
+			if source_cursor < source_keys.size():
+				var region := source_keys[source_cursor]; source_cursor += 1
+				var chunk := world.regions.get_region(world, region)
+				if not chunk.is_empty(): source_tiles[region] = chunk.tiles
+			else: phase = 0
 		0:
 			for x in render_width:
 				var cell := render_origin + Vector2i(x,cursor)
@@ -67,7 +72,7 @@ func _unit() -> void:
 				render_tiles.append(terrain)
 				if terrain != WorldState.Terrain.WATER:
 					depths[index] = 0; frontier.append(index)
-				if not detailed: image.set_pixel(x, cursor, COLORS[terrain])
+				if not detailed: image.set_pixel(x, cursor, _color(terrain, cell))
 			cursor += 1
 			if cursor == render_height:
 				phase = 1 if detailed else 4; cursor = 0
@@ -89,7 +94,6 @@ func _unit() -> void:
 			_sprites(cursor); cursor += 1
 			if cursor == render_height: phase = 4
 		4:
-			texture = ImageTexture.create_from_image(image)
 			finished = true
 
 func _pixels(y: int) -> void:
@@ -101,12 +105,7 @@ func _pixels(y: int) -> void:
 		var py := y * TILE
 		var detail := posmod(hash(Vector3i(x + render_origin.x, y + render_origin.y, world.world_seed)), 997)
 		var variation := noise.get_noise_2d(x + render_origin.x, y + render_origin.y) * 0.06
-		var color: Color = COLORS[terrain]
-		if terrain in [WorldState.Terrain.GRASS, WorldState.Terrain.FOREST] and WorldClimate.biome(world, cell + render_origin) != 0:
-			color = WorldClimate.COLORS[WorldClimate.biome(world, cell + render_origin)].darkened(0.12 if terrain == WorldState.Terrain.FOREST else 0.0)
-		if terrain in [WorldState.Terrain.GRASS,WorldState.Terrain.FOREST] and world.climate.seasons and WorldClimate.biome(world,cell+render_origin) in [0,3,4,5]:
-			if WorldClimate.season(world)==3: color=color.lerp(Color("dce5dd"),.55)
-			elif WorldClimate.season(world)==2: color=color.lerp(Color("bba776"),.25)
+		var color := _color(terrain, cell + render_origin)
 		if terrain == WorldState.Terrain.WATER:
 			var water_colors := [Color("78b4ab"), Color("5e9c9e"), Color("43808b"), Color("356b7d"), Color("2e6477"), COLORS[0]]
 			color = water_colors[mini(depths[idx] - 1, water_colors.size() - 1)]
@@ -157,7 +156,14 @@ func _sprites(y: int) -> void:
 			if detail % 17 == 0: sprite = autumn
 			var biome:=WorldClimate.biome(world,render_origin+Vector2i(x,y))
 			if biome>=3: sprite=pine
-			elif world.climate.seasons and WorldClimate.season(world)==2 and biome==0: sprite=autumn
 			image.blend_rect(sprite, Rect2i(Vector2i.ZERO, sprite.get_size()), Vector2i(x * TILE - 2, y * TILE - 7))
 		elif terrain == WorldState.Terrain.MOUNTAIN and detail % 13 == 0:
 			image.blend_rect(peak, Rect2i(Vector2i.ZERO, peak.get_size()), Vector2i(x * TILE - 4, y * TILE - 3))
+
+func _color(terrain: int, cell: Vector2i) -> Color:
+	var color: Color = COLORS[terrain]
+	if terrain in [WorldState.Terrain.GRASS, WorldState.Terrain.FOREST]:
+		var biome := WorldClimate.biome(world, cell)
+		if biome != 0: color = WorldClimate.COLORS[biome].darkened(0.12 if terrain == WorldState.Terrain.FOREST else 0.0)
+		if biome in [0, 3, 4, 5]: color.a = 250.0 / 255.0
+	return color
