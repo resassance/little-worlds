@@ -1,0 +1,12 @@
+.godot/
+build/
+artifacts/
+scratch/
+github-release/
+__pycache__/
+*.pyc
+*.tmp
+.env
+.env.*
+*.keystore
+*.jks
