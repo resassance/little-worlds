@@ -1,0 +1,311 @@
+{
+  "domains": {
+    "food": "Питание и земледелие",
+    "maritime": "Морское дело",
+    "engineering": "Строительство и инженерия",
+    "materials": "Материалы",
+    "energy": "Энергия и механизация",
+    "science": "Наука",
+    "medicine": "Медицина",
+    "education": "Обучение и знания",
+    "trade": "Торговля и доставка",
+    "organization": "Устройство общества",
+    "communication": "Связь и вычисления",
+    "ecology": "Вода и среда"
+  },
+  "methods": {
+    "preservation": {
+      "name": "Хранение пищи",
+      "domain": "food",
+      "skill": "food",
+      "work": 60,
+      "practice": {
+        "food": 60
+      },
+      "experts": {
+        "food": 40
+      },
+      "sites": [
+        "store"
+      ],
+      "inputs": {
+        "food": 1
+      },
+      "weights": {
+        "food_pressure": 1.8,
+        "coast": 0.7
+      }
+    },
+    "carpentry": {
+      "name": "Плотничество",
+      "domain": "engineering",
+      "skill": "build",
+      "work": 80,
+      "practice": {
+        "wood": 20,
+        "build": 20
+      },
+      "experts": {
+        "wood": 40,
+        "build": 40
+      },
+      "sites": [
+        "house",
+        "workshop"
+      ],
+      "inputs": {
+        "wood": 1
+      },
+      "weights": {
+        "forest": 1.7,
+        "wood_pressure": 1.0
+      }
+    },
+    "rotation": {
+      "name": "Севооборот",
+      "domain": "food",
+      "skill": "farm",
+      "work": 80,
+      "practice": {
+        "farm": 60
+      },
+      "experts": {
+        "farm": 40
+      },
+      "sites": [
+        "farm"
+      ],
+      "inputs": {
+        "food": 1
+      },
+      "weights": {
+        "farms": 1.8,
+        "food_pressure": 1.4
+      }
+    },
+    "records": {
+      "name": "Записи",
+      "domain": "education",
+      "skill": "build",
+      "work": 100,
+      "practice": {
+        "build": 60
+      },
+      "experts": {
+        "build": 40,
+        "food": 40
+      },
+      "sites": [
+        "workshop",
+        "archive"
+      ],
+      "inputs": {
+        "wood": 1
+      },
+      "weights": {
+        "teachers": 1.4,
+        "contacts": 0.9
+      }
+    },
+    "stonework": {
+      "name": "Обработка камня",
+      "domain": "engineering",
+      "skill": "build",
+      "work": 100,
+      "practice": {
+        "build": 100
+      },
+      "experts": {
+        "build": 40
+      },
+      "sites": [
+        "workshop"
+      ],
+      "inputs": {
+        "stone": 1
+      },
+      "weights": {
+        "minerals": 1.8,
+        "wood_pressure": 1.0
+      }
+    },
+    "ceramics": {
+      "name": "Керамика",
+      "domain": "materials",
+      "skill": "build",
+      "work": 100,
+      "practice": {
+        "build": 140
+      },
+      "experts": {
+        "build": 40
+      },
+      "sites": [
+        "kiln"
+      ],
+      "inputs": {
+        "stone": 1,
+        "wood": 1
+      },
+      "weights": {
+        "minerals": 1.5,
+        "food_pressure": 0.8
+      }
+    },
+    "weaving": {
+      "name": "Ткачество",
+      "domain": "materials",
+      "skill": "food",
+      "work": 100,
+      "practice": {
+        "food": 140
+      },
+      "experts": {
+        "food": 40
+      },
+      "sites": [
+        "loom"
+      ],
+      "inputs": {
+        "food": 1
+      },
+      "weights": {
+        "farms": 1.1,
+        "coast": 0.8,
+        "cold": 1.4
+      }
+    },
+    "metallurgy": {
+      "name": "Металлургия",
+      "domain": "materials",
+      "skill": "build",
+      "work": 160,
+      "practice": {
+        "build": 200
+      },
+      "experts": {
+        "build": 80
+      },
+      "sites": [
+        "forge"
+      ],
+      "inputs": {
+        "ore": 1,
+        "wood": 1
+      },
+      "weights": {
+        "minerals": 2.0,
+        "wood_pressure": 0.5
+      }
+    },
+    "governance": {
+      "name": "Управление городом",
+      "domain": "organization",
+      "skill": "food",
+      "work": 140,
+      "practice": {
+        "food": 240
+      },
+      "experts": {
+        "food": 80,
+        "build": 40
+      },
+      "sites": [
+        "market"
+      ],
+      "inputs": {
+        "food": 1
+      },
+      "weights": {
+        "population": 1.4,
+        "contacts": 1.2
+      }
+    },
+    "navigation": {
+      "name": "Прибрежное мореплавание",
+      "domain": "maritime",
+      "skill": "wood",
+      "work": 100,
+      "practice": {
+        "wood": 80
+      },
+      "experts": {
+        "wood": 40
+      },
+      "sites": [
+        "dock",
+        "port"
+      ],
+      "inputs": {
+        "wood": 1
+      },
+      "weights": {
+        "coast": 2.2,
+        "contacts": 0.6
+      },
+      "coastal": true
+    },
+    "sailing": {
+      "name": "Паруса и навигация",
+      "domain": "maritime",
+      "skill": "wood",
+      "work": 180,
+      "practice": {
+        "wood": 160
+      },
+      "experts": {
+        "wood": 80
+      },
+      "sites": [
+        "dock",
+        "port"
+      ],
+      "inputs": {
+        "wood": 1,
+        "cloth": 1
+      },
+      "weights": {
+        "coast": 2.0,
+        "contacts": 1.0
+      },
+      "coastal": true
+    }
+  },
+  "construction": {
+    "workshop": {
+      "build": 40
+    },
+    "archive": {
+      "build": 40,
+      "food": 40
+    },
+    "kiln": {
+      "build": 40
+    },
+    "loom": {
+      "food": 40
+    },
+    "forge": {
+      "build": 80
+    },
+    "market": {
+      "food": 40,
+      "build": 40
+    },
+    "school": {
+      "food": 80,
+      "build": 40
+    },
+    "council": {
+      "food": 80,
+      "build": 40
+    },
+    "dock": {
+      "wood": 40
+    },
+    "port": {
+      "wood": 80,
+      "build": 40
+    }
+  }
+}

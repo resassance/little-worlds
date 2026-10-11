@@ -193,8 +193,8 @@ static func plan(world, home: Dictionary) -> void:
 	elif count(world, home, "farm", false) < maxi(1, ceili(residents.size() / 12.0)) and site(world, home, "farm") != WorldState.NO_CELL: kind = "farm"
 	elif count(world, home, "store", false) == 0: kind = "store"
 	elif WorldLife.needs_home(world, home): kind = "house"
-	elif WorldSociety.mastered(world, home, "carpentry") and count(world, home, "workshop", false) == 0: kind = "workshop"
-	elif WorldSociety.mastered(world, home, "records") and count(world, home, "archive", false) == 0: kind = "archive"
+	elif WorldDevelopment.construction_ready(world, home, "workshop") and count(world, home, "workshop", false) == 0: kind = "workshop"
+	elif WorldDevelopment.construction_ready(world, home, "archive") and count(world, home, "archive", false) == 0: kind = "archive"
 	if kind.is_empty():
 		WorldCivilization.plan(world, home)
 		return

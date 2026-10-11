@@ -3,19 +3,7 @@ extends RefCounted
 
 const ERAS := ["Община", "Оседлое поселение", "Развитая деревня", "Ремесленное поселение", "Ранний город", "Средневековое общество"]
 const LIMIT := 1000000
-const TECH := {
-	"preservation": {"name": "Хранение пищи", "skill": "food", "work": 60, "practice": {"food": 60}, "experts": {"food": 40}, "building": "store", "deps": []},
-	"carpentry": {"name": "Плотничество", "skill": "build", "work": 80, "practice": {"wood": 20, "build": 20}, "experts": {"wood": 40, "build": 40}, "building": "house", "deps": []},
-	"rotation": {"name": "Севооборот", "skill": "farm", "work": 80, "practice": {"farm": 60}, "experts": {"farm": 40}, "building": "farm", "deps": []},
-	"records": {"name": "Записи", "skill": "build", "work": 100, "practice": {"build": 60}, "experts": {"build": 40, "food": 40}, "building": "workshop", "deps": ["carpentry", "preservation"]},
-	"stonework": {"name": "Обработка камня", "skill": "build", "work": 100, "practice": {"build": 100}, "experts": {"build": 40}, "building": "workshop", "deps": ["carpentry"]},
-	"ceramics": {"name": "Керамика", "skill": "build", "work": 100, "practice": {"build": 140}, "experts": {"build": 40}, "building": "kiln", "deps": ["stonework"]},
-	"weaving": {"name": "Ткачество", "skill": "food", "work": 100, "practice": {"food": 140}, "experts": {"food": 40}, "building": "loom", "deps": ["carpentry"]},
-	"metallurgy": {"name": "Металлургия", "skill": "build", "work": 160, "practice": {"build": 200}, "experts": {"build": 80}, "building": "forge", "deps": ["ceramics"]},
-	"governance": {"name": "Управление городом", "skill": "food", "work": 140, "practice": {"food": 240}, "experts": {"food": 80, "build": 40}, "building": "market", "deps": ["records", "metallurgy"]},
-	"navigation": {"name": "Прибрежное мореплавание", "skill": "wood", "work": 100, "practice": {"wood": 80}, "experts": {"wood": 40}, "building": "dock", "deps": ["carpentry", "preservation"]},
-	"sailing": {"name": "Паруса и навигация", "skill": "wood", "work": 180, "practice": {"wood": 160}, "experts": {"wood": 80}, "building": "dock", "deps": ["navigation", "weaving"]}
-}
+static var TECH: Dictionary = WorldDevelopment.METHODS
 
 static func get_society(world, town_id: int) -> Dictionary:
 	return world.society_index.get(town_id, {})
@@ -26,6 +14,7 @@ static func ensure_town(world, home: Dictionary) -> Dictionary:
 	society = {"id": world.next_id, "town": int(home.id), "name": "Община «%s»" % home.name, "era": 0, "era_days": 0, "project": "", "worker": -1, "taught": 0, "practice": {"food": 0, "wood": 0, "build": 0, "farm": 0}, "tech": {}}
 	world.next_id += 1
 	for key in TECH: society.tech[key] = {"known": false, "mastered": false, "progress": 0, "used": 0, "discovered_tick": -1, "operating": false}
+	WorldDevelopment.initialize(world, society)
 	world.societies.append(society)
 	world.society_index[home.id] = society
 	return society
@@ -40,6 +29,7 @@ static func practice(world, member: Dictionary, skill: String) -> void:
 	var society := get_society(world, member.home)
 	if society.is_empty(): return
 	society.practice[skill] = mini(LIMIT, int(society.practice[skill]) + 1)
+	WorldDevelopment.practice(society, member, skill)
 	for key in TECH:
 		if society.tech[key].mastered and (TECH[key].skill == skill or TECH[key].experts.has(skill)): remember(member, key)
 
@@ -61,9 +51,18 @@ static func experts(world, home: Dictionary) -> Dictionary:
 
 static func reason(world, home: Dictionary, key: String, applying: bool = false) -> String:
 	var spec: Dictionary = TECH[key]
-	for dependency in spec.deps:
-		if not mastered(world, home, dependency): return "нужно освоить: " + TECH[dependency].name
-	if WorldEconomy.count(world, home, spec.building) == 0: return "нужно построить: " + WorldEconomy.NAMES[spec.building]
+	if spec.get("coastal", false) and WorldEconomy.navigation(world, home).coasts.is_empty(): return "нужен доступный берег"
+	var equipped := false
+	for kind in spec.sites:
+		if WorldEconomy.count(world, home, kind) > 0: equipped = true
+	if not equipped: return "нужно рабочее место: " + WorldEconomy.NAMES[spec.sites[0]]
+	if not applying:
+		var state: Dictionary = get_society(world, home.id).tech[key]
+		if state.retry_tick > world.ticks: return "после неудачного опыта нужен перерыв"
+		if not state.spent:
+			for resource in spec.inputs:
+				if not WorldCivilization.inputs_available(world, home, {resource: spec.inputs[resource]}):
+					return "нужен материал для опытов: " + {"wood": "древесина", "food": "пища"}.get(resource, WorldCivilization.GOODS.get(resource, resource))
 	if applying and key == "records" and WorldEconomy.count(world, home, "archive") == 0: return "нужен архив"
 	var available := experts(world, home)
 	for skill in spec.experts:
@@ -83,7 +82,7 @@ static func research_assign(world, member: Dictionary, home: Dictionary) -> bool
 	var society := get_society(world, home.id)
 	if society.is_empty() or society.project.is_empty() or society.worker != -1: return false
 	var key: String = society.project
-	if member.skills[TECH[key].skill] < 40 or member.energy < 30 or member.health < 70 or member.hunger >= 25 or WorldEconomy.food_days(world, home) < 6: return false
+	if member.skills[TECH[key].skill] < int(TECH[key].experts.get(TECH[key].skill, 40)) or member.energy < 30 or member.health < 70 or member.hunger >= 25 or WorldEconomy.food_days(world, home) < 6: return false
 	if not reason(world, home, key).is_empty(): return false
 	society.worker = int(member.id)
 	WorldEconomy.set_task(world, member, WorldEconomy.task("research", Vector2i(home.x, home.y)))
@@ -115,9 +114,11 @@ static func research(world, member: Dictionary, home: Dictionary) -> void:
 	member.task.work += 1
 	member.energy = maxf(0, member.energy - 0.5)
 	var state: Dictionary = society.tech[key]
-	state.progress += 1
 	world.metrics.research_work += 1
-	if state.progress < int(TECH[key].work): return
+	WorldSocial.practice(world, member, TECH[key].skill)
+	var succeeded := WorldDevelopment.experiment(world, home, society, key, member)
+	if not succeeded: return
+	state.progress = int(TECH[key].work)
 	state.mastered = true
 	state.discovered_tick = world.ticks
 	world.metrics.discoveries += 1
@@ -125,37 +126,15 @@ static func research(world, member: Dictionary, home: Dictionary) -> void:
 	world.log_event("Освоена технология", "%s: %s. Можно применять в хозяйстве." % [home.name, TECH[key].name])
 	WorldEconomy.set_task(world, member, {})
 	society.project = ""
+	society.project_reason = ""
 	invalidate(world)
 
 static func taught(world, mentor: Dictionary, student: Dictionary) -> void:
 	var society := get_society(world, mentor.home)
 	if society.is_empty(): return
 	society.taught = mini(LIMIT, int(society.taught) + 1)
+	society.domain_practice.education = mini(LIMIT, int(society.domain_practice.education) + 1)
 	for key in mentor.ideas: remember(student, key)
-
-static func era_ready(world, home: Dictionary, society: Dictionary, target: int) -> bool:
-	return era_reason(world, home, society, target).is_empty()
-
-static func era_reason(world, home: Dictionary, society: Dictionary, target: int) -> String:
-	if WorldEconomy.food_days(world, home) < 6: return "нужен запас еды на 6 дней"
-	for key in ["carpentry", "preservation"]:
-		if not active(world, home, key): return "освоить и применять: " + TECH[key].name
-		if society.tech[key].used == 0: return "применить в хозяйстве: " + TECH[key].name
-	if target == 1: return ""
-	var farming: bool = active(world, home, "rotation") and society.tech.rotation.used > 0
-	var crafting: bool = WorldEconomy.count(world, home, "workshop") > 0 and mastered(world, home, "records")
-	if not farming and not crafting: return "освоить севооборот или записи в мастерской"
-	if target == 2: return ""
-	if not active(world, home, "records"): return "нужен работающий архив и специалисты"
-	if society.tech.records.used == 0 or society.taught == 0: return "передать знания ученику через архив"
-	if target <= 3: return ""
-	if not active(world, home, "metallurgy") or society.tech.metallurgy.used == 0: return "наладить металлургию и изготовление инструментов"
-	if not active(world, home, "governance"): return "освоить городское управление и рынок"
-	if target == 4: return ""
-	for key in ["stonework", "ceramics", "weaving"]:
-		if not active(world, home, key) or society.tech[key].used == 0: return "применить в производстве: " + TECH[key].name
-	if WorldEconomy.count(world, home, "school") == 0 or WorldEconomy.count(world, home, "council") == 0: return "построить школу и совет"
-	return ""
 
 static func daily(world) -> void:
 	for home in world.towns: daily_town(world, home)
@@ -184,19 +163,10 @@ static func daily_town(world, home: Dictionary) -> void:
 		if enough:
 			society.tech[key].known = true
 			world.log_event("Идея общины", "%s: практика подсказала «%s». Нужно выделить время на освоение." % [home.name, TECH[key].name])
-	if society.worker == -1 and not society.project.is_empty() and not reason(world, home, society.project).is_empty(): society.project = ""
-	if society.worker == -1 and society.project.is_empty() and WorldEconomy.food_days(world, home) >= 6:
-		for key in TECH:
-			if society.tech[key].known and not society.tech[key].mastered and reason(world, home, key).is_empty():
-				society.project = key
-				break
-	if society.era < ERAS.size() - 1:
-		if era_ready(world, home, society, society.era + 1): society.era_days += 1
-		else: society.era_days = 0
-		if society.era_days >= 3:
-			society.era += 1
-			society.era_days = 0
-			world.log_event("Новый этап общества", "%s: %s. Технологии уже используются и обеспечивают устойчивое хозяйство." % [home.name, ERAS[society.era]])
+	if society.worker == -1 and not society.project.is_empty() and not reason(world, home, society.project).is_empty():
+		society.project = ""
+		society.project_reason = ""
+	if society.worker == -1 and society.project.is_empty(): WorldDevelopment.choose(world, home, society)
 
 static func reconcile(world) -> void:
 	for i in range(world.societies.size() - 1, -1, -1):
@@ -211,22 +181,27 @@ static func reconcile(world) -> void:
 static func description(world, home: Dictionary) -> String:
 	var society := get_society(world, home.id)
 	if society.is_empty(): return ""
-	var text: String = "\n\n%s\nЭтап: %s" % [society.name, ERAS[society.era]]
-	var farming: bool = society.tech.rotation.used > 0
-	var crafting: bool = WorldEconomy.count(world, home, "workshop") > 0
-	text += "\nУклад: " + ("земледелие и ремёсла" if farming and crafting else ("земледельческий" if farming else ("лесное ремесло" if crafting else "собирательский")))
-	if society.era < ERAS.size() - 1:
-		var why := era_reason(world, home, society, society.era + 1)
-		text += "\nСледующий этап: %s\n%s" % [ERAS[society.era + 1], why if not why.is_empty() else "Устойчивые условия: %d/3 дней" % society.era_days]
+	var text: String = "\n\n%s" % society.name
+	var directions := WorldDevelopment.profile(world, home)
+	for domain in directions:
+		var value: Dictionary = directions[domain]
+		if value.known == 0 and value.practice == 0: continue
+		if value.known > 0:
+			text += "\n%s: %d освоено · %d работает" % [WorldDevelopment.DOMAINS[domain], value.mastered, value.operating]
+		else: text += "\n%s: есть практический опыт" % WorldDevelopment.DOMAINS[domain]
+	if not society.project.is_empty():
+		text += "\nПроект: %s\n%s" % [TECH[society.project].name, society.project_reason]
+	if society.era > 0: text += "\nВ прежней хронике: " + ERAS[society.era]
 	for key in TECH:
 		var state: Dictionary = society.tech[key]
+		if not state.known: continue
 		var status := "нужна местная практика"
 		if state.known:
 			var why := reason(world, home, key, state.mastered)
 			if state.mastered: status = ("применяется" if state.used > 0 else "готово к применению") if why.is_empty() else "освоено · " + why
 			elif not why.is_empty(): status = why
 			elif WorldEconomy.food_days(world, home) < 6: status = "нужен запас еды на 6 дней"
-			else: status = "освоение %d/%d" % [state.progress, TECH[key].work]
+			else: status = "опыты: %d шагов · попытка %d" % [state.work_done, state.attempts]
 		text += "\n%s: %s" % [TECH[key].name, status]
 	text += "\nМастерские: %d · Архивы: %d" % [WorldEconomy.count(world, home, "workshop"), WorldEconomy.count(world, home, "archive")]
 	return text
@@ -262,9 +237,8 @@ static func restore(world, data: Dictionary) -> bool:
 			if not state.known and (state.progress > 0 or state.mastered): return false
 			if state.mastered:
 				if state.progress != int(TECH[key].work) or state.discovered_tick < 0 or state.discovered_tick > world.ticks: return false
-				for dependency in TECH[key].deps:
-					if not society.tech.get(dependency, {}).get("mastered", false): return false
-			elif state.progress == int(TECH[key].work) or state.used > 0 or state.discovered_tick != -1: return false
+			elif (data.version < 10 and state.progress == int(TECH[key].work)) or state.used > 0 or state.discovered_tick != -1: return false
+		if not WorldDevelopment.restore(society, int(data.version), world): return false
 		if not society.get("project") is String or (not society.project.is_empty() and (not TECH.has(society.project) or not society.tech[society.project].known or society.tech[society.project].mastered)): return false
 		if society.era >= 1:
 			for key in ["carpentry", "preservation"]:
@@ -289,7 +263,7 @@ static func restore(world, data: Dictionary) -> bool:
 		if not WorldState._integer(member.task.get("society")) or not TECH.has(member.task.get("tech")): return false
 		member.task.society = int(member.task.society)
 		var society := get_society(world, member.home)
-		if society.is_empty() or society.worker != member.id or society.id != member.task.society or society.project != member.task.tech or member.task.work > society.tech[society.project].progress: return false
+		if society.is_empty() or society.worker != member.id or society.id != member.task.society or society.project != member.task.tech or member.task.work > maxi(int(society.tech[society.project].progress), int(TECH[society.project].work) * 2): return false
 	for value in world.buildings:
 		if value.kind == "farm" and value.stock > 18 and not mastered(world, WorldEconomy.town(world, value.town), "rotation") and (data.version < 7 or world.metrics.crop_food < value.stock): return false
 	return true

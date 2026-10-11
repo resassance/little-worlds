@@ -283,12 +283,12 @@ func capture() -> void:
  await settle_layout()
  var home: Dictionary = learning.towns[0]
  check(WorldEconomy.count(learning, home, "workshop") > 0 and WorldEconomy.count(learning, home, "archive") > 0, "real society builds its workshop and archive")
- check(learning.societies[0].era >= 3 and learning.metrics.discoveries >= 4, "autonomous community reaches the craft stage through four discoveries")
+ check(WorldDevelopment.profile(learning, home).engineering.mastered > 0 and learning.metrics.discoveries >= 4, "autonomous community reaches the craft stage through four discoveries")
  game.inspected_person_id = -1
  game.selected_cell = WorldState.NO_CELL
  game.view.go_to_cell(Vector2i(home.x, home.y))
  game._inspect(Vector2i(home.x, home.y))
- check(game.inspector_label.text.contains("Этап: " + WorldSociety.ERAS[learning.societies[0].era]) and game.inspector_label.text.contains("Хранение пищи: применяется") and game.inspector_label.text.contains("Архивы: 1"), "town card shows actual society stage, technology use and infrastructure")
+ check(game.inspector_label.text.contains("Строительство и инженерия:") and game.inspector_label.text.contains("Хранение пищи: применяется") and game.inspector_label.text.contains("Архивы: 1"), "town card shows actual society stage, technology use and infrastructure")
  await snapshot("world-society")
  root.size = Vector2i(844, 480)
  await snapshot("world-mobile-society")

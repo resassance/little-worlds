@@ -70,8 +70,8 @@ static func supply_assign(world, member: Dictionary, home: Dictionary, value: Di
 static func assign(world, member: Dictionary, home: Dictionary) -> bool:
 	if WorldEconomy.food_days(world, home) < 6 or member.energy < 35: return false
 	var data := ensure(world, home)
-	if not WorldSociety.mastered(world, home, "carpentry"): return false
-	var need_ore: bool = data.stock.ore < 12 and WorldSociety.mastered(world, home, "ceramics")
+	if member.skills.build < 10: return false
+	var need_ore: bool = data.stock.ore < 12 and WorldEconomy.count(world, home, "forge", false) > 0
 	if data.stock.stone < 24 or need_ore:
 		for deposit in WorldEconomy.navigation(world,home).quarries:
 			var point: Vector2i=deposit.land
@@ -169,12 +169,12 @@ static func execute(world, member: Dictionary, home: Dictionary) -> bool:
 	return true
 
 static func plan(world, home: Dictionary) -> void:
-	var options := {"kiln": "stonework", "loom": "carpentry", "forge": "ceramics", "market": "records", "school": "governance", "council": "governance", "dock": "carpentry", "port": "sailing"}
+	var options := ["dock", "kiln", "loom", "forge", "market", "school", "council", "port"]
 	var ship_kind := "sailboat" if WorldSociety.mastered(world, home, "sailing") else "boat"
-	if WorldSociety.mastered(world, home, "navigation") and WorldEconomy.count(world, home, ship_kind, false) == 0:
-		options[ship_kind] = "sailing" if ship_kind == "sailboat" else "navigation"
+	if (WorldSociety.mastered(world, home, "navigation") or WorldSociety.mastered(world, home, "sailing")) and WorldEconomy.count(world, home, ship_kind, false) == 0:
+		options.push_front(ship_kind)
 	for kind in options:
-		if not WorldSociety.mastered(world, home, options[kind]) or WorldEconomy.count(world, home, kind, false) > 0: continue
+		if not WorldDevelopment.construction_ready(world, home, kind) or WorldEconomy.count(world, home, kind, false) > 0: continue
 		if not inputs_available(world, home, EXTRA.get(kind, {})) or WorldEconomy.available_wood(world, home) < int(WorldEconomy.COST[kind]): continue
 		var cell := WorldEconomy.site(world, home, kind)
 		if cell == WorldState.NO_CELL: continue

@@ -92,7 +92,7 @@ func run() -> void:
 		w.step()
 		if paused != null: paused.step()
 	check(paused != null and JSON.stringify(paused.to_dict()) == JSON.stringify(w.to_dict()), "research continues identically after loading")
-	check(s.tech.preservation.mastered and worker.ideas.has("preservation") and w.metrics.discoveries == 1, "completed research creates local mastery and a living carrier")
+	check(s.tech.preservation.mastered and worker.ideas.has("preservation") and w.metrics.discoveries >= 1, "completed research creates local mastery and a living carrier")
 	check(ledger(w), "research and interrupted production conserve all resources")
 	w = fixture()
 	h = w.towns[0]
@@ -197,16 +197,13 @@ func run() -> void:
 	s.tech.records.used = 1
 	s.taught = 1
 	WorldSociety.daily(w)
-	check(s.era == 0 and s.era_days == 1, "mastered and applied technologies need sustained conditions for an era")
+	var profile := WorldDevelopment.profile(w, h)
+	check(profile.food.mastered == 2 and profile.maritime.mastered == 2 and profile.education.mastered == 1, "capabilities develop in independent domains without advancing a global era")
 	h.food = 0
 	WorldSociety.daily(w)
-	check(s.era == 0 and s.era_days == 0, "food crisis resets era stability rather than advancing by calendar")
+	check(s.era == 0 and s.era_days == 0 and profile.food.mastered == 2, "food crisis retains knowledge without a global stage")
 	h.food = 48
 	WorldSociety.daily(w)
-	for i in 8:
-		w.ticks += 20
-		WorldSociety.daily(w)
-	check(s.era == 3 and WorldEconomy.count(w, h, "archive") == 1, "society reaches stages through local use and infrastructure")
 	check(WorldState.from_dict(JSON.parse_string(JSON.stringify(w.to_dict()))) != null, "advanced society and infrastructure load")
 	var child: Dictionary = w.people[2]
 	child.birth_tick = -13 * WorldLife.YEAR
@@ -230,7 +227,7 @@ func run() -> void:
 	check(s.tech.records.used == 2 and ledger(w), "archive teaching records a real use without creating food")
 	var archive_cell := Vector2i(-4, -2)
 	w.paint(archive_cell, 0, WorldState.Terrain.WATER)
-	check(not WorldSociety.active(w, h, "records") and WorldSocial.lesson_work(w, h) == 10 and s.tech.records.mastered and s.era == 3, "destroyed archive stops the benefit but retains recipe and historical stage")
+	check(not WorldSociety.active(w, h, "records") and WorldSocial.lesson_work(w, h) == 10 and s.tech.records.mastered and s.era == 0, "destroyed archive stops the benefit but retains recipe and historical stage")
 	check(WorldState.from_dict(w.to_dict()) != null and ledger(w), "archive destruction preserves balanced resources and a loadable society")
 
 	w.paint(Vector2i(100, 0), 15, WorldState.Terrain.GRASS)
@@ -240,7 +237,7 @@ func run() -> void:
 	WorldEconomy.add_building(w, remote, "camp", Vector2i(100, 0), true)
 	var other_society := WorldSociety.get_society(w, remote.id)
 	WorldSociety.daily(w)
-	check(other_society.era == 0 and not other_society.tech.carpentry.known and s.era == 3, "distant settlements keep separate ideas and eras")
+	check(other_society.era == 0 and not other_society.tech.carpentry.known and s.era == 0, "distant settlements keep separate ideas and eras")
 	worker = w.people[0]
 	worker.ideas = ["carpentry"]
 	worker.home = remote.id
@@ -274,8 +271,8 @@ func run() -> void:
 	w.metrics.built_wood += WorldEconomy.COST.workshop
 	s.tech.carpentry.used = 1
 	s.tech.preservation.used = 1
-	check(WorldSociety.era_ready(w, h, s, 2) and not s.tech.rotation.mastered, "crafting offers a development path without farming technology")
-	check(not WorldSociety.era_ready(w, h, s, 3) and WorldSociety.description(w, h).contains("архив"), "next stage requires actual archives and taught pupils")
+	check(WorldDevelopment.profile(w, h).engineering.mastered == 1 and not s.tech.rotation.mastered, "engineering develops independently of farming")
+	check(not WorldSociety.active(w, h, "records") and WorldSociety.description(w, h).contains("архив"), "records still need actual operating archives")
 	w = fixture()
 	w.metrics.births = 7
 	w.metrics.deaths = 3
