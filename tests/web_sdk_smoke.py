@@ -39,7 +39,7 @@ with sync_playwright() as playwright:
     page = browser.new_page(viewport={'width':1280,'height':800})
     def await_world(predicate=lambda value: True, timeout=60):
         deadline=time.monotonic()+timeout
-        next_save=time.monotonic()+6
+        next_save=time.monotonic()+30
         while time.monotonic()<deadline:
             value=page.evaluate(read_world_brief)
             if isinstance(value,dict) and predicate(value):
@@ -49,7 +49,7 @@ with sync_playwright() as playwright:
             if time.monotonic()>=next_save:
                 page.locator('canvas').focus()
                 page.keyboard.press('Control+s')
-                next_save=time.monotonic()+6
+                next_save=time.monotonic()+30
             page.wait_for_timeout(200)
         page.screenshot(path=str(Path(__file__).resolve().parents[1]/'artifacts'/'web-sdk-timeout.png'))
         raise AssertionError(f'Complete saved world did not become available: ticks={value.get("ticks") if isinstance(value,dict) else None}, people={len(value.get("people",[])) if isinstance(value,dict) else None}, errors={errors}')
