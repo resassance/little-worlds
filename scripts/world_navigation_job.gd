@@ -7,9 +7,11 @@ var origin: Vector2i
 var head := 0
 var finished := false
 var result: Dictionary
+var reach := WorldEconomy.RANGE
 
 func _init(value, settlement: Dictionary) -> void:
 	world = value; home = settlement
+	reach = WorldExploration.radius(home)
 	origin = Vector2i(home.x, home.y)
 	if world.navigation.has(home.id):
 		result = world.navigation[home.id]; finished = true
@@ -19,7 +21,7 @@ func _init(value, settlement: Dictionary) -> void:
 		var wood: Array[Vector2i] = []
 		var quarries: Array[Dictionary] = []
 		var coasts: Array[Dictionary] = []
-		result = {"parents":{origin:origin},"cells":cells,"food":food,"wood":wood,"quarries":quarries,"coasts":coasts,"routes":{}}
+		result = {"parents":{origin:origin},"distances":{origin:0},"cells":cells,"food":food,"wood":wood,"quarries":quarries,"coasts":coasts,"routes":{}}
 
 func advance(budget_usec: int = 1000) -> bool:
 	var deadline := Time.get_ticks_usec() + budget_usec
@@ -43,7 +45,8 @@ func unit() -> void:
 		var ground: int = world.terrain_at(other)
 		if ground == WorldState.Terrain.MOUNTAIN: result.quarries.append({"land":cell,"rock":other})
 		if ground == WorldState.Terrain.WATER: result.coasts.append({"land":cell,"water":other})
-		if result.parents.has(other) or absi(other.x-origin.x)+absi(other.y-origin.y)>WorldEconomy.RANGE: continue
+		if result.parents.has(other) or absi(other.x-origin.x)+absi(other.y-origin.y)>reach: continue
 		if ground in [WorldState.Terrain.WATER,WorldState.Terrain.MOUNTAIN] or not world.inside(other): continue
 		result.parents[other] = cell
+		result.distances[other] = int(result.distances[cell]) + 1
 		result.cells.append(other)

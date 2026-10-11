@@ -12,8 +12,8 @@ const COST := {"camp": 0, "house": 6, "farm": 4, "store": 12, "workshop": 12, "a
 const WORK := {"camp": 0, "house": 16, "farm": 12, "store": 24, "workshop": 28, "archive": 32, "kiln": 24, "loom": 24, "forge": 32, "market": 28, "school": 36, "council": 36, "dock": 24, "port": 40, "boat": 24, "sailboat": 48}
 const SIZE := {"camp": 1, "house": 2, "farm": 3, "store": 3, "workshop": 2, "archive": 2, "kiln": 2, "loom": 2, "forge": 2, "market": 2, "school": 2, "council": 2, "dock": 2, "port": 3, "boat": 1, "sailboat": 2}
 const NAMES := {"camp": "Лагерь", "house": "Дом", "farm": "Поле", "store": "Склад", "workshop": "Мастерская", "archive": "Архив", "kiln": "Гончарная печь", "loom": "Ткацкая", "forge": "Кузница", "market": "Рынок", "school": "Школа", "council": "Совет", "dock": "Причал", "port": "Порт", "boat": "Лодка", "sailboat": "Парусник"}
-const JOBS := {"settler": "Поселенец", "forager": "Собиратель", "logger": "Лесоруб", "builder": "Строитель", "farmer": "Земледелец", "child": "Ребёнок", "teen": "Подросток", "carer": "Опекун", "teacher": "Наставник", "researcher": "Исследователь", "miner": "Каменотёс", "artisan": "Ремесленник", "fisher": "Рыбак", "sailor": "Мореплаватель", "merchant": "Торговец"}
-const TASKS := {"gather_food": "Собирает еду", "gather_wood": "Заготавливает древесину", "deliver": "Несёт груз в лагерь", "supply": "Доставляет материалы", "build": "Строит", "plant": "Засевает поле", "harvest": "Собирает урожай", "eat": "Идёт за едой", "rest": "Отдыхает", "care": "Заботится о ребёнке", "visit": "Идёт общаться", "teach": "Обучает ремеслу", "research": "Осваивает технологию", "quarry": "Добывает камень и руду", "manufacture": "Работает в мастерской", "supply_goods": "Доставляет материалы", "fish": "Ловит рыбу", "travel": "Путешествует"}
+const JOBS := {"settler": "Поселенец", "forager": "Собиратель", "logger": "Лесоруб", "builder": "Строитель", "farmer": "Земледелец", "child": "Ребёнок", "teen": "Подросток", "carer": "Опекун", "teacher": "Наставник", "researcher": "Исследователь", "miner": "Каменотёс", "artisan": "Ремесленник", "fisher": "Рыбак", "sailor": "Мореплаватель", "merchant": "Торговец", "scout": "Разведчик"}
+const TASKS := {"gather_food": "Собирает еду", "gather_wood": "Заготавливает древесину", "deliver": "Несёт груз в лагерь", "supply": "Доставляет материалы", "build": "Строит", "plant": "Засевает поле", "harvest": "Собирает урожай", "eat": "Идёт за едой", "rest": "Отдыхает", "care": "Заботится о ребёнке", "visit": "Идёт общаться", "teach": "Обучает ремеслу", "research": "Осваивает технологию", "quarry": "Добывает камень и руду", "manufacture": "Работает в мастерской", "supply_goods": "Доставляет материалы", "fish": "Ловит рыбу", "travel": "Путешествует", "explore": "Разведывает окрестности"}
 const METRICS := ["spawn_food", "harvested_food", "harvested_wood", "delivered_food", "delivered_wood", "eaten_food", "seed_food", "crop_food", "spoiled_food", "built_wood", "growth_food", "growth_wood", "lost_food", "lost_wood", "births", "deaths", "helped_food", "lessons", "research_work", "discoveries", "processed_food", "processed_wood"]
 
 static func person_defaults(world, person: Dictionary) -> void:
@@ -205,6 +205,7 @@ static func plan(world, home: Dictionary) -> void:
 		world.log_event("Начата стройка", "%s: %s. Материалы доставят жители." % [home.name, NAMES[kind].to_lower()])
 
 static func claim_key(value: Dictionary) -> String:
+	if value.kind == "explore": return "explore:%d" % value.building
 	if value.kind == "fish": return "fish:%d:%d" % [value.x, value.y]
 	if value.kind == "quarry": return "quarry:%d:%d" % [value.x, value.y]
 	if value.kind == "manufacture": return "manufacture:%d" % value.building
@@ -294,12 +295,14 @@ static func assign(world, person: Dictionary, home: Dictionary) -> void:
 			return
 	var urgent_food := food_days(world, home) < 6
 	if food_workers < maxi(1, ceili(population * 0.5)) and urgent_food:
-		if WorldMaritime.fish_assign(world, person, home): return
+		if WorldSociety.mastered(world, home, "carpentry") and WorldMaritime.fish_assign(world, person, home): return
 		var cell := resource(world, person, home, "food")
 		if cell != WorldState.NO_CELL:
 			person.job = "forager"
 			set_task(world, person, task("gather_food", cell))
 			return
+
+		if not WorldSociety.mastered(world, home, "carpentry") and WorldMaritime.fish_assign(world, person, home): return
 
 	if wood_workers == 0 and home.wood < 24 and food_workers > 0 and WorldSocial.preferred(world, person, home, "wood"):
 		var cell := resource(world, person, home, "wood")
@@ -325,6 +328,7 @@ static func assign(world, person: Dictionary, home: Dictionary) -> void:
 				person.job = "builder"
 				set_task(world, person, task("build", cell, value.id))
 				return
+	if WorldExploration.assign(world, person, home): return
 	if WorldSociety.research_assign(world, person, home): return
 	if WorldCivilization.assign(world, person, home): return
 	if home.food < food_capacity(world, home) - LOAD:
@@ -349,6 +353,9 @@ static func execute(world, person: Dictionary, home: Dictionary) -> void:
 	if person.task.is_empty(): assign(world, person, home)
 	if person.task.is_empty(): return
 	var active: Dictionary = person.task
+	if active.kind == "explore":
+		WorldExploration.execute(world, person, home)
+		return
 	if active.kind == "fish":
 		WorldMaritime.fish(world, person, home)
 		return
@@ -372,6 +379,9 @@ static func execute(world, person: Dictionary, home: Dictionary) -> void:
 		return
 	if active.kind == "plant" and person.cargo_kind != "seed": return
 	if active.kind == "supply" and person.cargo > 0: target = Vector2i(value.x, value.y)
+	if (active.kind == "gather_food" and world.food_at(target) == 0) or (active.kind == "gather_wood" and world.wood_at(target) == 0):
+		set_task(world, person, {})
+		return
 	if not move(world, person, target, home): return
 	if WorldLife.years(world, person) >= 60 and active.kind in ["gather_food", "gather_wood", "build", "plant", "harvest"] and (world.ticks + int(person.id)) % 2: return
 	if (active.kind == "gather_food" and world.food_at(target) == 0) or (active.kind == "gather_wood" and world.wood_at(target) == 0) or (active.kind == "build" and value.delivered < int(COST[value.kind])) or (active.kind == "plant" and value.planted) or (active.kind == "harvest" and value.stock == 0):
@@ -573,7 +583,7 @@ static func step_person(world, i: int) -> void:
 	if home.is_empty() or not navigation(world, home).parents.has(Vector2i(person.x, person.y)):
 		home = {}
 		for candidate in world.towns:
-			if current.distance_squared_to(Vector2i(candidate.x, candidate.y)) <= RANGE * RANGE and navigation(world, candidate).parents.has(current):
+			if current.distance_squared_to(Vector2i(candidate.x, candidate.y)) <= WorldExploration.radius(candidate) * WorldExploration.radius(candidate) and navigation(world, candidate).parents.has(current):
 				home = candidate
 				break
 		var new_home: int = int(home.id) if not home.is_empty() else -1
@@ -583,7 +593,7 @@ static func step_person(world, i: int) -> void:
 			world.population_dirty = true
 			world.workforce.plans.clear(); world.workforce.contributions.clear()
 		person.home = new_home
-		set_task(world, person, {})
+		if new_home != -1 or person.task.get("kind", "") != "fish": set_task(world, person, {})
 	if not WorldLife.adult(world, person):
 		WorldLife.dependent_step(world, person, home)
 		if person.health <= 0: world.remove_person(i, "отсутствие ухода")
@@ -591,6 +601,7 @@ static func step_person(world, i: int) -> void:
 	person.guardian = -1
 	if person.job in ["child", "teen"]: person.job = "settler"
 	if home.is_empty():
+		if WorldMaritime.survival(world, person): return
 
 		var best := -INF
 		var next := Vector2i(person.x, person.y)
@@ -619,6 +630,8 @@ static func describe(person: Dictionary) -> String:
 	return text
 
 static func status(world, home: Dictionary) -> String:
+	var exploration := WorldExploration.describe(world, home)
+	if not exploration.is_empty(): return exploration
 	if food_days(world, home) < 2: return "Приоритет — еда"
 	for value in world.buildings:
 		if value.town == home.id and not value.ready:
@@ -632,6 +645,7 @@ static func status(world, home: Dictionary) -> String:
 	return "Запасы и хозяйство развиваются"
 
 static func restore(world, data: Dictionary) -> bool:
+	if not WorldExploration.restore(world): return false
 	if not data.get("buildings") is Array or data.buildings.size() > WorldState.MAX_BUILDINGS or not data.get("metrics") is Dictionary: return false
 	for key in METRICS:
 		if data.version < 4 and key in ["births", "deaths"]: continue
@@ -684,7 +698,15 @@ static func restore(world, data: Dictionary) -> bool:
 			if not WorldState._integer(person.task.get(key)): return false
 			person.task[key] = int(person.task[key])
 		if person.task.work < 0 or (not world.walkable(Vector2i(person.task.x, person.task.y)) and not WorldMaritime.saved_onboard(data, person.id)): return false
+		if person.task.kind == "explore":
+			if not person.task.get("phase") in ["outbound", "returning"] or not person.task.get("surveyed") is bool or person.task.get("reason") not in ["food", "wood"]: return false
+			if not WorldState._integer(person.task.get("radius")) or person.task.radius < RANGE or person.task.radius >= WorldExploration.MAX_RANGE or (int(person.task.radius) - RANGE) % WorldExploration.RANGE_STEP != 0: return false
+			person.task.radius = int(person.task.radius)
+			var home := town(world, person.home)
+			if home.is_empty() or not home.has("survey") or person.task.building != home.id or int(person.task.radius) != int(home.survey.radius): return false
+			if person.task.phase == "returning" and Vector2i(person.task.x, person.task.y) != Vector2i(home.x, home.y): return false
 		if person.task.kind == "fish":
+			if person.task.has("basic") and not person.task.basic is bool: return false
 			if not WorldState._integer(person.task.get("water_x")) or not WorldState._integer(person.task.get("water_y")): return false
 			var water := Vector2i(person.task.water_x, person.task.water_y)
 			if water.distance_to(Vector2i(person.task.x, person.task.y)) != 1 or world.terrain_at(water) != WorldState.Terrain.WATER: return false

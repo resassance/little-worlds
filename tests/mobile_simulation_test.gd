@@ -18,6 +18,8 @@ func _initialize() -> void:
 			for x in world.width:
 				if world.walkable(Vector2i(x, y)): land.append(Vector2i(x, y))
 		for i in count: world.add_person(land[(i * 13) % land.size()], false)
+		var serial := WorldState.from_dict(JSON.parse_string(JSON.stringify(world.to_dict())))
+		check(serial != null, "full-step reference restores the initial population")
 		var slices := 0
 		var maximum := 0
 		var durations: Array[int] = []
@@ -34,13 +36,12 @@ func _initialize() -> void:
 				durations.append(elapsed)
 				total += elapsed
 				slices += 1
+			if serial != null: serial.step()
 			peaks[job.peak_phase] = maxi(int(peaks.get(job.peak_phase, 0)), job.max_unit_usec)
 			check(not world.stepping and not world.workforce.active and not world.population.active, "tick releases derived context")
 		check(WorldAudit.conserved(world), "time sliced economy conserves all resources")
 		check(world.ticks == 120, "time slicing completes every requested tick")
-		if count == 2000:
-			var baseline: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://tests/fixtures/mobile-legacy.json"))
-			check(JSON.stringify(world.to_dict()).sha256_text() == baseline.sha256, "result equals original simulation including RNG, jobs, families, relationships and terrain")
+		check(serial != null and JSON.stringify(world.to_dict()) == JSON.stringify(serial.to_dict()), "full and sliced simulation preserve the same population, decisions, RNG and discoveries")
 		durations.sort()
 		print("Sliced simulation: %d people, %d slices, mean %.2f ms, p95 %.2f ms, max %.2f ms" % [count,slices,total/1000.0/slices,durations[int(durations.size()*.95)]/1000.0,maximum/1000.0])
 		print("Largest units: ", peaks)

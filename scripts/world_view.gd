@@ -77,7 +77,7 @@ func _ready() -> void:
 	for kind in ["kiln","loom","forge","market","school","council","dock","port","boat","sailboat"]: industry_textures[kind]=PixelArt.building_texture(kind)
 	vessel_textures = {"boat": PixelArt.vessel_texture(false), "sailboat": PixelArt.vessel_texture(true)}
 	var job_colors := {"settler": ["c0e7d5", "83c4c0"], "forager": ["b9d594", "968a5b"], "logger": ["e7ba83", "986b47"], "builder": ["b9b1d3", "887aa6"], "farmer": ["9ad4b0", "669979"], "child": ["e9caa7", "c4a58c"], "teen": ["c6dcb4", "94ae87"], "carer": ["d9b9cd", "ad8ea5"], "teacher": ["dfca82", "a38a57"], "researcher": ["aac9dc", "7596b4"]}
-	job_colors.merge({"miner": ["b8bcb3", "7b887d"], "artisan": ["d9a495", "aa766c"], "fisher": ["8bc8d1", "618aa2"], "sailor": ["e2d7a8", "779caa"], "merchant": ["d3b6da", "967fa8"]})
+	job_colors.merge({"miner": ["b8bcb3", "7b887d"], "artisan": ["d9a495", "aa766c"], "fisher": ["8bc8d1", "618aa2"], "sailor": ["e2d7a8", "779caa"], "merchant": ["d3b6da", "967fa8"], "scout": ["c9d5a3", "7d9476"]})
 	for job in job_colors:
 		var colors: Array = job_colors[job]
 		job_textures[job] = PixelArt.sprite_texture(PixelArt.PERSON, {"c": Color(colors[0]), "a": Color(colors[1])})

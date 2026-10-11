@@ -8,7 +8,7 @@ signal changed
 enum Terrain { WATER, SAND, GRASS, FOREST, MOUNTAIN }
 const MAP_SIZE := 128
 const MAX_PEOPLE := 2000
-const SAVE_VERSION := 8
+const SAVE_VERSION := 9
 const MAX_BUILDINGS := 2048
 const CHUNK_SIZE := 32
 const MAX_CHUNKS := 2048
@@ -53,6 +53,7 @@ var society_index: Dictionary = {}
 var society_cache: Dictionary = {}
 var buildings: Array[Dictionary] = []
 var navigation: Dictionary = {}
+var survey_regions: Dictionary = {}
 var occupied: Dictionary = {}
 var building_index: Dictionary = {}
 var claims: Dictionary = {}
@@ -130,6 +131,7 @@ func generate(seed_value: int) -> void:
 	occupied.clear()
 	building_index.clear()
 	navigation.clear()
+	survey_regions.clear()
 	claims.clear()
 	population_index.clear()
 	population_dirty = true
@@ -240,6 +242,7 @@ func _set_terrain(cell: Vector2i, terrain: int) -> void:
 	if not (previous == Terrain.FOREST and terrain == Terrain.GRASS): navigation.clear()
 	bounds_dirty[key] = true
 	revision += 1
+	WorldExploration.invalidate(self, cell)
 
 	for dy in range(-1, 2):
 		for dx in range(-1, 2): revisions[key + Vector2i(dx, dy)] = revision
@@ -356,6 +359,7 @@ func paint(center: Vector2i, radius: int, terrain: int) -> bool:
 			log_event("Поселение исчезло", "%s потеряло землю под собой." % towns[i].name)
 			metrics.lost_food += towns[i].food
 			metrics.lost_wood += towns[i].wood
+			WorldExploration.forget(self, towns[i])
 			towns.remove_at(i)
 	_repair_buildings()
 	population_dirty = true
@@ -651,7 +655,7 @@ static func _migrate(data: Dictionary) -> Dictionary:
 
 static func from_dict(source: Dictionary, region_files: Dictionary = {}) -> WorldState:
 	var data := _migrate(source) if source.get("version") == 1 else source
-	if not _integer(data.get("version")) or int(data.version) not in [2, 3, 4, 5, 6, 7, SAVE_VERSION] or data.get("chunk_size") != CHUNK_SIZE: return null
+	if not _integer(data.get("version")) or int(data.version) not in [2, 3, 4, 5, 6, 7, 8, SAVE_VERSION] or data.get("chunk_size") != CHUNK_SIZE: return null
 	for key in ["chunks", "people", "towns", "history", "fires"]:
 		if not data.get(key) is Array: return null
 	if data.chunks.size() > MAX_CHUNKS or data.people.size() > MAX_PEOPLE or data.towns.size() > MAX_PEOPLE or data.history.size() > 60: return null

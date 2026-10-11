@@ -97,9 +97,15 @@ func _unit() -> void:
 				cursor += 1
 			else: _next()
 		Phase.NAVIGATION:
-			if navigation_job != null and not navigation_job.finished: navigation_job.unit()
+			if navigation_job != null:
+				if not navigation_job.finished: navigation_job.unit()
+				else:
+					WorldExploration.report(world, navigation_job.home)
+					navigation_job = null
 			elif cursor < world.towns.size():
-				navigation_job = WorldNavigationJob.new(world, world.towns[cursor]); cursor += 1
+				var home: Dictionary = world.towns[cursor]
+				WorldExploration.prepare(world, home)
+				navigation_job = WorldNavigationJob.new(world, home); cursor += 1
 			else: navigation_job = null; _next()
 		Phase.WORKFORCE:
 			world.workforce.begin(world)

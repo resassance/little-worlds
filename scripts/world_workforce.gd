@@ -134,6 +134,35 @@ static func available_resource(world, offer: Dictionary, kind: String) -> bool:
 	if world.claims.has(offer.key) or world.fires.has(cell) or world.occupied.has(cell): return false
 	return world.food_at(cell) > 0 if kind == "food" else world.wood_at(cell) > 0
 
+func has_resource(world, home: Dictionary, kind: String) -> bool:
+	var plan := context(world, home)
+	if not plan.has("availability"): plan.availability = {}
+	if plan.availability.has(kind): return plan.availability[kind]
+	var available := false
+	for cell in WorldEconomy.navigation(world, home)[kind]:
+		if world.fires.has(cell) or world.occupied.has(cell): continue
+		if (world.food_at(cell) if kind == "food" else world.wood_at(cell)) > 0:
+			available = true
+			break
+	plan.availability[kind] = available
+	return available
+
+func fishing_coast(world, home: Dictionary, limit: int) -> Dictionary:
+	var plan := context(world, home)
+	var key := "fishing:%d" % limit
+	if not plan.resources.has(key): plan.resources[key] = {"cursor": 0}
+	var pool: Dictionary = plan.resources[key]
+	var coasts: Array = WorldEconomy.navigation(world, home).coasts
+	while pool.cursor < coasts.size():
+		var coast: Dictionary = coasts[pool.cursor]
+		pool.cursor += 1
+		var point: Vector2i = coast.land
+		if world.fires.has(point) or world.claims.has("fish:%d:%d" % [point.x, point.y]): continue
+		var used: Dictionary = world.fishing.get(coast.water, {})
+		if used.get("day", -1) == world.ticks / WorldEconomy.DAY_TICKS and used.get("amount", 0) >= limit: continue
+		return coast
+	return {}
+
 func moved(world, member: Dictionary, previous: Vector2i) -> void:
 	if not active or not plans.has(member.home): return
 	if world.climate.mode == "uniform" and world.climate.biome < 4 and not world.climate.seasons and world.biome_overrides.is_empty(): return

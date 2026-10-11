@@ -581,6 +581,7 @@ static func restore(world, data: Dictionary) -> bool:
 		if not (member.get("health") is float or member.get("health") is int) or not is_finite(float(member.health)) or member.health <= 0 or member.health > 100: return false
 		member.health = float(member.health)
 		if member.household != membership.get(member.id, -1): return false
+		if member.household == -1: world.life_dirty = true
 	for member in world.people:
 		for parent_id in member.parents:
 			if not member.ancestors.has(parent_id): return false

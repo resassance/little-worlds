@@ -138,18 +138,17 @@ static func position(ship: Dictionary) -> Vector2i:
 	return Vector2i(points.back()[0], points.back()[1])
 
 static func fish_assign(world, member: Dictionary, home: Dictionary) -> bool:
-	if not WorldSociety.mastered(world, home, "carpentry"): return false
-	for coast in WorldEconomy.navigation(world,home).coasts:
-		var point: Vector2i=coast.land
-		var water: Vector2i=coast.water
-		if world.fires.has(point) or world.claims.has("fish:%d:%d" % [point.x,point.y]): continue
-		var used: Dictionary=world.fishing.get(water,{})
-		if used.get("day",-1)==world.ticks/WorldEconomy.DAY_TICKS and used.get("amount",0)>=6: continue
-		WorldEconomy.set_task(world,member,WorldEconomy.task("fish",point))
-		member.task.water_x=water.x; member.task.water_y=water.y
-		member.job="fisher"
-		return true
-	return false
+	var basic := not WorldSociety.mastered(world, home, "carpentry")
+	var limit := 2 if basic else 6
+	var coast: Dictionary = world.workforce.fishing_coast(world, home, limit)
+	if coast.is_empty(): return false
+	var point: Vector2i = coast.land
+	var water: Vector2i = coast.water
+	WorldEconomy.set_task(world, member, WorldEconomy.task("fish", point))
+	member.task.water_x = water.x; member.task.water_y = water.y
+	if basic: member.task.basic = true
+	member.job = "fisher"
+	return true
 
 static func fish(world, member: Dictionary, home: Dictionary) -> void:
 	var task: Dictionary = member.task
@@ -161,16 +160,41 @@ static func fish(world, member: Dictionary, home: Dictionary) -> void:
 	if not WorldEconomy.move(world, member, point, home): return
 	task.work += WorldSocial.work_credit(world, member, "food")
 	WorldSocial.practice(world, member, "food")
-	if task.work < 5: return
+	var basic: bool = task.get("basic", false)
+	if task.work < (10 if basic else 5): return
 	var usage: Dictionary = world.fishing.get(water, {})
 	if usage.get("day", -1) != world.ticks / WorldEconomy.DAY_TICKS: usage = {"day": world.ticks / WorldEconomy.DAY_TICKS, "amount": 0}
-	var amount: int = mini(3, 6 - int(usage.amount))
+	var amount: int = mini(1 if basic else 3, maxi(0, (2 if basic else 6) - int(usage.amount)))
 	usage.amount += amount
 	world.fishing[water] = usage
 	member.cargo = amount
 	member.cargo_kind = "food" if amount > 0 else ""
 	world.metrics.harvested_food += amount
 	WorldEconomy.set_task(world, member, {})
+
+static func survival(world, member: Dictionary) -> bool:
+	var home := {"id": -int(member.id), "x": int(member.x), "y": int(member.y)}
+	if member.task.get("kind", "") == "fish":
+		fish(world, member, home)
+		return true
+	if member.rations > 0 or member.cargo > 0 or member.hunger < WorldEconomy.NUTRITION: return false
+	var point := Vector2i(member.x, member.y)
+	if world.claims.has("fish:%d:%d" % [point.x, point.y]): return false
+	for direction in WorldState.DIRECTIONS:
+		var neighbor: Vector2i = point + direction
+		if world.walkable(neighbor) and not world.fires.has(neighbor) and world.food_at(neighbor) > 0: return false
+	for direction in WorldState.DIRECTIONS:
+		var water: Vector2i = point + direction
+		if world.terrain_at(water) != WorldState.Terrain.WATER: continue
+		var used: Dictionary = world.fishing.get(water, {})
+		if used.get("day", -1) == world.ticks / WorldEconomy.DAY_TICKS and used.get("amount", 0) >= 2: continue
+		var task := WorldEconomy.task("fish", point)
+		task.water_x = water.x; task.water_y = water.y; task.basic = true
+		WorldEconomy.set_task(world, member, task)
+		member.job = "fisher"
+		fish(world, member, home)
+		return true
+	return false
 
 static func launch(world, home: Dictionary, vessel: Dictionary, destination: Dictionary, purpose: String = "explore") -> bool:
 	if world.voyages.size() >= MAX_VOYAGES or not vessel.ready or WorldEconomy.food_days(world, home) < 10: return false
