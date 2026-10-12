@@ -62,6 +62,16 @@ var interface_visible := true
 var last_view_size := Vector2.ZERO
 var edits_locked := false
 var pending_tools: Array[Dictionary] = []
+var brush_job: WorldBrushJob
+var terrain_repair_job: WorldTerrainRepairJob
+var stroke_coverage: Dictionary = {}
+var stroke_signature: Array = []
+var brush_touched: Dictionary = {}
+var brush_terrain_dirty := false
+var brush_changed := false
+var brush_usec := 0
+var brush_cells_written := 0
+var brush_masks: Dictionary = {}
 var bake_job: WorldChunkBakeJob
 var bake_queue: Array[Dictionary] = []
 var bake_pending: Dictionary = {}
@@ -73,6 +83,11 @@ var minimap_revision := -1
 var name_style: StyleBoxFlat
 var people_multimesh: MultiMesh
 var ornaments_multimesh: MultiMesh
+var fire_multimesh: MultiMesh
+var fire_atlas: ImageTexture
+var fire_mesh_job: WorldFireMeshJob
+var fire_view_signature: Array = []
+var fire_job_signature: Array = []
 var people_atlas: ImageTexture
 var atlas_jobs: Dictionary = {}
 var people_buffer := PackedFloat32Array()
@@ -115,6 +130,7 @@ func _ready() -> void:
 	person_texture = PixelArt.sprite_texture(PixelArt.PERSON)
 	alert_texture = PixelArt.sprite_texture(PixelArt.PERSON, {"c": Color("e9946d"), "a": Color("b96757")})
 	_prepare_people_meshes()
+	_prepare_fire_mesh()
 	rain_texture = PixelArt.icon("rain")
 	label_font = preload("res://assets/fonts/DejaVuSans.ttf")
 	resized.connect(_on_resize)
@@ -128,6 +144,8 @@ func set_world(value: WorldState) -> void:
 	world = value
 	world.terrain_changed.connect(_invalidate_texture)
 	world.changed.connect(_invalidate_population_view)
+	if fire_multimesh != null: fire_multimesh.visible_instance_count = 0
+	fire_mesh_job = null; fire_view_signature.clear(); fire_job_signature.clear()
 	person_positions.clear()
 	person_directions.clear()
 	visible_people.clear(); population_view_signature.clear()
@@ -140,6 +158,8 @@ func set_world(value: WorldState) -> void:
 	bake_job = null; bake_queue.clear(); bake_pending.clear()
 	minimap_job = null; minimap_revision = -1; visual_season = -1
 	pending_tools.clear()
+	brush_job = null; terrain_repair_job = null; brush_touched.clear()
+	brush_terrain_dirty = false; brush_changed = false; stroke_coverage = {}; stroke_signature.clear()
 	rebuild_texture()
 	selected = WorldState.NO_CELL
 	focus_island()
@@ -289,6 +309,10 @@ func _draw_regions() -> void:
 			if preview != null:
 				drawn_textures.append(preview)
 				draw_texture_rect(preview,rect,false)
+			elif not detailed and chunk_textures.has(key):
+				var close_texture: ImageTexture = chunk_textures[key].image
+				drawn_textures.append(close_texture)
+				draw_texture_rect_region(close_texture, rect, Rect2(Vector2.ONE * HALO * TILE, Vector2.ONE * WorldState.CHUNK_SIZE * TILE))
 			continue
 		drawn_textures.append(region_texture)
 		if detailed:
@@ -318,6 +342,7 @@ func _process(delta: float) -> void:
 		visual_season = season
 		season_material.set_shader_parameter("autumn_amount", 0.25 if season == 2 else 0.0)
 		season_material.set_shader_parameter("winter_amount", 0.55 if season == 3 else 0.0)
+	world.reclaim_navigation()
 	_advance_baking()
 	_advance_minimap()
 	if texture_dirty:
@@ -330,6 +355,8 @@ func _process(delta: float) -> void:
 			effects.remove_at(i)
 	_refresh_visible_people()
 	_update_people_meshes(delta)
+	_advance_fire_mesh()
+	season_material.set_shader_parameter("fire_time",visual_time)
 	queue_redraw()
 	process_usec = Time.get_ticks_usec() - started
 
@@ -379,6 +406,41 @@ func _prepare_people_meshes() -> void:
 	ornaments_multimesh = _multimesh(Vector2.ONE, WorldState.MAX_PEOPLE * 3, false)
 	people_buffer.resize(WorldState.MAX_PEOPLE * 12)
 	ornaments_buffer.resize(WorldState.MAX_PEOPLE * 3 * 12)
+
+func _prepare_fire_mesh() -> void:
+	var atlas := Image.create(24*4,32,false,Image.FORMAT_RGBA8)
+	for frame in 4:
+		for y in 24:
+			for x in 24:
+				var distance := Vector2(x-12,y-23).length()/11.0
+				if distance < 1.0: atlas.set_pixel(frame*24+x,y,Color(1,0.57,0.2,(1.0-distance)*0.15))
+		var flutter: int = [0,2,1,3][frame]
+		atlas.fill_rect(Rect2i(frame*24+9,21,6,6),Color("db6943"))
+		atlas.fill_rect(Rect2i(frame*24+11,16-flutter,3,10+flutter),Color("f5b65b"))
+		atlas.fill_rect(Rect2i(frame*24+11,23,2,3),Color("ffe6a0"))
+		atlas.fill_rect(Rect2i(frame*24+9+frame%2,4+frame*2,3,3),Color(0.29,0.35,0.31,0.22))
+	fire_atlas = ImageTexture.create_from_image(atlas)
+	fire_multimesh = _multimesh(Vector2(24,32),4096,true)
+
+func _advance_fire_mesh() -> void:
+	var low := local_to_cell(Vector2(-30,-30))
+	var high := local_to_cell(size+Vector2(30,30))
+	var span := maxi(1,ceili(sqrt(float((high.x-low.x+1)*(high.y-low.y+1))/3600.0)))
+	var signature := [world.fire_revision,camera_origin,low,high,span]
+	if fire_mesh_job != null and (fire_mesh_job.origin != camera_origin or fire_mesh_job.low != low or fire_mesh_job.high != high):
+		fire_mesh_job = null; fire_multimesh.visible_instance_count = 0
+	if fire_mesh_job == null:
+		if signature == fire_view_signature: return
+		fire_job_signature = signature
+		fire_mesh_job = WorldFireMeshJob.new(world,camera_origin,low,high,span)
+	if not fire_mesh_job.advance(500): return
+	var count := mini(fire_mesh_job.buffer.size()/12,4096)
+	fire_multimesh.visible_instance_count = count
+	if count > 0:
+		fire_mesh_job.buffer.resize(4096*12)
+		fire_multimesh.buffer = fire_mesh_job.buffer
+	fire_view_signature = fire_job_signature
+	fire_mesh_job = null
 
 func _multimesh(dimensions: Vector2, capacity: int, custom: bool) -> MultiMesh:
 	var mesh := QuadMesh.new()
@@ -455,17 +517,7 @@ func _draw() -> void:
 		for value in world.buildings: _draw_building(value)
 	if people_multimesh.visible_instance_count > 0: draw_multimesh(people_multimesh, people_atlas)
 	if ornaments_multimesh.visible_instance_count > 0: draw_multimesh(ornaments_multimesh, null)
-	for key in world.fires:
-		if not Rect2(Vector2.ZERO, size).grow(30).has_point(cell_to_local(key)): continue
-		var index := hash(key) % 10000
-		var pos := Vector2(key - camera_origin) * TILE
-		var flicker := sin(visual_time * 12.0 + index) * 1.5
-		draw_circle(pos + Vector2(4, 4), 9, Color(1, 0.57, 0.2, 0.13))
-		draw_rect(Rect2(pos + Vector2(1, 2), Vector2(6, 6)), Color("db6943"))
-		draw_rect(Rect2(pos + Vector2(3, -1 + flicker), Vector2(3, 7)), Color("f5b65b"))
-		draw_rect(Rect2(pos + Vector2(3, 4), Vector2(2, 3)), Color("ffe6a0"))
-		var rise := fmod(visual_time * 8.0 + index * 0.7, 18.0)
-		draw_rect(Rect2(pos + Vector2(2 + sin(index + visual_time), -rise), Vector2(3, 3)), Color(0.29, 0.35, 0.31, (1.0 - rise / 18.0) * 0.4))
+	if fire_multimesh.visible_instance_count > 0: draw_multimesh(fire_multimesh,fire_atlas)
 	_draw_effects()
 	for ship in world.voyages:
 		var cell := WorldMaritime.position(ship)
@@ -529,8 +581,13 @@ func _draw_brush() -> void:
 	if tool == "person" and not world.walkable(hover):
 		color = Color("ed9376")
 	if tool not in ["inspect", "pan"] and radius <= 12:
-		for cell in world.cells_in_brush(hover, radius):
-			draw_rect(Rect2(Vector2(cell - camera_origin) * TILE, Vector2.ONE * TILE), Color(color, 0.2))
+		if not brush_masks.has(radius):
+			var mask := Image.create(radius*2+1,radius*2+1,false,Image.FORMAT_RGBA8)
+			for y in range(-radius,radius+1):
+				for x in range(-radius,radius+1):
+					if x*x+y*y <= radius*radius: mask.set_pixel(x+radius,y+radius,Color(1,1,1,0.2))
+			brush_masks[radius] = ImageTexture.create_from_image(mask)
+		draw_texture_rect(brush_masks[radius],Rect2(Vector2(hover-camera_origin-Vector2i.ONE*radius)*TILE,Vector2.ONE*(radius*2+1)*TILE),false,color)
 	var center := (Vector2(hover - camera_origin) + Vector2.ONE * 0.5) * TILE
 	draw_arc(center, (radius + 0.65) * TILE, 0, TAU, 48, Color(color, 0.9), 1.3 / zoom)
 	draw_line(center - Vector2(3, 0), center + Vector2(3, 0), Color(color, 0.9), 1.0 / zoom)
@@ -594,16 +651,17 @@ func _draw_minimap() -> void:
 		draw_rect(visible_rect, Color("f3deb0"), false, 1)
 	draw_rect(rect.grow(5), Color("9a795f"), false, 1)
 
-func add_effect(cell: Vector2i, kind: String) -> void:
-	if kind in ["water", "sand", "grass", "forest", "mountain"] and visual_time - last_effect_time < 0.07:
+func add_effect(cell: Vector2i, kind: String, radius: int = -1) -> void:
+	var effect_radius := brush_radius if radius < 0 else radius
+	if kind != "person" and visual_time - last_effect_time < 0.07:
 		return
 	last_effect_time = visual_time
 	if effects.size() >= 24:
 		effects.pop_front()
 	effects.append({"pos": (Vector2(cell - camera_origin) + Vector2.ONE * 0.5) * TILE, "kind": kind,
 		"color": TOOL_COLORS.get(kind, Color("f5dfaa")), "age": 0.0,
-		"duration": 1.1 if kind == "rain" else 0.5,
-		"radius": float((mini(brush_radius, 8) + 3 if kind == "rain" else (mini(brush_radius, 8) + 1 if kind == "fire" else brush_radius + 1)) * TILE)})
+		"duration": 0.65 if kind == "rain" else 0.35,
+		"radius": float((mini(effect_radius, 8) + 3 if kind == "rain" else (mini(effect_radius, 8) + 1 if kind == "fire" else effect_radius + 1)) * TILE)})
 
 func local_to_cell(pos: Vector2) -> Vector2i:
 	var relative := (pos - offset) / (TILE * zoom)
@@ -632,6 +690,7 @@ func _clamp_camera() -> void:
 func _gui_input(event: InputEvent) -> void:
 	if world == null:
 		return
+	if (event is InputEventMouseButton or event is InputEventMouseMotion) and event.device == InputEvent.DEVICE_ID_EMULATION: return
 	if not (event is InputEventMouseButton or event is InputEventMouseMotion or event is InputEventScreenTouch or event is InputEventScreenDrag): return
 	if event is InputEventMouseButton:
 		hover = local_to_cell(event.position)
@@ -647,6 +706,7 @@ func _gui_input(event: InputEvent) -> void:
 			else:
 				dragging = event.pressed
 				last_painted = WorldState.NO_CELL
+				stroke_coverage = {}; stroke_signature.clear()
 				if event.pressed:
 					apply_tool(hover)
 	elif event is InputEventMouseMotion:
@@ -654,29 +714,34 @@ func _gui_input(event: InputEvent) -> void:
 		if panning:
 			offset += event.relative
 			_clamp_camera()
-		elif dragging and (tool.begins_with("biome_") or tool in ["water", "sand", "grass", "forest", "mountain"]):
+		elif dragging and (tool.begins_with("biome_") or tool in ["water", "sand", "grass", "forest", "mountain", "fire", "rain"]):
 			_paint_segment(last_painted, hover)
 	elif event is InputEventScreenTouch:
 		if event.pressed:
+			hover = local_to_cell(event.position)
 			touches[event.index] = event.position
 			last_touch = event.position
 			if touches.size() == 1:
 				touch_painted = false
 				last_painted = WorldState.NO_CELL
+				stroke_coverage = {}; stroke_signature.clear()
 			if touches.size() == 2:
 				touch_painted = true
 				pinch_distance = _touch_distance()
 		else:
-			if touches.size() == 1 and not touch_painted and tool != "pan":
+			if not event.canceled and touches.has(event.index) and touches.size() == 1 and not touch_painted and tool != "pan":
 				apply_tool(local_to_cell(event.position))
 			touches.erase(event.index)
+			if touches.is_empty(): hover = WorldState.NO_CELL
 			pinch_distance = 0.0
 	elif event is InputEventScreenDrag:
 		if not touches.has(event.index):
 			return
 		var previous: Vector2 = touches[event.index]
+		hover = local_to_cell(event.position)
 		touches[event.index] = event.position
 		if touches.size() >= 2:
+			hover = WorldState.NO_CELL
 			var distance := _touch_distance()
 			var center: Vector2 = (touches.values()[0] + touches.values()[1]) * 0.5
 			if pinch_distance > 0:
@@ -688,7 +753,7 @@ func _gui_input(event: InputEvent) -> void:
 			offset += event.position - previous
 			_clamp_camera()
 			touch_painted = true
-		elif tool.begins_with("biome_") or tool in ["water", "sand", "grass", "forest", "mountain"]:
+		elif tool.begins_with("biome_") or tool in ["water", "sand", "grass", "forest", "mountain", "fire", "rain"]:
 			_paint_segment(local_to_cell(previous), local_to_cell(event.position))
 			touch_painted = true
 	queue_redraw()
@@ -698,34 +763,88 @@ func _touch_distance() -> float:
 	var positions := touches.values()
 	return positions[0].distance_to(positions[1])
 
+func cancel_input() -> void:
+	touches.clear()
+	pinch_distance = 0.0
+	touch_painted = false
+	dragging = false
+	panning = false
+	last_touch = Vector2.ZERO
+	last_painted = WorldState.NO_CELL
+	hover = WorldState.NO_CELL
+	stroke_coverage = {}; stroke_signature.clear()
+
 func _paint_segment(start: Vector2i, finish: Vector2i) -> void:
-	if start == WorldState.NO_CELL:
-		apply_tool(finish)
-		return
-	var distance := maxi(abs(finish.x - start.x), abs(finish.y - start.y))
-	for i in range(1, mini(distance, 128) + 1):
-		apply_tool(Vector2i(Vector2(start).lerp(Vector2(finish), float(i) / distance).round()))
+	if start == WorldState.NO_CELL: start = finish
+	if start == finish and last_painted == finish: return
+	_queue_brush(start,finish)
+	last_painted = finish
+
+func _queue_brush(start: Vector2i, finish: Vector2i) -> void:
+	var signature := [tool,brush_radius]
+	if signature != stroke_signature:
+		stroke_signature = signature; stroke_coverage = {}
+	pending_tools.append({"start":start,"finish":finish,"tool":tool,"radius":brush_radius,"coverage":stroke_coverage})
+
+func has_pending_edits() -> bool:
+	return brush_job != null or terrain_repair_job != null or not pending_tools.is_empty() or not brush_touched.is_empty() or brush_terrain_dirty or brush_changed
 
 func apply_tool(cell: Vector2i) -> void:
-	if not world.inside(cell) or cell == last_painted:
-		return
+	if not world.inside(cell) or cell == last_painted: return
 	last_painted = cell
-	if (world.stepping or edits_locked) and tool != "inspect":
-		if pending_tools.size() < 512: pending_tools.append({"cell":cell,"tool":tool,"radius":brush_radius})
-		return
-	_apply_tool_now(cell)
+	if tool.begins_with("biome_") or tool in ["water","sand","grass","forest","mountain","fire","rain"]:
+		_queue_brush(cell,cell)
+	elif (world.stepping or edits_locked or has_pending_edits()) and tool != "inspect":
+		pending_tools.append({"cell":cell,"tool":tool,"radius":brush_radius})
+	else: _apply_tool_now(cell)
 
 func flush_tools(budget_usec: int = 2000) -> void:
 	if world.stepping or edits_locked: return
-	var previous_tool := tool
-	var previous_radius := brush_radius
-	var deadline := Time.get_ticks_usec() + budget_usec
-	while not pending_tools.is_empty():
-		var command: Dictionary = pending_tools.pop_front()
-		tool = command.tool; brush_radius = command.radius
-		_apply_tool_now(command.cell)
+	var started := Time.get_ticks_usec()
+	var deadline := started + budget_usec
+	while has_pending_edits():
+		if terrain_repair_job != null:
+			terrain_repair_job.unit()
+			if terrain_repair_job.finished: terrain_repair_job = null; brush_terrain_dirty = false
+		elif brush_job != null:
+			brush_job.unit()
+			if brush_job.finished:
+				brush_changed = brush_changed or brush_job.changed
+				brush_terrain_dirty = brush_terrain_dirty or brush_job.terrain_dirty
+				brush_cells_written += brush_job.cells_written
+				for key in brush_job.touched: brush_touched[key] = true
+				if brush_job.rejected: feedback.emit("Достигнут лимит участков или ручных биомов.")
+				if brush_job.changed:
+					add_effect(brush_job.center,brush_job.mode,brush_job.command.radius)
+					if brush_job.mode == "rain": world.wet_until = world.ticks+WorldState.RAIN_TICKS; world.drought_until = 0
+					if brush_job.mode in ["fire","rain"]:
+						world.site_cache.clear()
+						if not brush_job.coverage.has("event"):
+							brush_job.coverage.event = true
+							world.log_event("Удар молнии" if brush_job.mode == "fire" else "Живительный дождь","Загорелась земля. Дождь может остановить огонь." if brush_job.mode == "fire" else "Огонь погас, запасы еды на земле восстановились.")
+				brush_job = null
+		elif not pending_tools.is_empty():
+			var command: Dictionary = pending_tools.pop_front()
+			if command.has("start"): brush_job = WorldBrushJob.new(world,command)
+			else:
+				var previous_tool := tool; var previous_radius := brush_radius
+				tool = command.tool; brush_radius = command.radius
+				_apply_tool_now(command.cell)
+				tool = previous_tool; brush_radius = previous_radius
+		elif not brush_touched.is_empty():
+			var key: Vector2i = brush_touched.keys()[0]; brush_touched.erase(key)
+			if world.chunks.has(key) and world.chunks[key].tiles.count(WorldState.Terrain.WATER) == WorldState.CHUNK_SIZE*WorldState.CHUNK_SIZE:
+				world.chunks.erase(key); world.region_key_count = -1
+				world.region_bounds.erase(key); world.bounds_dirty.erase(key)
+		elif brush_terrain_dirty:
+			terrain_repair_job = WorldTerrainRepairJob.new(world)
+		elif brush_changed:
+			brush_changed = false
+			world.regions.trim(world,WorldState.NO_CELL,1)
+			world.terrain_changed.emit(); world.changed.emit()
 		if budget_usec > 0 and Time.get_ticks_usec() >= deadline: break
-	tool = previous_tool; brush_radius = previous_radius
+	if brush_job != null and brush_job.changed: world.terrain_changed.emit()
+	brush_usec = Time.get_ticks_usec()-started
 
 func _apply_tool_now(cell: Vector2i) -> void:
 	if tool.begins_with("biome_"):

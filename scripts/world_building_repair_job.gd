@@ -3,7 +3,7 @@ extends RefCounted
 
 var world
 var cursor := 0
-var phase := 0
+var phase := -1
 var lost_stores: Dictionary = {}
 var was_active := false
 var finished := false
@@ -11,12 +11,22 @@ var finished := false
 func _init(value) -> void:
 	world = value
 	was_active = world.workforce.active
-	world.workforce.begin(world)
-	cursor = world.buildings.size() - 1
+	world.workforce.active = true
+	world.workforce.plans.clear(); world.workforce.contributions.clear()
+	world.workforce.building_lists.clear(); world.workforce.building_counts.clear()
+	world.workforce.building_count = world.buildings.size(); world.workforce.plan_builds = 0
+	cursor = 0
 
 func unit() -> void:
 	if finished: return
 	match phase:
+		-1:
+			if cursor < world.buildings.size():
+				var value: Dictionary = world.buildings[cursor]; cursor += 1
+				if not world.workforce.building_lists.has(value.town): world.workforce.building_lists[value.town] = []
+				world.workforce.building_lists[value.town].append(value)
+				world.workforce._count_building(value,1)
+			else: phase = 0; cursor = world.buildings.size()-1
 		0:
 			if cursor >= 0: world.repair_building(cursor, lost_stores); cursor -= 1
 			else: phase = 1; cursor = 0

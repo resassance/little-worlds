@@ -12,7 +12,9 @@ static func onboard(world, id: int) -> bool:
 static func saved_onboard(data: Dictionary, id: int) -> bool:
 	if not data.get("maritime") is Dictionary or not data.maritime.get("voyages") is Array: return false
 	for ship in data.maritime.voyages:
-		if ship is Dictionary and ship.get("crew") is Array and id in ship.crew: return true
+		if not ship is Dictionary or not ship.get("crew") is Array: continue
+		for member in ship.crew:
+			if WorldState._integer(member) and int(member) == id: return true
 	return false
 
 static func shore(world, home: Dictionary, toward: Vector2i) -> Dictionary:

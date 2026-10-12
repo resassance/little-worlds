@@ -71,7 +71,7 @@ static func death(world, id: int) -> void:
 	if not journey.is_empty(): journey.crew.erase(id)
 	world.journey_people.erase(id)
 
-static func finish(world, journey: Dictionary, home: Dictionary) -> void:
+static func finish(world, journey: Dictionary, home: Dictionary, reconcile_life: bool = true) -> void:
 	var relocated: bool=not journey.crew.is_empty()
 	for id in journey.crew:
 		var member := WorldLife.person(world, id)
@@ -83,7 +83,7 @@ static func finish(world, journey: Dictionary, home: Dictionary) -> void:
 	if relocated:
 		world.population_dirty = true
 		world.life_dirty = true
-		WorldLife.reconcile(world)
+		if reconcile_life: WorldLife.reconcile(world)
 		WorldSociety.invalidate(world)
 	var amount := 0
 	if not home.is_empty():

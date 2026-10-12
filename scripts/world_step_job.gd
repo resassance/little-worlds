@@ -25,6 +25,7 @@ var sea_step_job: WorldMaritimeStepJob
 var fire_job: WorldFireStepJob
 var journeys: Array = []
 var construction_job: WorldConstructionPlanJob
+var removal_context: WorldRemovalContext
 
 func _init(value) -> void:
 	world = value
@@ -81,6 +82,15 @@ func _next_town() -> void:
 	fading = false
 
 func _unit() -> void:
+	if not world.person_removals.is_empty():
+		if removal_context == null: removal_context = WorldRemovalContext.new(world)
+		if not removal_context.finished: removal_context.unit(); return
+		var job: WorldPersonRemovalJob = world.person_removals[0]
+		job.context = removal_context
+		job.unit()
+		if job.finished: world.removal_ids.erase(job.member.id); world.person_removals.pop_front()
+		return
+	removal_context = null
 	match phase:
 		Phase.CLIMATE:
 			if cursor == 0:
@@ -237,6 +247,7 @@ func _unit() -> void:
 				if world.ticks % 300 == 0: world._random_event()
 				population_job = null if world.population.ready else WorldPopulationRebuildJob.new(world); cursor = 1
 			if population_job != null and not population_job.finished: population_job.unit(); return
+			if not world.navigation_cleanup.is_empty(): world.reclaim_navigation(300); return
 			if terrain_dirty: world.terrain_changed.emit()
 			if world.ticks % WorldEconomy.DAY_TICKS == 0: world.regions.trim(world, WorldState.NO_CELL, 1)
 			world.workforce.end()
