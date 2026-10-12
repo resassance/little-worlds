@@ -1,6 +1,6 @@
 # Тестовая сборка brush-fire-02
 
-**0.2.4-test.2**: оптимизация кистей, пожара и дождя. Предыдущие исправления суши и сенсорных меню включены.
+**0.2.4-test.2**, проверена пользователем перед выпуском [0.2.5](https://github.com/resassance/little-worlds/releases/tag/v0.2.5). Изменения: оптимизация кистей, пожара и дождя. Предыдущие исправления суши и сенсорных меню включены.
 
 - [Android APK](https://github.com/resassance/little-worlds/raw/refs/heads/test/brush-fire-02/test-builds/little-worlds-android-test.apk)
 - [Windows ZIP](https://github.com/resassance/little-worlds/raw/refs/heads/test/brush-fire-02/test-builds/little-worlds-windows-test.zip)
