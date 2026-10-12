@@ -1,0 +1,33 @@
+{
+  "build": "touch-camera-01",
+  "version": "0.2.4-test.1",
+  "android_version_code": 7,
+  "source_commit": "41b6c0d348021b66bad1ce7cff4d702a70f42aca",
+  "files": [
+    {
+      "name": "little-worlds-android-test.apk",
+      "bytes": 53480107,
+      "sha256": "fca5a0c13c757f734b70a392f646fabee8bc057585238dfa519e927591274924"
+    },
+    {
+      "name": "little-worlds-godot-test.zip",
+      "bytes": 1156883,
+      "sha256": "89b5dae620044a5f429ddbf8fe2d1fd0f3ec5e9240bf9478139f3096ecc1eb90"
+    },
+    {
+      "name": "little-worlds-linux-test.zip",
+      "bytes": 29461941,
+      "sha256": "25664c60537ad4e0f03e7dd85fcd7e569a9660bf39ef1b4ac4866553bf19f9b6"
+    },
+    {
+      "name": "little-worlds-web-test.zip",
+      "bytes": 16272514,
+      "sha256": "1abc78cc488c08a8c49fe44ace552e7f670b7beee77b9385079f8adb94c935d4"
+    },
+    {
+      "name": "little-worlds-windows-test.zip",
+      "bytes": 39003980,
+      "sha256": "6cc26cb0c2b91062b586f0ab706e536909c6d10d05704ea5e116acbf568b2bf7"
+    }
+  ]
+}
