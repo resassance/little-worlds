@@ -1,0 +1,48 @@
+{
+  "build": "appearance-01",
+  "version": "0.2.6-test.1",
+  "android_version_code": 10,
+  "source_commit": "a2d9f3e45edd02e53c7235e45a9d0f8a6fc6c394",
+  "files": [
+    {
+      "name": "appearance-professions.png",
+      "bytes": 22191,
+      "sha256": "d5b151781949c84c7847f36131ad6be90cfc618802b5530edf60607e90f8f26d"
+    },
+    {
+      "name": "appearance-settlements.png",
+      "bytes": 73472,
+      "sha256": "2012c1ab9b29b2bc26757ff1cce799990c5e8285f177dae74e9b1d2547dae20d"
+    },
+    {
+      "name": "appearance-winter.png",
+      "bytes": 64661,
+      "sha256": "122a7d00ad9ca98cedf1d2c8d980ac8b8a48668e9249ac3f0d5a8cd94f1c9ab5"
+    },
+    {
+      "name": "little-worlds-android-test.apk",
+      "bytes": 53518397,
+      "sha256": "7258abde764e47a2aa2810aa0b01802b0b5e9683511df659e0e2f1079a661779"
+    },
+    {
+      "name": "little-worlds-godot-test.zip",
+      "bytes": 1188775,
+      "sha256": "38fb6e34fb0cf15b3727a8213e0565056fe5f620c2198f601f149f482999f3b6"
+    },
+    {
+      "name": "little-worlds-linux-test.zip",
+      "bytes": 29497820,
+      "sha256": "e84e84c5a068250ee9ee2ac860e4404ceb3dca09372307c9ead9e8be1287edfa"
+    },
+    {
+      "name": "little-worlds-web-test.zip",
+      "bytes": 16308248,
+      "sha256": "7e7bfbfe07500e15d911383e303868ab38a8c444d0e3f69a911a948495476ba6"
+    },
+    {
+      "name": "little-worlds-windows-test.zip",
+      "bytes": 39039845,
+      "sha256": "2e8911f999b45e4ebaf2575ca68378889ef65204034c66b0edc890a6911323d0"
+    }
+  ]
+}
