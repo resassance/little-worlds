@@ -289,6 +289,10 @@ func _draw_regions() -> void:
 			if preview != null:
 				drawn_textures.append(preview)
 				draw_texture_rect(preview,rect,false)
+			elif not detailed and chunk_textures.has(key):
+				var close_texture: ImageTexture = chunk_textures[key].image
+				drawn_textures.append(close_texture)
+				draw_texture_rect_region(close_texture, rect, Rect2(Vector2.ONE * HALO * TILE, Vector2.ONE * WorldState.CHUNK_SIZE * TILE))
 			continue
 		drawn_textures.append(region_texture)
 		if detailed:
@@ -632,6 +636,7 @@ func _clamp_camera() -> void:
 func _gui_input(event: InputEvent) -> void:
 	if world == null:
 		return
+	if (event is InputEventMouseButton or event is InputEventMouseMotion) and event.device == InputEvent.DEVICE_ID_EMULATION: return
 	if not (event is InputEventMouseButton or event is InputEventMouseMotion or event is InputEventScreenTouch or event is InputEventScreenDrag): return
 	if event is InputEventMouseButton:
 		hover = local_to_cell(event.position)
@@ -667,7 +672,7 @@ func _gui_input(event: InputEvent) -> void:
 				touch_painted = true
 				pinch_distance = _touch_distance()
 		else:
-			if touches.size() == 1 and not touch_painted and tool != "pan":
+			if not event.canceled and touches.has(event.index) and touches.size() == 1 and not touch_painted and tool != "pan":
 				apply_tool(local_to_cell(event.position))
 			touches.erase(event.index)
 			pinch_distance = 0.0
@@ -697,6 +702,16 @@ func _gui_input(event: InputEvent) -> void:
 func _touch_distance() -> float:
 	var positions := touches.values()
 	return positions[0].distance_to(positions[1])
+
+func cancel_input() -> void:
+	touches.clear()
+	pinch_distance = 0.0
+	touch_painted = false
+	dragging = false
+	panning = false
+	last_touch = Vector2.ZERO
+	last_painted = WorldState.NO_CELL
+	hover = WorldState.NO_CELL
 
 func _paint_segment(start: Vector2i, finish: Vector2i) -> void:
 	if start == WorldState.NO_CELL:

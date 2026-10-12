@@ -709,10 +709,16 @@ static func from_dict(source: Dictionary, region_files: Dictionary = {}) -> Worl
 		if not world.inside(coord * CHUNK_SIZE) or world.has_region(coord): return null
 		if not region.get("tiles") is Array or not region.get("food") is Array: return null
 		if region.tiles.size() != CHUNK_SIZE * CHUNK_SIZE or region.food.size() != CHUNK_SIZE * CHUNK_SIZE: return null
+		var ground_low := Vector2i(CHUNK_SIZE, CHUNK_SIZE)
+		var ground_high := Vector2i(-1, -1)
 		for i in region.tiles.size():
 			if not _integer(region.tiles[i]) or region.tiles[i] < 0 or region.tiles[i] > Terrain.MOUNTAIN: return null
 			if not _integer(region.food[i]) or region.food[i] < 0 or region.food[i] > world.capacity(int(region.tiles[i])): return null
-		world.bounds_dirty[coord] = true
+			if region.tiles[i] != Terrain.WATER:
+				var point := Vector2i(i % CHUNK_SIZE, i / CHUNK_SIZE)
+				ground_low.x = mini(ground_low.x, point.x); ground_low.y = mini(ground_low.y, point.y)
+				ground_high.x = maxi(ground_high.x, point.x); ground_high.y = maxi(ground_high.y, point.y)
+		if ground_high.x >= 0: world.region_bounds[coord] = Rect2i(coord * CHUNK_SIZE + ground_low, ground_high - ground_low + Vector2i.ONE)
 		var timber := PackedInt32Array()
 		if data.version >= 3:
 			if not region.get("wood") is Array or region.wood.size() != CHUNK_SIZE * CHUNK_SIZE: return null

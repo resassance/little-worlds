@@ -92,6 +92,7 @@ var inspector_updates := 0
 var save_job: WorldSaveJob
 var save_automatic := false
 var climate_update_job: WorldClimateConfigureJob
+var input_popups: Array[PopupMenu] = []
 
 func _ready() -> void:
 	get_window().content_scale_size = Vector2i.ZERO
@@ -100,6 +101,7 @@ func _ready() -> void:
 	sound=GameAudio.new(); add_child(sound); sound.setup(preferences)
 	_build_theme()
 	_build_ui()
+	_watch_input_popups(self)
 	if touch_ui: _prepare_touch_ui(self)
 	var initial := SaveStore.load_world()
 	if initial == null:
@@ -188,6 +190,17 @@ func _prepare_touch_ui(node: Node) -> void:
 		node.add_theme_font_size_override("font_size", 16)
 		node.add_theme_constant_override("v_separation", 28)
 	for child in node.get_children(true): _prepare_touch_ui(child)
+
+func _watch_input_popups(node: Node) -> void:
+	if node is PopupMenu and not input_popups.has(node):
+		input_popups.append(node)
+		node.about_to_popup.connect(view.cancel_input)
+	for child in node.get_children(true): _watch_input_popups(child)
+
+func _input_popup_open() -> bool:
+	for popup in input_popups:
+		if is_instance_valid(popup) and popup.visible: return true
+	return false
 
 func _screen_rect() -> Rect2:
 	var area := Rect2(Vector2.ZERO, size)
@@ -721,8 +734,7 @@ func _toggle_hud() -> void:
 	hud.visible = not hud_hidden
 	reveal_button.visible = hud_hidden
 	view.interface_visible = not hud_hidden
-	view.dragging = false
-	view.panning = false
+	view.cancel_input()
 	if hud_hidden:
 		hidden_tool = view.tool
 		view.tool = "pan"
@@ -1020,6 +1032,9 @@ func _load_now() -> void:
 	show_message("Мир загружен.")
 
 func _input(event: InputEvent) -> void:
+	if (event is InputEventScreenTouch or event is InputEventScreenDrag) and _input_popup_open():
+		get_viewport().set_input_as_handled()
+		return
 
 	if not event is InputEventKey or not event.pressed or event.echo: return
 	if generation_dialog == null or _modal_open(): return
@@ -1074,11 +1089,20 @@ func _notification(what: int) -> void:
 		SaveStore.save_world(world)
 		get_tree().quit()
 	elif what == NOTIFICATION_APPLICATION_PAUSED:
+		_cancel_ui_input(self)
 		app_suspended=true; _update_suspension(); platform.gameplay(false)
 		_finish_work()
 		SaveStore.save_world(world)
 	elif what == NOTIFICATION_APPLICATION_RESUMED:
+		view.cancel_input()
 		app_suspended=false; _update_suspension()
+	elif what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		view.cancel_input()
+
+func _cancel_ui_input(node: Node) -> void:
+	if node == self: view.cancel_input()
+	if node is PopupMenu: node.hide()
+	for child in node.get_children(true): _cancel_ui_input(child)
 
 func _update_suspension() -> void:
 	suspended=platform_suspended or app_suspended
