@@ -3,9 +3,12 @@ shader_type canvas_item;
 uniform float autumn_amount = 0.0;
 uniform float winter_amount = 0.0;
 uniform float atlas_columns = 18.0;
+uniform float fire_time = 0.0;
 
 void vertex() {
-	if (INSTANCE_CUSTOM.g > 0.5) {
+	if (INSTANCE_CUSTOM.g > 1.5) {
+		UV.x = (UV.x + mod(floor(fire_time * 8.0) + INSTANCE_CUSTOM.r, 4.0)) / 4.0;
+	} else if (INSTANCE_CUSTOM.g > 0.5) {
 		UV.x = (UV.x + INSTANCE_CUSTOM.r) / atlas_columns;
 	}
 }

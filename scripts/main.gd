@@ -92,6 +92,7 @@ var inspector_updates := 0
 var save_job: WorldSaveJob
 var save_automatic := false
 var climate_update_job: WorldClimateConfigureJob
+var input_popups: Array[PopupMenu] = []
 
 func _ready() -> void:
 	get_window().content_scale_size = Vector2i.ZERO
@@ -100,6 +101,7 @@ func _ready() -> void:
 	sound=GameAudio.new(); add_child(sound); sound.setup(preferences)
 	_build_theme()
 	_build_ui()
+	_watch_input_popups(self)
 	if touch_ui: _prepare_touch_ui(self)
 	var initial := SaveStore.load_world()
 	if initial == null:
@@ -189,6 +191,17 @@ func _prepare_touch_ui(node: Node) -> void:
 		node.add_theme_constant_override("v_separation", 28)
 	for child in node.get_children(true): _prepare_touch_ui(child)
 
+func _watch_input_popups(node: Node) -> void:
+	if node is PopupMenu and not input_popups.has(node):
+		input_popups.append(node)
+		node.about_to_popup.connect(view.cancel_input)
+	for child in node.get_children(true): _watch_input_popups(child)
+
+func _input_popup_open() -> bool:
+	for popup in input_popups:
+		if is_instance_valid(popup) and popup.visible: return true
+	return false
+
 func _screen_rect() -> Rect2:
 	var area := Rect2(Vector2.ZERO, size)
 	if OS.has_feature("android") or OS.has_feature("ios"):
@@ -198,7 +211,7 @@ func _screen_rect() -> Rect2:
 	return area.grow(-12.0 if touch_ui else -16.0)
 
 func _at_boundary(action: Callable) -> void:
-	if world.stepping or save_job != null or climate_update_job != null: pending_actions.append(action)
+	if world.stepping or view.has_pending_edits() or save_job != null or climate_update_job != null: pending_actions.append(action)
 	else: action.call()
 
 func _style(color: Color, border: Color = Color.TRANSPARENT, radius: int = 8) -> StyleBoxFlat:
@@ -721,8 +734,7 @@ func _toggle_hud() -> void:
 	hud.visible = not hud_hidden
 	reveal_button.visible = hud_hidden
 	view.interface_visible = not hud_hidden
-	view.dragging = false
-	view.panning = false
+	view.cancel_input()
 	if hud_hidden:
 		hidden_tool = view.tool
 		view.tool = "pan"
@@ -841,15 +853,15 @@ func _process(delta: float) -> void:
 		if step_job.advance(4000): step_job = null
 	if step_job == null and save_job == null and climate_update_job == null:
 		view.flush_tools()
-		while not pending_actions.is_empty() and save_job == null and climate_update_job == null:
+		while not pending_actions.is_empty() and not view.has_pending_edits() and save_job == null and climate_update_job == null:
 			var action: Callable = pending_actions.pop_front()
 			action.call()
-		if pending_inspection != WorldState.NO_CELL and save_job == null and climate_update_job == null:
+		if pending_inspection != WorldState.NO_CELL and not view.has_pending_edits() and save_job == null and climate_update_job == null:
 			var cell := pending_inspection
 			var cycles := pending_inspection_cycles
 			pending_inspection = WorldState.NO_CELL; pending_inspection_cycles = 0
 			_inspect(cell, true, false, cycles)
-		if inspector_dirty and info_open and not hud_hidden and save_job == null and inspector_timer >= 0.25:
+		if inspector_dirty and info_open and not hud_hidden and not view.has_pending_edits() and save_job == null and inspector_timer >= 0.25:
 			_refresh_inspector()
 	if sculpt != null and step_job == null and save_job == null and climate_update_job == null:
 		sculpt.advance()
@@ -861,7 +873,7 @@ func _process(delta: float) -> void:
 	platform.gameplay(running)
 	if running and save_job == null:
 		accumulator = minf(0.4, accumulator + minf(delta, 0.25) * speed)
-		if step_job == null and accumulator >= 0.2:
+		if step_job == null and not view.has_pending_edits() and accumulator >= 0.2:
 			accumulator -= 0.2
 			step_job = WorldStepJob.new(world)
 	autosave_timer += delta
@@ -1020,6 +1032,9 @@ func _load_now() -> void:
 	show_message("Мир загружен.")
 
 func _input(event: InputEvent) -> void:
+	if (event is InputEventScreenTouch or event is InputEventScreenDrag) and _input_popup_open():
+		get_viewport().set_input_as_handled()
+		return
 
 	if not event is InputEventKey or not event.pressed or event.echo: return
 	if generation_dialog == null or _modal_open(): return
@@ -1074,11 +1089,20 @@ func _notification(what: int) -> void:
 		SaveStore.save_world(world)
 		get_tree().quit()
 	elif what == NOTIFICATION_APPLICATION_PAUSED:
+		_cancel_ui_input(self)
 		app_suspended=true; _update_suspension(); platform.gameplay(false)
 		_finish_work()
 		SaveStore.save_world(world)
 	elif what == NOTIFICATION_APPLICATION_RESUMED:
+		view.cancel_input()
 		app_suspended=false; _update_suspension()
+	elif what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		view.cancel_input()
+
+func _cancel_ui_input(node: Node) -> void:
+	if node == self: view.cancel_input()
+	if node is PopupMenu: node.hide()
+	for child in node.get_children(true): _cancel_ui_input(child)
 
 func _update_suspension() -> void:
 	suspended=platform_suspended or app_suspended

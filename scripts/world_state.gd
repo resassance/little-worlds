@@ -44,6 +44,8 @@ var food: PackedInt32Array:
 			for x in width: result.append(food_at(Vector2i(x, y)))
 		return result
 var people: Array[Dictionary] = []
+var person_removals: Array[WorldPersonRemovalJob] = []
+var removal_ids: Dictionary = {}
 var person_index: Dictionary = {}
 var households: Array[Dictionary] = []
 var household_index: Dictionary = {}
@@ -55,6 +57,7 @@ var society_index: Dictionary = {}
 var society_cache: Dictionary = {}
 var buildings: Array[Dictionary] = []
 var navigation: Dictionary = {}
+var navigation_cleanup: Array[WorldNavigationCleanupJob] = []
 var site_cache: Dictionary = {}
 var sea_routes: Dictionary = {}
 var sea_revision := 0
@@ -69,6 +72,11 @@ var population := WorldPopulation.new()
 var workforce := WorldWorkforce.new()
 var metrics: Dictionary = {}
 var fires: Dictionary = {}
+var fire_regions: Dictionary = {}
+var fire_revision := 0
+const FOREST_FIRE_TICKS := 12
+const GRASS_FIRE_TICKS := 8
+const RAIN_TICKS := 20
 var history: Array[Dictionary] = []
 var rng := RandomNumberGenerator.new()
 var wet_until: int = 0
@@ -143,7 +151,7 @@ func generate(seed_value: int) -> void:
 	population_index.clear(); population_member_order.clear()
 	population_dirty = true
 	for key in WorldEconomy.METRICS: metrics[key] = 0
-	fires.clear()
+	fires.clear(); fire_regions.clear(); fire_revision += 1
 	history.clear()
 	wet_until = 0
 	drought_until = 0
@@ -249,9 +257,14 @@ func _set_terrain(cell: Vector2i, terrain: int) -> void:
 	chunk.tiles[local_index(cell)] = terrain
 	chunk.food[local_index(cell)] = capacity(terrain)
 	chunk.wood[local_index(cell)] = 12 if terrain == Terrain.FOREST else 0
+	if previous == terrain:
+		WorldExploration.invalidate(self,cell)
+		return
 
-
-	if previous != terrain and (previous in [Terrain.WATER, Terrain.MOUNTAIN] or terrain in [Terrain.WATER, Terrain.MOUNTAIN]): navigation.clear()
+	if previous != terrain and (previous in [Terrain.WATER, Terrain.MOUNTAIN] or terrain in [Terrain.WATER, Terrain.MOUNTAIN]):
+		if not navigation.is_empty():
+			navigation_cleanup.append(WorldNavigationCleanupJob.new(navigation))
+			navigation = {}
 	else:
 		for nav in navigation.values():
 			if not nav.parents.has(cell): continue
@@ -283,6 +296,14 @@ func _set_terrain(cell: Vector2i, terrain: int) -> void:
 	for dy in range(-1, 2):
 		for dx in range(-1, 2): revisions[key + Vector2i(dx, dy)] = revision
 
+func reclaim_navigation(budget_usec: int = 300) -> void:
+	var deadline := Time.get_ticks_usec()+budget_usec
+	while not navigation_cleanup.is_empty():
+		var job: WorldNavigationCleanupJob = navigation_cleanup[0]
+		job.unit()
+		if job.finished: navigation_cleanup.pop_front()
+		if budget_usec > 0 and Time.get_ticks_usec() >= deadline: break
+
 func wood_at(cell: Vector2i) -> int:
 	var chunk: Dictionary = regions.get_region(self, chunk_of(cell))
 	return 0 if chunk.is_empty() else int(chunk.wood[local_index(cell)])
@@ -299,13 +320,22 @@ func harvest_wood(cell: Vector2i, amount: int) -> void:
 		if stumps.size() < 4096: stumps[cell] = ticks
 		terrain_changed.emit()
 
-func touch_terrain(cell: Vector2i, radius: int = 0) -> void:
+func touch_terrain(cell: Vector2i, radius: int = 0, notify: bool = true) -> void:
 	revision += 1
-	for point in cells_in_brush(cell, radius + 2):
-		var key := chunk_of(point)
-		for dy in range(-1, 2):
-			for dx in range(-1, 2): revisions[key + Vector2i(dx, dy)] = revision
-	terrain_changed.emit()
+	var reach := radius+2
+	var low := chunk_of(cell-Vector2i.ONE*reach)
+	var high := chunk_of(cell+Vector2i.ONE*reach)
+	var dirty := {}
+	for y in range(low.y,high.y+1):
+		for x in range(low.x,high.x+1):
+			var key := Vector2i(x,y)
+			var origin := key*CHUNK_SIZE
+			var nearest := Vector2i(clampi(cell.x,origin.x,origin.x+CHUNK_SIZE-1),clampi(cell.y,origin.y,origin.y+CHUNK_SIZE-1))
+			if nearest.distance_squared_to(cell) > reach*reach: continue
+			for dy in range(-1,2):
+				for dx in range(-1,2): dirty[key+Vector2i(dx,dy)] = true
+	for key in dirty: revisions[key] = revision
+	if notify: terrain_changed.emit()
 
 func day() -> int:
 	return month()
@@ -368,7 +398,7 @@ func paint(center: Vector2i, radius: int, terrain: int) -> bool:
 	if region_count() + needed.size() > MAX_CHUNKS: return false
 	for cell in cells:
 		_set_terrain(cell, terrain)
-		fires.erase(cell)
+		erase_fire(cell)
 
 	var touched := {}
 	for cell in cells: touched[chunk_of(cell)] = true
@@ -376,52 +406,8 @@ func paint(center: Vector2i, radius: int, terrain: int) -> bool:
 		if chunks.has(key) and chunks[key].tiles.count(Terrain.WATER) == CHUNK_SIZE * CHUNK_SIZE:
 			chunks.erase(key)
 			region_key_count = -1
-	for journey in journeys.duplicate():
-		for id in journey.crew:
-			var member:=WorldLife.person(self,id)
-			if not member.is_empty() and not walkable(Vector2i(member.x,member.y)):
-				WorldTravel.finish(self,journey,{}); break
-
-	for i in range(people.size() - 1, -1, -1):
-		var p := people[i]
-		if WorldTravel.away(self, p.id):
-			if WorldEconomy.town(self, p.home).is_empty(): p.home = -1
-			continue
-		if not walkable(Vector2i(p.x, p.y)):
-			var safe := nearest_land(Vector2i(p.x, p.y), 12)
-			if safe == NO_CELL:
-				remove_person(i, "потеря земли")
-			else:
-				p.x = safe.x
-				p.y = safe.y
-	for i in range(towns.size() - 1, -1, -1):
-		if not walkable(Vector2i(towns[i].x, towns[i].y)):
-			log_event("Поселение исчезло", "%s потеряло землю под собой." % towns[i].name)
-			metrics.lost_food += towns[i].food
-			metrics.lost_wood += towns[i].wood
-			WorldExploration.forget(self, towns[i])
-			towns.remove_at(i)
-	_repair_buildings()
-	population_dirty = true
-	for p in people:
-		if WorldTravel.away(self, p.id):
-			if WorldEconomy.town(self, p.home).is_empty(): p.home = -1
-			continue
-		var home := WorldEconomy.town(self, p.home)
-		if home.is_empty() or not WorldEconomy.navigation(self, home).parents.has(Vector2i(p.x, p.y)):
-			p.home = -1
-			WorldEconomy.set_task(self, p, {})
-			continue
-		if p.task.is_empty(): continue
-		var target := Vector2i(p.task.x, p.task.y)
-		var invalid: bool = not walkable(target) or not WorldEconomy.navigation(self, home).parents.has(target)
-		if p.task.kind in ["supply", "build", "plant", "harvest"] and WorldEconomy.building(self, p.task.building).is_empty(): invalid = true
-		if p.task.kind in ["gather_food", "gather_wood"] and not building_at(target).is_empty(): invalid = true
-		if p.task.kind == "gather_wood" and wood_at(target) == 0: invalid = true
-		if invalid: WorldEconomy.set_task(self, p, {})
-	WorldLife.reconcile(self)
-	WorldSociety.reconcile(self)
-	WorldCivilization.reconcile(self)
+	var repair := WorldTerrainRepairJob.new(self)
+	while not repair.finished: repair.unit()
 	regions.trim(self)
 	terrain_changed.emit()
 	changed.emit()
@@ -461,19 +447,13 @@ func add_person(cell: Vector2i, announce: bool = true) -> bool:
 
 func remove_person(person_index_value: int, cause: String) -> void:
 	if person_index_value < 0 or person_index_value >= people.size(): return
-	var person := people[person_index_value]
-	WorldTravel.death(self, people[person_index_value].id)
-	WorldMaritime.death(self, person.id)
-	WorldEconomy.lose_cargo(self, person)
-	WorldLife.archive_death(self, person, cause)
-	person_index.erase(person.id)
-	people.remove_at(person_index_value)
-	population.ready = false
-	workforce.plans.clear(); workforce.contributions.clear()
-	WorldSociety.invalidate(self)
-	population_dirty = true
-	life_dirty = true
-	log_event("Потеря жителя", "%s: %s." % [person.name, cause])
+	var member: Dictionary = people[person_index_value]
+	if removal_ids.has(member.id): return
+	var job := WorldPersonRemovalJob.new(self,member,cause)
+	if stepping:
+		removal_ids[member.id] = true; person_removals.append(job)
+	else:
+		while not job.finished: job.unit()
 
 func populate_demo() -> void:
 	var spawn := nearest_land(Vector2i(width / 2, height / 2), 40)
@@ -484,11 +464,28 @@ func populate_demo() -> void:
 	log_event("Первые поселенцы", "Шесть жителей ищут место для нового дома.")
 	changed.emit()
 
+func set_fire(cell: Vector2i, ttl: int = 0) -> void:
+	if not fires.has(cell):
+		var key := chunk_of(cell)
+		if not fire_regions.has(key): fire_regions[key] = {}
+		fire_regions[key][cell] = true
+		fire_revision += 1
+	fires[cell] = ttl if ttl > 0 else (FOREST_FIRE_TICKS if terrain_at(cell) == Terrain.FOREST else GRASS_FIRE_TICKS)
+
+func erase_fire(cell: Vector2i) -> void:
+	if not fires.has(cell): return
+	fires.erase(cell)
+	var key := chunk_of(cell)
+	if fire_regions.has(key):
+		fire_regions[key].erase(cell)
+		if fire_regions[key].is_empty(): fire_regions.erase(key)
+	fire_revision += 1
+
 func ignite(center: Vector2i, radius: int) -> void:
 	var started := false
 	for cell in cells_in_brush(center, radius):
 		if terrain_at(cell) == Terrain.FOREST or terrain_at(cell) == Terrain.GRASS:
-			fires[cell] = 24
+			set_fire(cell)
 			started = true
 	if started:
 		site_cache.clear()
@@ -498,9 +495,9 @@ func ignite(center: Vector2i, radius: int) -> void:
 func rain(center: Vector2i, radius: int) -> void:
 	site_cache.clear()
 	for cell in cells_in_brush(center, radius):
-		fires.erase(cell)
+		erase_fire(cell)
 		_set_food(cell, capacity(terrain_at(cell)))
-	wet_until = ticks + 60
+	wet_until = ticks + RAIN_TICKS
 	drought_until = 0
 	log_event("Живительный дождь", "Огонь погас, запасы еды на земле восстановились.")
 	changed.emit()
@@ -528,7 +525,7 @@ func repair_building(i: int, lost_stores: Dictionary) -> void:
 			var cell := rect.position + Vector2i(x, y)
 			if not walkable(cell): valid = false
 			if fires.has(cell): burning = true
-	if burning: value.integrity -= 1
+	if burning: value.integrity -= 2
 	if valid and value.integrity > 0: return
 	metrics.lost_food += value.stock
 	WorldCivilization.lost_building(self, value)
@@ -709,10 +706,16 @@ static func from_dict(source: Dictionary, region_files: Dictionary = {}) -> Worl
 		if not world.inside(coord * CHUNK_SIZE) or world.has_region(coord): return null
 		if not region.get("tiles") is Array or not region.get("food") is Array: return null
 		if region.tiles.size() != CHUNK_SIZE * CHUNK_SIZE or region.food.size() != CHUNK_SIZE * CHUNK_SIZE: return null
+		var ground_low := Vector2i(CHUNK_SIZE, CHUNK_SIZE)
+		var ground_high := Vector2i(-1, -1)
 		for i in region.tiles.size():
 			if not _integer(region.tiles[i]) or region.tiles[i] < 0 or region.tiles[i] > Terrain.MOUNTAIN: return null
 			if not _integer(region.food[i]) or region.food[i] < 0 or region.food[i] > world.capacity(int(region.tiles[i])): return null
-		world.bounds_dirty[coord] = true
+			if region.tiles[i] != Terrain.WATER:
+				var point := Vector2i(i % CHUNK_SIZE, i / CHUNK_SIZE)
+				ground_low.x = mini(ground_low.x, point.x); ground_low.y = mini(ground_low.y, point.y)
+				ground_high.x = maxi(ground_high.x, point.x); ground_high.y = maxi(ground_high.y, point.y)
+		if ground_high.x >= 0: world.region_bounds[coord] = Rect2i(coord * CHUNK_SIZE + ground_low, ground_high - ground_low + Vector2i.ONE)
 		var timber := PackedInt32Array()
 		if data.version >= 3:
 			if not region.get("wood") is Array or region.wood.size() != CHUNK_SIZE * CHUNK_SIZE: return null
@@ -749,7 +752,7 @@ static func from_dict(source: Dictionary, region_files: Dictionary = {}) -> Worl
 		var cell := Vector2i(fire.x, fire.y)
 		if not world.inside(cell) or world.fires.has(cell) or fire.ttl < 1 or fire.ttl > 24: return null
 		if world.terrain_at(cell) not in [Terrain.GRASS, Terrain.FOREST]: return null
-		world.fires[cell] = int(fire.ttl)
+		world.set_fire(cell,int(fire.ttl))
 	for event in data.history:
 		if not event is Dictionary or not event.get("title") is String or not event.get("message") is String or not _integer(event.get("tick")): return null
 		var restored: Dictionary = event.duplicate()
