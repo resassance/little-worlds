@@ -46,6 +46,84 @@ const PERSON := [
 	"..oooo..", ".obbbbo.", ".osssso.", "..osso..", ".occcco.", ".occcco.",
 	".occcco.", "..oaao..", "..oooo..", "..o..o..", ".oo..oo.", ".kkkkkk."
 ]
+const JOB_COLORS := {"settler": ["b9d2be", "719a8e"], "forager": ["b8c58a", "827c54"], "logger": ["caa16f", "806049"], "builder": ["b4a5bd", "797186"], "farmer": ["a2bd86", "697f53"], "child": ["dcc4a3", "a88d72"], "teen": ["bac6a2", "829472"], "carer": ["d0afbb", "957d8b"], "teacher": ["d3bf8d", "95805a"], "researcher": ["a7b9c8", "718697"], "miner": ["a8b0a6", "697970"], "artisan": ["c8a08a", "92745c"], "fisher": ["8eb5b7", "5c848d"], "sailor": ["d4c9a2", "758c9e"], "merchant": ["c5adbd", "91788d"], "scout": ["b3bd8e", "778267"]}
+
+static func person_image(job: String, master: bool = false, cold: bool = false) -> Image:
+	var colors: Array = JOB_COLORS.get(job, JOB_COLORS.settler)
+	var image := Image.create(16, 16, false, Image.FORMAT_RGBA8)
+	image.blit_rect(sprite_image(PERSON, {"c": Color(colors[0]), "a": Color(colors[1])}), Rect2i(0, 0, 8, 12), Vector2i(4, 3))
+	var ink := PALETTE.o
+	var wood := Color("94734f")
+	var edge := Color("bac1af")
+	if cold:
+		image.fill_rect(Rect2i(5, 7, 6, 4), Color(colors[1]))
+		image.fill_rect(Rect2i(5, 7, 6, 1), Color("d2c7aa"))
+		image.fill_rect(Rect2i(6, 3, 4, 1), Color(colors[1]))
+	if job in ["farmer", "forager", "fisher"]:
+		image.fill_rect(Rect2i(5, 3, 6, 2), wood)
+		image.fill_rect(Rect2i(4, 5, 8, 1), Color("cbb782"))
+	elif job in ["builder", "miner", "artisan"]:
+		image.fill_rect(Rect2i(6, 3, 4, 2), Color(colors[1]))
+		image.fill_rect(Rect2i(7, 8, 3, 4), Color("8c7158"))
+	elif job == "sailor":
+		image.fill_rect(Rect2i(5, 3, 6, 2), Color("e6debd"))
+		image.fill_rect(Rect2i(5, 8, 6, 1), Color("617e92"))
+	elif job in ["teacher", "researcher"]:
+		image.fill_rect(Rect2i(5, 9, 6, 3), Color(colors[0]))
+	elif job == "scout":
+		image.fill_rect(Rect2i(4, 6, 2, 6), Color(colors[1]))
+	if job == "logger":
+		image.fill_rect(Rect2i(12, 5, 1, 8), wood)
+		image.fill_rect(Rect2i(11, 5, 4, 3), ink)
+		image.fill_rect(Rect2i(13, 5, 2, 2), edge)
+	elif job in ["builder", "artisan"]:
+		image.fill_rect(Rect2i(12, 7, 1, 6), wood)
+		image.fill_rect(Rect2i(11, 6, 4, 2), ink)
+		image.fill_rect(Rect2i(11, 6, 3, 1), edge)
+	elif job == "miner":
+		image.fill_rect(Rect2i(12, 5, 1, 8), wood)
+		image.fill_rect(Rect2i(10, 5, 5, 1), edge)
+		image.fill_rect(Rect2i(14, 6, 1, 2), edge)
+	elif job == "farmer":
+		image.fill_rect(Rect2i(12, 5, 1, 9), wood)
+		image.fill_rect(Rect2i(10, 13, 3, 1), edge)
+	elif job == "fisher":
+		image.fill_rect(Rect2i(12, 3, 1, 11), wood)
+		image.fill_rect(Rect2i(13, 3, 2, 1), Color("d8d5ae"))
+		image.fill_rect(Rect2i(14, 4, 1, 7), Color("d8d5ae"))
+	elif job in ["forager", "merchant"]:
+		image.fill_rect(Rect2i(11, 8, 4, 5), ink)
+		image.fill_rect(Rect2i(12, 9, 3, 3), Color("b79563"))
+		image.fill_rect(Rect2i(12, 7, 2, 1), wood)
+	elif job == "sailor":
+		image.fill_rect(Rect2i(12, 5, 1, 8), wood)
+		image.fill_rect(Rect2i(11, 11, 3, 3), Color("c0a67c"))
+	elif job in ["teacher", "researcher"]:
+		image.fill_rect(Rect2i(11, 8, 4, 4), ink)
+		image.fill_rect(Rect2i(12, 9, 2, 2), Color("e7d9ae"))
+	elif job == "scout":
+		image.fill_rect(Rect2i(12, 4, 1, 10), wood)
+	if master and job not in ["child", "teen", "settler"]:
+		image.fill_rect(Rect2i(5, 10, 6, 1), Color("574e40"))
+		image.fill_rect(Rect2i(8, 10, 1, 1), Color("d9bb76"))
+		image.fill_rect(Rect2i(5, 7, 1, 2), Color("e0d2a5"))
+	return image
+
+static func settlement_mark(domain: String) -> ImageTexture:
+	var patterns := {"food": ["..y...", ".yyy..", "..y.y.", "..yyy.", "..y...", "..y..."], "maritime": ["..w...", "..ww..", "..www.", "..b...", "bbbbbb", ".vvvv."], "engineering": [".mmmmm", "...b..", "...b..", "...b..", "...b..", "......"], "materials": ["...y..", "..yy..", ".yfy..", ".fff..", ".mmm..", "mmmmmm"], "education": ["......", "wwooww", "wwooww", "wwooww", "wwooww", "......"], "trade": [".yyyy.", "yo..oy", "yoyyoy", "yo..oy", ".yyyy.", "......"], "mixed": ["..cc..", ".cccc.", "cccccc", "cc..cc", "cc..cc", "......"]}
+	return sprite_texture(patterns.get(domain, patterns.mixed))
+
+static func house_variant(domain: String) -> ImageTexture:
+	var color: Color = WorldAppearanceJob.COLORS.get(domain, WorldAppearanceJob.COLORS.mixed)
+	var image := sprite_image(HOUSE)
+	image.fill_rect(Rect2i(6, 2, 3, 1), color)
+	image.fill_rect(Rect2i(2, 8, 1, 3), color.darkened(0.15))
+	image.fill_rect(Rect2i(12, 8, 1, 3), color.darkened(0.15))
+	return ImageTexture.create_from_image(image)
+
+static func supplies_texture(domain: String) -> ImageTexture:
+	var patterns := {"food": ["........", "..ssss..", ".osssso.", ".osssso.", ".obbbbo.", "..oooo.."], "materials": ["...oo...", ".oonnoo.", ".onnnmo.", ".onmmmo.", "..oooo..", ".kkkkkk."], "maritime": [".oooooo.", "obbbbboo", "obooobbo", "obbbbooo", ".oooooo.", ".kkkkkk."], "trade": [".oooooo.", ".obbbbo.", ".obobbo.", ".obbbbo.", ".oooooo.", ".kkkkkk."]}
+	return sprite_texture(patterns.get(domain, patterns.trade))
 const WORKSHOP := [
 	".....oooooo.....", "....ottttrro....", "...otttttrrro...", "..ottttttrrrro..",
 	".oooooooooooooo.", ".obssssssssssbo.", ".obwwssooosswbo.", ".obwwssbbosswbo.",
@@ -89,13 +167,22 @@ static func building_texture(kind: String) -> ImageTexture:
 		"forge": ["............oo..","............mo..","..oooooooo..mo..",".ottttttrroo mo..".replace(" ",""),"oooooooooooooo..",".obsssoooossbo..",".obsssffyossbo..",".obsssssssmmbo..",".obbbsssmmmmbo..",".ooooooooooooo..","...kkkkkkkkkk..."],
 		"market": ["................",".oooooooooooooo.",".orrrssrrrssrro.",".orrrssrrrssrro.",".oooooooooooooo.","..b.........b...","..b..yyy.ss.b...","..bbbbbbbbbbb...","..b.........b...","..b.........b...","..kkkkkkkkkkk..."],
 		"council": ["......oooo......",".....onnnmo.....","....onnnnmmo....","...oooooooooo...","...ns..ns..mm...","...ns..ns..mm...","...ns..ns..mm...","...ns..ns..mm...","..onnnnnnnnnmo..",".onnnnnnnnnnmmo.","..kkkkkkkkkkkk.."],
-		"dock": ["................",".bb........bb...",".bbbbbbbbbbbb...",".btbtbtbtbtbb...",".bbbbbbbbbbbb...",".btbtbtbtbtbb...",".bbbbbbbbbbbb...",".bb........bb...",".bb........bb...","................"]
+		"dock": ["................",".bb........bb...",".bbbbbbbbbbbb...",".btbtbtbtbtbb...",".bbbbbbbbbbbb...",".btbtbtbtbtbb...",".bbbbbbbbbbbb...",".bb........bb...",".bb........bb...","................"],
+		"loom": [".....oooooo.....","....ottttrro....","...otttttrrro...","..oooooooooooo..","..obssssssssbo..","..obbbbbbbbbbo..","..ob.cccc..bbo..","..ob.cccc..bbo..","..ob.aaaa..bbo..","..ob.cccc..bbo..","..obbbbbbbbbbo..","..ob..sss...bo..","..oooooooooooo..","...kkkkkkkkkk..."],
+		"school": ["......oooo......",".....ottttro....","....otttttrro...","...oooooooooo...","...ossswwssbo...","...ossswwssbo...","...osssssssbo...","..oooooooooooo..","..bb..wwww..bb..","..bbbbbbbbbbbb..","..bb........bb..","...kkkkkkkkkk..."],
+		"port": ["............b...",".......bbbbbb...",".......b....b...","...oooooo...n...","..ottttrro..n...",".oooooooooo.....",".obssswwwbo.....",".obssswwwbo.....",".obsssooobo.....",".obsssbbbbo.....",".oooooooooo.....","bbbbbbbbbbbbbbbb","btbtbtbtbtbtbtbb","bbbbbbbbbbbbbbbb",".bb..bb..bb..bb."]
 	}
 	if patterns.has(kind): return sprite_texture(patterns[kind])
 	if kind=="boat" or kind=="sailboat": return vessel_texture(kind=="sailboat")
-	if kind=="port": return sprite_texture(patterns.dock,{"t":Color("e5d3a3"),"b":Color("89755a")})
-	if kind=="school": return sprite_texture(ARCHIVE,{"c":Color("d9c294"),"w":Color("b0d0c6")})
 	return sprite_texture(WORKSHOP,{"t":Color("bda4c8"),"r":Color("876e9b"),"s":Color("e0d1b5")})
+
+static func idle_furnace(kind: String) -> ImageTexture:
+	var image := building_texture(kind).get_image()
+	for y in image.get_height():
+		for x in image.get_width():
+			var color := image.get_pixel(x, y)
+			if color == PALETTE.f or color == PALETTE.y: image.set_pixel(x, y, Color("554e42"))
+	return ImageTexture.create_from_image(image)
 
 static func icon(key: String) -> ImageTexture:
 	if key.begins_with("biome_"): return sprite_texture(TREE,{"l":WorldClimate.COLORS[int(key.trim_prefix("biome_"))],"g":WorldClimate.COLORS[int(key.trim_prefix("biome_"))].darkened(.12)})

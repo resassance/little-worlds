@@ -107,6 +107,20 @@ var render_scales := PackedFloat32Array()
 var render_sprites := PackedInt32Array()
 var render_elder := PackedByteArray()
 var render_cargo := PackedByteArray()
+var render_hunger := PackedByteArray()
+var person_outfits := {}
+var appearance_job: WorldAppearanceJob
+var appearance_dirty := true
+var town_appearances := {}
+var working_buildings := {}
+var appearance_candidates := {}
+var house_variants := {}
+var settlement_marks := {}
+var supplies_textures := {}
+var idle_furnaces := {}
+var appearance_usec := 0
+var appearance_builds := 0
+const JOB_SKILLS := WorldAppearanceJob.JOB_SKILLS
 
 func _ready() -> void:
 	season_material = ShaderMaterial.new()
@@ -122,13 +136,17 @@ func _ready() -> void:
 	archive_texture = PixelArt.sprite_texture(PixelArt.ARCHIVE)
 	for kind in ["kiln","loom","forge","market","school","council","dock","port","boat","sailboat"]: industry_textures[kind]=PixelArt.building_texture(kind)
 	vessel_textures = {"boat": PixelArt.vessel_texture(false), "sailboat": PixelArt.vessel_texture(true)}
-	var job_colors := {"settler": ["c0e7d5", "83c4c0"], "forager": ["b9d594", "968a5b"], "logger": ["e7ba83", "986b47"], "builder": ["b9b1d3", "887aa6"], "farmer": ["9ad4b0", "669979"], "child": ["e9caa7", "c4a58c"], "teen": ["c6dcb4", "94ae87"], "carer": ["d9b9cd", "ad8ea5"], "teacher": ["dfca82", "a38a57"], "researcher": ["aac9dc", "7596b4"]}
-	job_colors.merge({"miner": ["b8bcb3", "7b887d"], "artisan": ["d9a495", "aa766c"], "fisher": ["8bc8d1", "618aa2"], "sailor": ["e2d7a8", "779caa"], "merchant": ["d3b6da", "967fa8"], "scout": ["c9d5a3", "7d9476"]})
-	for job in job_colors:
-		var colors: Array = job_colors[job]
-		job_textures[job] = PixelArt.sprite_texture(PixelArt.PERSON, {"c": Color(colors[0]), "a": Color(colors[1])})
-	person_texture = PixelArt.sprite_texture(PixelArt.PERSON)
-	alert_texture = PixelArt.sprite_texture(PixelArt.PERSON, {"c": Color("e9946d"), "a": Color("b96757")})
+	for job in PixelArt.JOB_COLORS:
+		for cold in [false, true]:
+			for master in [false, true]:
+				job_textures[_outfit_key(job, master, cold)] = ImageTexture.create_from_image(PixelArt.person_image(job, master, cold))
+	person_texture = ImageTexture.create_from_image(PixelArt.person_image("settler"))
+	alert_texture = person_texture
+	for domain in WorldAppearanceJob.COLORS:
+		house_variants[domain] = PixelArt.house_variant(domain)
+		settlement_marks[domain] = PixelArt.settlement_mark(domain)
+	for domain in ["food", "materials", "maritime", "trade"]: supplies_textures[domain] = PixelArt.supplies_texture(domain)
+	for kind in ["forge", "kiln"]: idle_furnaces[kind] = PixelArt.idle_furnace(kind)
 	_prepare_people_meshes()
 	_prepare_fire_mesh()
 	rain_texture = PixelArt.icon("rain")
@@ -148,6 +166,9 @@ func set_world(value: WorldState) -> void:
 	fire_mesh_job = null; fire_view_signature.clear(); fire_job_signature.clear()
 	person_positions.clear()
 	person_directions.clear()
+	person_outfits.clear()
+	appearance_job = null; appearance_dirty = true
+	town_appearances.clear(); working_buildings.clear(); appearance_candidates.clear()
 	visible_people.clear(); population_view_signature.clear()
 	visible_regions.clear(); region_view_signature.clear(); visible_shores.clear()
 	if people_multimesh != null: people_multimesh.visible_instance_count = 0; ornaments_multimesh.visible_instance_count = 0
@@ -342,6 +363,7 @@ func _process(delta: float) -> void:
 		visual_season = season
 		season_material.set_shader_parameter("autumn_amount", 0.25 if season == 2 else 0.0)
 		season_material.set_shader_parameter("winter_amount", 0.55 if season == 3 else 0.0)
+		population_view_signature.clear()
 	world.reclaim_navigation()
 	_advance_baking()
 	_advance_minimap()
@@ -355,6 +377,7 @@ func _process(delta: float) -> void:
 			effects.remove_at(i)
 	_refresh_visible_people()
 	_update_people_meshes(delta)
+	_advance_appearance()
 	_advance_fire_mesh()
 	season_material.set_shader_parameter("fire_time",visual_time)
 	queue_redraw()
@@ -366,13 +389,48 @@ func _invalidate_texture() -> void:
 func _invalidate_population_view() -> void:
 	population_view_epoch += 1
 	population_view_signature.clear()
+	appearance_dirty = true
+
+func _advance_appearance() -> void:
+	var started := Time.get_ticks_usec()
+	if appearance_job == null:
+		if not appearance_dirty: appearance_usec = 0; return
+		appearance_job = WorldAppearanceJob.new(world, person_outfits, town_appearances, appearance_candidates)
+		appearance_dirty = false
+	if appearance_job.advance(200):
+		town_appearances = appearance_job.towns
+		working_buildings = appearance_job.working
+		appearance_job = null
+		appearance_builds += 1
+	appearance_usec = Time.get_ticks_usec() - started
+
+func _outfit_key(job: String, master: bool, cold: bool) -> String:
+	return job + (":master" if master else "") + (":cold" if cold else "")
+
+func _person_outfit(member: Dictionary, life_stage: int) -> int:
+	var job: String = member.job
+	if not PixelArt.JOB_COLORS.has(job): job = "settler"
+	var previous: Dictionary = person_outfits.get(member.id, {})
+	if life_stage < 3:
+		job = "child" if life_stage < 2 else "teen"
+		person_outfits.erase(member.id)
+	else:
+		if previous.is_empty(): previous = {"job": job, "candidate": job, "since": world.ticks}
+		if job == "settler" and previous.job not in ["child", "teen", "carer"]: job = previous.job
+		if previous.candidate != job: previous.candidate = job; previous.since = world.ticks
+		if world.ticks - int(previous.since) >= 3: previous.job = job
+		person_outfits[int(member.id)] = previous
+		job = previous.job
+	var master := life_stage >= 3 and JOB_SKILLS.has(job) and WorldSocial.level(member, JOB_SKILLS[job]) == 3
+	var cold: bool = world.climate.seasons and visual_season == 3
+	return atlas_jobs.get(_outfit_key(job, master, cold), atlas_jobs.default)
 
 func _refresh_visible_people() -> void:
 	var signature := [population_view_epoch, world.people.size(), camera_origin, offset, zoom, size]
 	if signature == population_view_signature: return
 	population_view_signature = signature
 	visible_people.clear(); live_visible_ids.clear()
-	render_ids.clear(); render_targets.clear(); render_scales.clear(); render_sprites.clear(); render_elder.clear(); render_cargo.clear()
+	render_ids.clear(); render_targets.clear(); render_scales.clear(); render_sprites.clear(); render_elder.clear(); render_cargo.clear(); render_hunger.clear()
 	mesh_dirty = true
 	var base_scale := maxf(0.85, 0.7 / zoom)
 	if zoom >= 0.15:
@@ -384,25 +442,26 @@ func _refresh_visible_people() -> void:
 				render_targets.append(Vector2(Vector2i(member.x, member.y) - camera_origin) * TILE + Vector2(4, 4))
 				var life_stage := WorldLife.stage(world, member)
 				render_scales.append(base_scale * ([0.5, 0.65, 0.8][life_stage] if life_stage < 3 else 1.0))
-				render_sprites.append(atlas_jobs.get(member.job, atlas_jobs.default) if member.hunger < 60 else atlas_jobs.alert)
+				render_sprites.append(_person_outfit(member, life_stage))
+				render_hunger.append(1 if member.hunger >= 60 else 0)
 				render_elder.append(1 if life_stage == 5 else 0)
 				render_cargo.append(0 if member.cargo == 0 else (1 if member.cargo_kind == "wood" else 2))
 	for id in person_positions.keys():
 		if not live_visible_ids.has(id): person_positions.erase(id); person_directions.erase(id)
 
 func _prepare_people_meshes() -> void:
-	var atlas := Image.create((job_textures.size() + 2) * 8, 12, false, Image.FORMAT_RGBA8)
+	var atlas := Image.create((job_textures.size() + 2) * 16, 16, false, Image.FORMAT_RGBA8)
 	var index := 0
 	for job in job_textures:
 		atlas_jobs[job] = index
-		atlas.blit_rect(job_textures[job].get_image(), Rect2i(0, 0, 8, 12), Vector2i(index * 8, 0)); index += 1
+		atlas.blit_rect(job_textures[job].get_image(), Rect2i(0, 0, 16, 16), Vector2i(index * 16, 0)); index += 1
 	atlas_jobs["default"] = index
-	atlas.blit_rect(person_texture.get_image(), Rect2i(0, 0, 8, 12), Vector2i(index * 8, 0)); index += 1
+	atlas.blit_rect(person_texture.get_image(), Rect2i(0, 0, 16, 16), Vector2i(index * 16, 0)); index += 1
 	atlas_jobs["alert"] = index
-	atlas.blit_rect(alert_texture.get_image(), Rect2i(0, 0, 8, 12), Vector2i(index * 8, 0))
+	atlas.blit_rect(alert_texture.get_image(), Rect2i(0, 0, 16, 16), Vector2i(index * 16, 0))
 	people_atlas = ImageTexture.create_from_image(atlas)
 	season_material.set_shader_parameter("atlas_columns", float(job_textures.size() + 2))
-	people_multimesh = _multimesh(Vector2(8, 12), WorldState.MAX_PEOPLE, true)
+	people_multimesh = _multimesh(Vector2(16, 16), WorldState.MAX_PEOPLE, true)
 	ornaments_multimesh = _multimesh(Vector2.ONE, WorldState.MAX_PEOPLE * 3, false)
 	people_buffer.resize(WorldState.MAX_PEOPLE * 12)
 	ornaments_buffer.resize(WorldState.MAX_PEOPLE * 3 * 12)
@@ -486,6 +545,7 @@ func _update_people_meshes(delta: float) -> void:
 		people_buffer[base] = scale_value * facing; people_buffer[base + 5] = scale_value
 		people_buffer[base + 3] = pos.x; people_buffer[base + 7] = pos.y + (-4 + bob) * scale_value
 		people_buffer[base + 8] = float(render_sprites[index]); people_buffer[base + 9] = 1.0
+		people_buffer[base + 10] = float(render_hunger[index]); people_buffer[base + 11] = 0.0
 		if render_elder[index]: ornaments = _ornament(ornaments, Rect2(pos + Vector2(-2, -9 + bob) * scale_value, Vector2(4, 2) * scale_value), Color("e3dfcc"))
 		if render_cargo[index]:
 			ornaments = _ornament(ornaments, Rect2(pos + Vector2(3, -5) * scale_value, Vector2(4, 4) * scale_value), Color("334c40"))
@@ -512,7 +572,13 @@ func _draw() -> void:
 
 		draw_rect(Rect2(pos + Vector2(6, -10), Vector2(1, 18)), Color("f1dfb2"))
 		var flutter := sin(visual_time * 3.0 + town.id) * 1.2
-		draw_rect(Rect2(pos + Vector2(7, -10 + flutter), Vector2(7, 4)), Color("f2c879"))
+		var style: Dictionary = town_appearances.get(town.id, {})
+		var focus: String = style.get("focus", "mixed")
+		draw_rect(Rect2(pos + Vector2(7, -10 + flutter), Vector2(8, 6)), WorldAppearanceJob.COLORS[focus].darkened(0.3))
+		if zoom >= 0.8:
+			draw_texture_rect(settlement_marks[focus], Rect2(pos + Vector2(8, -10 + flutter), Vector2(6, 6)), false)
+			var secondary: String = style.get("secondary", "mixed")
+			if secondary != "mixed": draw_rect(Rect2(pos + Vector2(7, -4 + flutter), Vector2(8, 2)), WorldAppearanceJob.COLORS[secondary])
 	if zoom >= 0.15:
 		for value in world.buildings: _draw_building(value)
 	if people_multimesh.visible_instance_count > 0: draw_multimesh(people_multimesh, people_atlas)
@@ -544,6 +610,7 @@ func _draw_building(value: Dictionary) -> void:
 	if not Rect2(Vector2.ZERO, size).grow(64).has_point(cell_to_local(cell)): return
 	var pos := Vector2(cell - camera_origin) * TILE
 	var extent := Vector2.ONE * int(WorldEconomy.SIZE[value.kind]) * TILE
+	var style: Dictionary = town_appearances.get(value.town, {})
 	if not value.ready:
 		draw_rect(Rect2(pos, extent), Color("b5a179"))
 		draw_rect(Rect2(pos, extent), Color("e1c79a"), false, 1)
@@ -560,6 +627,7 @@ func _draw_building(value: Dictionary) -> void:
 			draw_line(pos + Vector2(2, y), pos + Vector2(extent.x - 3, y), Color("514f3d"), 1)
 			if not value.planted and value.stock == 0: continue
 			var crop := Color("e1cd7e") if value.stock > 0 else (Color("b6c578") if value.growth > 30 else Color("7f9e60"))
+			if style.get("rotation", false) and row % 2 == 1: crop = crop.lerp(Color("9fba7d"), 0.35)
 			var height := 3 if value.stock > 0 or value.growth > 30 else 1
 			for column in 5:
 				draw_rect(Rect2(pos + Vector2(3 + column * 4, y - height), Vector2(2, height)), crop)
@@ -570,10 +638,18 @@ func _draw_building(value: Dictionary) -> void:
 	elif value.kind == "workshop": sprite = workshop_texture
 	elif value.kind == "archive": sprite = archive_texture
 	elif industry_textures.has(value.kind): sprite = industry_textures[value.kind]
+	if value.kind == "house": sprite = house_variants[style.get("focus", "mixed")]
+	if idle_furnaces.has(value.kind) and not working_buildings.has(value.id): sprite = idle_furnaces[value.kind]
 	draw_rect(Rect2(pos + Vector2(-2, 1), extent + Vector2(4, 3)), Color("bdad84"))
 	var sprite_size := Vector2(sprite.get_width(), sprite.get_height())
 	var corner := pos + Vector2((extent.x - sprite_size.x) * 0.5, extent.y - sprite_size.y)
 	draw_texture_rect(sprite, Rect2(corner, sprite_size), false)
+	if zoom >= 0.9:
+		var supply := ""
+		if value.kind in ["store", "market"] and style.get("food", false): supply = "food"
+		elif value.kind in ["forge", "kiln", "workshop"] and style.get("stone", false): supply = "materials"
+		elif value.kind in ["port", "dock"] and style.get("wood", false): supply = "maritime"
+		if not supply.is_empty(): draw_texture_rect(supplies_textures[supply], Rect2(pos + Vector2(extent.x - 5, extent.y - 4), Vector2(8, 6)), false)
 
 func _draw_brush() -> void:
 	var radius := mini(brush_radius, 8) if tool == "fire" else (mini(brush_radius, 8) + 3 if tool == "rain" else (brush_radius if tool.begins_with("biome_") or tool in ["water", "sand", "grass", "forest", "mountain"] else 0))

@@ -40,7 +40,7 @@ func capture() -> void:
  check(default_zoom > game.view.zoom, "default camera is closer than whole-island fit")
  game.view.focus_island()
  check(WorldEconomy.count(demo, demo.towns[0], "house") > 0 and WorldEconomy.count(demo, demo.towns[0], "farm") > 0 and WorldEconomy.count(demo, demo.towns[0], "store") > 0, "rendered demo contains real completed house, farm and store")
- check(game.view.job_textures.size() == WorldEconomy.JOBS.size(), "every profession has a readable sprite color")
+ check(game.view.job_textures.size() == WorldEconomy.JOBS.size() * 4, "every profession has standard, master and winter atlas variants")
  await snapshot("world-desktop")
  check(not game.sidebar.visible and not game.tool_panel.visible, "both drawers start hidden")
  check(game.view.size == game.size, "map uses full viewport")
