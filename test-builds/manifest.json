@@ -1,0 +1,33 @@
+{
+  "build": "brush-fire-02",
+  "version": "0.2.4-test.2",
+  "android_version_code": 8,
+  "source_commit": "4dc3357263f557f51dbb5589eefe359b4e3353b7",
+  "files": [
+    {
+      "name": "little-worlds-android-test.apk",
+      "bytes": 53505934,
+      "sha256": "a1d06e954ae1bd99df8d9967c9743bf2e40b67d3baa80c5c9f428a976dbac949"
+    },
+    {
+      "name": "little-worlds-godot-test.zip",
+      "bytes": 1175821,
+      "sha256": "65b0263284967a78b3c2e5bfffe4f7e1a87d0ab63b74aeccccd66ce7fc39c6ff"
+    },
+    {
+      "name": "little-worlds-linux-test.zip",
+      "bytes": 29485354,
+      "sha256": "b1bf54511ddb9c719b6a17c596f7006cc1bdd2c1d80b5546bb73d4bcc63241b8"
+    },
+    {
+      "name": "little-worlds-web-test.zip",
+      "bytes": 16296173,
+      "sha256": "363e4443fa6165e0146bf8b79e19402283cb2dff0a1dd144a3fe956fa5eb419c"
+    },
+    {
+      "name": "little-worlds-windows-test.zip",
+      "bytes": 39027625,
+      "sha256": "4c564ce918f6d74a5e7918acb598b7de76a1ccd74c199fdade6f794cddcfb0ed"
+    }
+  ]
+}
