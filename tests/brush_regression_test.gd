@@ -60,6 +60,10 @@ func run() -> void:
 	stroke(view,Vector2i.ZERO,Vector2i.ZERO,"grass",0); drain(view)
 	stroke(view,Vector2i.ZERO,Vector2i.ZERO,"water",0); drain(view)
 	check(erase.region_count() == 0 and erase.region_bounds.is_empty(),"erasing the last tile removes the empty region and its overview bounds")
+	stroke(view,Vector2i(WorldState.COORD_LIMIT+8,0),Vector2i(WorldState.COORD_LIMIT+8,50),"grass",0)
+	check(not view.has_pending_edits(),"a stroke completely outside world limits never starts a huge empty job")
+	stroke(view,Vector2i(WorldState.COORD_LIMIT-4,0),Vector2i(WorldState.COORD_LIMIT+4,0),"grass",0); drain(view)
+	for x in range(WorldState.COORD_LIMIT-4,WorldState.COORD_LIMIT): check(erase.walkable(Vector2i(x,0)),"a clipped stroke reaches the final legal cell")
 	check(maximum < 16000,"brush processing never runs a whole stamp or whole navigation search in one slice")
 	view.queue_free(); await process_frame
 	print("Brush: slices %d, maximum %.2f ms, failures %d" % [slices,maximum/1000.0,failures])

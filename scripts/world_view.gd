@@ -781,6 +781,21 @@ func _paint_segment(start: Vector2i, finish: Vector2i) -> void:
 	last_painted = finish
 
 func _queue_brush(start: Vector2i, finish: Vector2i) -> void:
+	if not world.inside(start) or not world.inside(finish):
+		var origin := Vector2(start)
+		var direction := Vector2(finish-start)
+		var first := 0.0
+		var last := 1.0
+		for axis in 2:
+			if direction[axis] == 0:
+				if origin[axis] < -WorldState.COORD_LIMIT or origin[axis] >= WorldState.COORD_LIMIT: return
+				continue
+			var a: float = (-WorldState.COORD_LIMIT-origin[axis])/direction[axis]
+			var b: float = (WorldState.COORD_LIMIT-1-origin[axis])/direction[axis]
+			first = maxf(first,minf(a,b)); last = minf(last,maxf(a,b))
+			if first > last: return
+		start = Vector2i((origin+direction*first).round())
+		finish = Vector2i((origin+direction*last).round())
 	var signature := [tool,brush_radius]
 	if signature != stroke_signature:
 		stroke_signature = signature; stroke_coverage = {}
