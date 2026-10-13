@@ -1,41 +1,56 @@
 {
-  "build": "atlas-03",
-  "version": "0.2.6-test.3",
-  "android_version_code": 12,
+  "build": "performance-04",
+  "version": "0.2.6-test.4",
+  "android_version_code": 13,
   "android_package": "org.littleworlds.sandbox.preview",
   "android_updates_existing_app": false,
   "android_updates_previous_preview": true,
-  "source_commit": "0e63f3a01fcf19a4742705b7a47e682dd1a547b3",
+  "source_commit": "45c9edcb4b900e3e7e307082662d97c8d1b7ed00",
   "files": [
     {
+      "name": "brush-forest.png",
+      "bytes": 116763,
+      "sha256": "1cb5a1db22e9e2e0d78d839c0e9920e89f1b437d016293c6b52ef057b41a70b0"
+    },
+    {
       "name": "little-worlds-android-preview.apk",
-      "bytes": 53543818,
-      "sha256": "f224cfb7f7518d968680d3dc47ca696b41ae5c08e1d3eda0d5734d0ba5307f90"
+      "bytes": 53547914,
+      "sha256": "740f3de3b8dfa04ac8ead5323e8128af19d43f854a7ebd3485f3c07186d20512"
     },
     {
       "name": "little-worlds-godot-test.zip",
-      "bytes": 1217238,
-      "sha256": "f5f24d144c94f3ecee55d9eb9dd4c0948bbcb73f2e198b899f9c75301f72becf"
+      "bytes": 1244723,
+      "sha256": "073272526733e9a57c01e47d026985acb9a6477b45d6dc13123b603a85c10e71"
     },
     {
       "name": "little-worlds-linux-test.zip",
-      "bytes": 29627043,
-      "sha256": "578c45e5942b44c9cd8b3e7dc4dad239cf6fc70029815d0d2860655e513715d1"
+      "bytes": 29630392,
+      "sha256": "90998be67dd0b974a09995fc8e14fa998566160ca9409b26c2484088ddbcd700"
     },
     {
       "name": "little-worlds-web-test.zip",
-      "bytes": 16415258,
-      "sha256": "e8356851403e0c0ec4277b17223fad59e110fd93a8f2b55cbad67a85efcfcc18"
+      "bytes": 16418592,
+      "sha256": "e1aa2b8a5eab379ff5f10a35c6de66987013560fcd1a9f61de85cf2e359d4e8b"
     },
     {
       "name": "little-worlds-windows-test.zip",
-      "bytes": 39242867,
-      "sha256": "77f3a8aa4099e175899813bb57efeaaa9c55aa7a755f192e873057a027d3f7af"
+      "bytes": 39246074,
+      "sha256": "4c3b6213cc244777d960a7dc3f8e38cb99c1303e0d6016ea33f0a0d9861ec4e5"
     },
     {
       "name": "people-palettes.png",
-      "bytes": 10144,
-      "sha256": "79a86e6ab111b354f416dc4a969b0b54ce566955a0d00a4d50c6467db32cb59a"
+      "bytes": 11683,
+      "sha256": "8fb61f698ea8015c9c6107ee1bff4ab5682617419e3c43aa2f3c9fcaa69f812f"
+    },
+    {
+      "name": "performance-after.json",
+      "bytes": 17349,
+      "sha256": "eca6fdce8af264e50ad6da57f70e3aa3b7fe44b787488f59605c1d5c705f3c91"
+    },
+    {
+      "name": "performance-before.json",
+      "bytes": 16075,
+      "sha256": "cb0d3959c496f7f7ab5b0ad49cc67188719982f026f31dd73e7558a0c7162804"
     },
     {
       "name": "world-mobile-tools.png",
