@@ -82,12 +82,14 @@ func context(world, home: Dictionary) -> Dictionary:
 	if plans.has(home.id): return plans[home.id]
 	var residents: Array[Dictionary] = WorldEconomy.members(world, home)
 	var result := {"population": 0, "food_workers": 0, "wood_workers": 0, "warm_need": 0.0, "cold_need": 0.0, "teams": {}, "available": {}, "resources": {}}
+	var uniform: bool = world.climate.mode == "uniform" and world.biome_overrides.is_empty()
+	var uniform_cold: bool = uniform and (int(world.climate.biome) >= 4 or (world.climate.seasons and WorldClimate.season(world) == 3))
 	plans[home.id] = result
 	plan_builds += 1
 	for member in residents:
 		if WorldLife.adult(world, member): result.population += 1
 		var need := base_need(world, member)
-		result["cold_need" if cold(world, Vector2i(member.x, member.y)) else "warm_need"] += need
+		result["cold_need" if (uniform_cold if uniform else cold(world, Vector2i(member.x, member.y))) else "warm_need"] += need
 		add_contribution(result, member)
 		contributions[member.id] = {"home": int(home.id), "role": role(member)}
 	return result
@@ -138,12 +140,18 @@ func rehomed(world, member: Dictionary, previous: int) -> void:
 
 func daily_need(world, home: Dictionary) -> float:
 	var plan := context(world, home)
+	if float(plan.cold_need) == 0: return float(plan.warm_need)
 	var data: Dictionary = WorldCivilization.get_data(world, home.id)
 	var multiplier := 1.05 if not data.is_empty() and data.stock.cloth > 0 else 1.25
 	return float(plan.warm_need) + float(plan.cold_need) * multiplier
 
 func food_days(world, home: Dictionary) -> float:
-	return float(home.food) / maxf(0.25, daily_need(world, home))
+	var plan := context(world,home)
+	var need := float(plan.warm_need)
+	if float(plan.cold_need) > 0:
+		var data: Dictionary = WorldCivilization.get_data(world,home.id)
+		need += float(plan.cold_need)*(1.05 if not data.is_empty() and data.stock.cloth > 0 else 1.25)
+	return float(home.food)/maxf(0.25,need)
 
 func resource(world, member: Dictionary, home: Dictionary, kind: String) -> Vector2i:
 	var plan := context(world, home)
@@ -229,16 +237,20 @@ static func score(member: Dictionary, skill: String) -> int:
 static func before(world, a: int, b: int, skill: String) -> bool:
 	var left: Dictionary = world.person_index[a]
 	var right: Dictionary = world.person_index[b]
-	return score(left, skill) > score(right, skill) or (score(left, skill) == score(right, skill) and a < b)
+	var left_score := score(left,skill)
+	var right_score := score(right,skill)
+	return left_score > right_score or (left_score == right_score and a < b)
 
 static func update_rank(world, ids: Array, member: Dictionary, skill: String) -> void:
 	ids.erase(int(member.id))
 	if not member.task.is_empty() or member.cargo > 0 or not WorldLife.adult(world, member): return
 	var first := 0
 	var last := ids.size()
+	var own_score := score(member,skill)
 	while first < last:
 		var mid := (first + last) / 2
-		if before(world, int(ids[mid]), int(member.id), skill): first = mid + 1
+		var other_score := score(world.person_index[ids[mid]],skill)
+		if other_score > own_score or (other_score == own_score and int(ids[mid]) < int(member.id)): first = mid + 1
 		else: last = mid
 	ids.insert(first, int(member.id))
 
@@ -251,9 +263,11 @@ func preferred(world, member: Dictionary, home: Dictionary, skill: String) -> bo
 	var plan := context(world, home)
 	if not plan.available.has(skill):
 		var ids: Array = []
+		var scores := {}
 		for other in WorldEconomy.members(world, home):
-			if WorldLife.adult(world, other) and other.task.is_empty() and other.cargo == 0: ids.append(int(other.id))
-		ids.sort_custom(func(a: int, b: int): return before(world, a, b, skill))
+			if WorldLife.adult(world, other) and other.task.is_empty() and other.cargo == 0:
+				ids.append(int(other.id)); scores[other.id] = score(other,skill)
+		ids.sort_custom(func(a: int, b: int): return scores[a] > scores[b] or (scores[a] == scores[b] and a < b))
 		plan.available[skill] = ids
 	for id in plan.available[skill]:
 		var other: Dictionary = world.person_index.get(id, {})

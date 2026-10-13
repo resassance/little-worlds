@@ -25,9 +25,11 @@ var terrain_dirty := false
 var rejected := false
 var finished := false
 var cells_written := 0
+var previews: Dictionary = {}
 
 func _init(value, edit: Dictionary) -> void:
 	world = value; command = edit; mode = edit.tool; radius = edit.radius; coverage = edit.coverage
+	previews = edit.get("previews", {})
 	terrain = {"water":0,"sand":1,"grass":2,"forest":3,"mountain":4}.get(mode, -1)
 	if mode.begins_with("biome_"): biome = int(mode.trim_prefix("biome_"))
 	if mode == "fire": radius = mini(radius, 8)
@@ -127,15 +129,32 @@ func unit() -> void:
 		world._set_terrain(cell,terrain); world.erase_fire(cell)
 		touched[WorldState.chunk_of(cell)] = true
 		terrain_dirty = terrain_dirty or previous != terrain; changed = true; cells_written += 1
+		if previous != terrain: _preview(cell,terrain)
 	elif biome >= 0:
 		if world.walkable(cell) and int(world.biome_overrides.get(cell,-1)) != biome:
 			world._grow(world.regions.get_region(world,WorldState.chunk_of(cell)))
 			world.biome_overrides[cell] = biome
 			world.touch_terrain(cell,0,false)
 			changed = true; cells_written += 1
+			_preview(cell,world.terrain_at(cell))
 	elif mode == "fire":
 		if world.terrain_at(cell) in [WorldState.Terrain.GRASS,WorldState.Terrain.FOREST]:
 			world.set_fire(cell); changed = true; cells_written += 1
 	elif mode == "rain":
 		world.erase_fire(cell); world._set_food(cell,world.capacity(world.terrain_at(cell)))
 		changed = true; cells_written += 1
+
+func _preview(cell: Vector2i, ground: int) -> void:
+	var key := WorldState.chunk_of(cell)
+	if not previews.has(key):
+		var image := Image.create(WorldState.CHUNK_SIZE,WorldState.CHUNK_SIZE,false,Image.FORMAT_RGBA8)
+		image.fill(Color.TRANSPARENT)
+		previews[key] = {"pixels":image,"texture":null,"dirty":true,"revision":world.revisions.get(key,0)}
+	var patch: Dictionary = previews[key]
+	var color: Color = WorldView.COLORS[ground]
+	if ground in [WorldState.Terrain.GRASS,WorldState.Terrain.FOREST]:
+		var climate := WorldClimate.biome(world,cell)
+		if climate != 0: color = WorldClimate.COLORS[climate].darkened(0.12 if ground == WorldState.Terrain.FOREST else 0.0)
+		if climate in [0,3,4,5]: color.a = 250.0 / 255.0
+	patch.pixels.set_pixel(posmod(cell.x,WorldState.CHUNK_SIZE),posmod(cell.y,WorldState.CHUNK_SIZE),color)
+	patch.dirty = true; patch.revision = int(world.revisions.get(key,0))

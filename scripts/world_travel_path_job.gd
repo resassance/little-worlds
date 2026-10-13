@@ -15,8 +15,8 @@ func _init(value, origin: Vector2i, target: Vector2i) -> void:
 	world = value; start = origin; finish = target
 	key = Vector4i(start.x,start.y,finish.x,finish.y)
 	if not world.walkable(start) or not world.walkable(finish): finished = true; return
-	if world.travel_path_revision != world.revision:
-		world.travel_paths.clear(); world.travel_path_revision = world.revision
+	if world.travel_path_revision != world.path_revision:
+		world.travel_paths.clear(); world.travel_path_revision = world.path_revision
 	if world.fires.is_empty() and world.travel_paths.has(key):
 		result = world.travel_paths[key]; finished = true; return
 	queue.append(start); parents[start] = start

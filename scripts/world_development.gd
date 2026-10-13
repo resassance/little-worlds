@@ -1,6 +1,8 @@
 class_name WorldDevelopment
 extends RefCounted
 
+const PRACTICE_DOMAINS := {"food":"food","farm":"food","wood":"engineering","build":"engineering"}
+
 const RANDOM_MODULUS := 2147483647
 static var catalog: Dictionary = load_catalog()
 static var DOMAINS: Dictionary = catalog.domains
@@ -48,7 +50,7 @@ static func initialize(world, society: Dictionary) -> void:
 		state.spent = false
 
 static func practice(society: Dictionary, member: Dictionary, skill: String) -> void:
-	var domain: String = {"food": "food", "farm": "food", "wood": "engineering", "build": "engineering"}[skill]
+	var domain: String = PRACTICE_DOMAINS[skill]
 	if member.task.get("kind", "") == "fish": domain = "maritime"
 	elif member.task.get("kind", "") == "research": domain = METHODS[member.task.tech].domain
 	elif member.task.get("kind", "") == "manufacture": domain = "materials"

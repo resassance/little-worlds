@@ -4,6 +4,7 @@ extends RefCounted
 const ERAS := ["Община", "Оседлое поселение", "Развитая деревня", "Ремесленное поселение", "Ранний город", "Средневековое общество"]
 const LIMIT := 1000000
 static var TECH: Dictionary = WorldDevelopment.METHODS
+static var practice_methods: Dictionary = {}
 
 static func get_society(world, town_id: int) -> Dictionary:
 	return world.society_index.get(town_id, {})
@@ -30,8 +31,13 @@ static func practice(world, member: Dictionary, skill: String) -> void:
 	if society.is_empty(): return
 	society.practice[skill] = mini(LIMIT, int(society.practice[skill]) + 1)
 	WorldDevelopment.practice(society, member, skill)
-	for key in TECH:
-		if society.tech[key].mastered and (TECH[key].skill == skill or TECH[key].experts.has(skill)): remember(member, key)
+	if practice_methods.is_empty():
+		for domain in WorldSocial.SKILLS:
+			practice_methods[domain] = []
+			for key in TECH:
+				if TECH[key].skill == domain or TECH[key].experts.has(domain): practice_methods[domain].append(key)
+	for key in practice_methods.get(skill,[]):
+		if society.tech[key].mastered: remember(member, key)
 
 static func mastered(world, home: Dictionary, key: String) -> bool:
 	var society := get_society(world, home.id)

@@ -18,6 +18,28 @@ var orphan: Dictionary = {}
 var finished := false
 var workforce_was_active := false
 
+static func needed(value: WorldState, touched: Dictionary) -> bool:
+	for home in value.towns:
+		var radius := WorldExploration.radius(home)+1
+		var area := Rect2i(Vector2i(home.x,home.y)-Vector2i.ONE*radius,Vector2i.ONE*(radius*2+1))
+		for key in touched:
+			if area.intersects(Rect2i(key*WorldState.CHUNK_SIZE,Vector2i.ONE*WorldState.CHUNK_SIZE)): return true
+	if value.population.ready:
+		var span := WorldState.CHUNK_SIZE/WorldPopulation.CELL_SIZE
+		for key in touched:
+			var first: Vector2i = key*span
+			for y in span:
+				for x in span:
+					if not value.population.cells.get(first+Vector2i(x,y),[]).is_empty(): return true
+	else:
+		for member in value.people:
+			if touched.has(WorldState.chunk_of(Vector2i(member.x,member.y))): return true
+	for building in value.buildings:
+		var area := WorldEconomy.footprint(building)
+		for key in touched:
+			if area.intersects(Rect2i(key*WorldState.CHUNK_SIZE,Vector2i.ONE*WorldState.CHUNK_SIZE)): return true
+	return false
+
 func _init(value) -> void:
 	world = value
 	workforce_was_active = world.workforce.active

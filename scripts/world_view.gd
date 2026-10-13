@@ -69,9 +69,13 @@ var stroke_signature: Array = []
 var brush_touched: Dictionary = {}
 var brush_terrain_dirty := false
 var brush_changed := false
+var brush_repair_needed := false
+var brush_repair_checked := false
 var brush_usec := 0
 var brush_cells_written := 0
 var brush_masks: Dictionary = {}
+var brush_previews: Dictionary = {}
+var last_brush_input_usec := 0
 var bake_job: WorldChunkBakeJob
 var bake_queue: Array[Dictionary] = []
 var bake_pending: Dictionary = {}
@@ -99,6 +103,7 @@ var visible_regions: Array[Vector2i] = []
 var region_view_signature: Array = []
 var visible_shores: Array[Vector2i] = []
 var population_view_epoch := 0
+var population_index_job: WorldPopulationRebuildJob
 var mesh_dirty := true
 var people_animating := false
 var render_ids := PackedInt32Array()
@@ -173,6 +178,7 @@ func set_world(value: WorldState) -> void:
 	appearance_job = null; appearance_dirty = true
 	town_appearances.clear(); working_buildings.clear(); appearance_candidates.clear()
 	visible_people.clear(); population_view_signature.clear()
+	population_index_job = null
 	visible_regions.clear(); region_view_signature.clear(); visible_shores.clear()
 	if people_multimesh != null: people_multimesh.visible_instance_count = 0; ornaments_multimesh.visible_instance_count = 0
 	effects.clear()
@@ -184,7 +190,10 @@ func set_world(value: WorldState) -> void:
 	minimap_job = null; minimap_revision = -1; visual_season = -1
 	pending_tools.clear()
 	brush_job = null; terrain_repair_job = null; brush_touched.clear()
+	brush_previews.clear()
 	brush_terrain_dirty = false; brush_changed = false; stroke_coverage = {}; stroke_signature.clear()
+	brush_repair_needed = false
+	brush_repair_checked = false
 	rebuild_texture()
 	selected = WorldState.NO_CELL
 	focus_island()
@@ -285,8 +294,8 @@ func _advance_baking() -> void:
 	var job := bake_job
 	bake_job = null
 	bake_pending.erase(Vector3i(job.coord.x, job.coord.y, 1 if job.detailed else 0))
-	if job.revision != int(world.revisions.get(job.coord, 0)): return
 	var cache := chunk_textures if job.detailed else overview_textures
+	if cache.has(job.coord) and int(cache[job.coord].revision) > job.revision: return
 	cache_clock += 1
 	var ready_texture: ImageTexture
 	if cache.has(job.coord):
@@ -294,6 +303,7 @@ func _advance_baking() -> void:
 		ready_texture.update(job.image)
 	else: ready_texture = ImageTexture.create_from_image(job.image)
 	cache[job.coord] = {"image":ready_texture,"revision":job.revision,"used":cache_clock,"shores":job.shores}
+	if job.detailed and brush_previews.has(job.coord) and job.revision >= int(brush_previews[job.coord].revision): brush_previews.erase(job.coord)
 	if cache.size() > CACHE_LIMIT:
 		var oldest: Vector2i = job.coord
 		for key in cache:
@@ -349,6 +359,13 @@ func _draw_regions() -> void:
 		var alpha := 0.1 + (sin(visual_time * 1.4 + shore.x * 0.5 + shore.y) + 1.0) * 0.12
 		var point := offset + (Vector2(shore - camera_origin) * TILE + Vector2(2, 2.5)) * zoom
 		draw_rect(Rect2(point, Vector2(4, 1) * zoom), Color(0.82, 0.93, 0.79, alpha))
+	for key in brush_previews:
+		var patch: Dictionary = brush_previews[key]
+		if patch.texture == null: continue
+		var rect := Rect2(offset+Vector2(key*WorldState.CHUNK_SIZE-camera_origin)*TILE*zoom,Vector2.ONE*WorldState.CHUNK_SIZE*TILE*zoom)
+		if not rect.intersects(Rect2(Vector2.ZERO,size)): continue
+		drawn_textures.append(patch.texture)
+		draw_texture_rect(patch.texture,rect,false)
 
 	for key in overview_textures.keys():
 		if not world.has_region(key): overview_textures.erase(key)
@@ -369,6 +386,8 @@ func _process(delta: float) -> void:
 		season_material.set_shader_parameter("winter_amount", 0.55 if season == 3 else 0.0)
 		population_view_signature.clear()
 	world.reclaim_navigation()
+	_advance_population_index()
+	_update_brush_previews()
 	_advance_baking()
 	_advance_minimap()
 	if texture_dirty:
@@ -387,6 +406,27 @@ func _process(delta: float) -> void:
 	season_material.set_shader_parameter("fire_time",visual_time)
 	queue_redraw()
 	process_usec = Time.get_ticks_usec() - started
+
+func _advance_population_index() -> void:
+	if world.population.ready: population_index_job = null; return
+	if world.stepping: return
+	if population_index_job == null: population_index_job = WorldPopulationRebuildJob.new(world)
+	var deadline := Time.get_ticks_usec()+300
+	while not population_index_job.finished:
+		population_index_job.unit()
+		if Time.get_ticks_usec() >= deadline: return
+	population_index_job = null
+
+func _update_brush_previews() -> void:
+	var retired := WorldState.NO_CELL
+	for key in brush_previews:
+		var patch: Dictionary = brush_previews[key]
+		if patch.dirty:
+			if patch.texture == null: patch.texture = ImageTexture.create_from_image(patch.pixels)
+			else: patch.texture.update(patch.pixels)
+			patch.dirty = false
+		if brush_previews.size() > CACHE_LIMIT*2 and not Rect2(offset+Vector2(key*WorldState.CHUNK_SIZE-camera_origin)*TILE*zoom,Vector2.ONE*WorldState.CHUNK_SIZE*TILE*zoom).intersects(Rect2(Vector2.ZERO,size)): retired = key
+	if retired != WorldState.NO_CELL: brush_previews.erase(retired)
 
 func _invalidate_texture() -> void:
 	texture_dirty = true
@@ -440,7 +480,7 @@ func _refresh_visible_people() -> void:
 	var base_scale := maxf(0.85, 0.7 / zoom)
 	if zoom >= 0.15:
 		var viewport := Rect2(Vector2.ZERO, size).grow(60)
-		for member in world.people:
+		for member in _render_candidates(viewport):
 			if not WorldMaritime.onboard(world, member.id) and viewport.has_point(cell_to_local(Vector2i(member.x, member.y))):
 				visible_people.append(member); live_visible_ids[member.id] = true
 				render_ids.append(int(member.id))
@@ -454,6 +494,24 @@ func _refresh_visible_people() -> void:
 				render_cargo.append(0 if member.cargo == 0 else (1 if member.cargo_kind == "wood" else 2))
 	for id in person_positions.keys():
 		if not live_visible_ids.has(id): person_positions.erase(id); person_directions.erase(id)
+
+func _render_candidates(viewport: Rect2) -> Array[Dictionary]:
+	if not world.population.ready: return world.people
+	var low := WorldPopulation.bucket(local_to_cell(viewport.position)-Vector2i.ONE)
+	var high := WorldPopulation.bucket(local_to_cell(viewport.end)+Vector2i.ONE)
+	if (high.x-low.x+1)*(high.y-low.y+1) >= world.people.size()/4: return world.people
+	var ids: Array = []
+	for y in range(low.y,high.y+1):
+		for x in range(low.x,high.x+1):
+			ids.append_array(world.population.cells.get(Vector2i(x,y),[]))
+			if ids.size() >= world.people.size()/2: return world.people
+	if world.population.monotonic_ids: ids.sort()
+	else: ids.sort_custom(func(a: int,b: int): return int(world.population.order[a]) < int(world.population.order[b]))
+	var result: Array[Dictionary] = []
+	for id in ids:
+		var member: Dictionary = world.person_index.get(id,{})
+		if not member.is_empty(): result.append(member)
+	return result
 
 func _prepare_people_meshes() -> void:
 	var atlas := Image.create((job_textures.size() + 2) * 16, 16 * PixelArt.PEOPLE_PALETTES, false, Image.FORMAT_RGBA8)
@@ -905,6 +963,7 @@ func _paint_segment(start: Vector2i, finish: Vector2i) -> void:
 	last_painted = finish
 
 func _queue_brush(start: Vector2i, finish: Vector2i) -> void:
+	last_brush_input_usec = Time.get_ticks_usec()
 	if not world.inside(start) or not world.inside(finish):
 		var origin := Vector2(start)
 		var direction := Vector2(finish-start)
@@ -923,10 +982,21 @@ func _queue_brush(start: Vector2i, finish: Vector2i) -> void:
 	var signature := [tool,brush_radius]
 	if signature != stroke_signature:
 		stroke_signature = signature; stroke_coverage = {}
-	pending_tools.append({"start":start,"finish":finish,"tool":tool,"radius":brush_radius,"coverage":stroke_coverage})
+	if not pending_tools.is_empty():
+		var previous: Dictionary = pending_tools.back()
+		if previous.get("tool") == tool and previous.get("radius") == brush_radius and previous.get("finish") == start and is_same(previous.get("coverage"),stroke_coverage):
+			var a: Vector2i = previous.finish-previous.start
+			var b := finish-start
+			if a.x*b.y == a.y*b.x and a.x*b.x+a.y*b.y >= 0:
+				previous.finish = finish
+				return
+	pending_tools.append({"start":start,"finish":finish,"tool":tool,"radius":brush_radius,"coverage":stroke_coverage,"previews":brush_previews})
 
 func has_pending_edits() -> bool:
 	return brush_job != null or terrain_repair_job != null or not pending_tools.is_empty() or not brush_touched.is_empty() or brush_terrain_dirty or brush_changed
+
+func active_stroke() -> bool:
+	return (dragging or (touches.size() == 1 and touch_painted)) and (tool.begins_with("biome_") or tool in ["water","sand","grass","forest","mountain","fire","rain"]) and Time.get_ticks_usec()-last_brush_input_usec < 120000
 
 func apply_tool(cell: Vector2i) -> void:
 	if not world.inside(cell) or cell == last_painted: return
@@ -948,6 +1018,7 @@ func flush_tools(budget_usec: int = 2000) -> void:
 		elif brush_job != null:
 			brush_job.unit()
 			if brush_job.finished:
+				if brush_job.terrain_dirty: brush_repair_checked = false
 				brush_changed = brush_changed or brush_job.changed
 				brush_terrain_dirty = brush_terrain_dirty or brush_job.terrain_dirty
 				brush_cells_written += brush_job.cells_written
@@ -971,12 +1042,18 @@ func flush_tools(budget_usec: int = 2000) -> void:
 				_apply_tool_now(command.cell)
 				tool = previous_tool; brush_radius = previous_radius
 		elif not brush_touched.is_empty():
+			if brush_terrain_dirty and not brush_repair_needed and not brush_repair_checked:
+				brush_repair_needed = WorldTerrainRepairJob.needed(world,brush_touched)
+				brush_repair_checked = true
 			var key: Vector2i = brush_touched.keys()[0]; brush_touched.erase(key)
 			if world.chunks.has(key) and world.chunks[key].tiles.count(WorldState.Terrain.WATER) == WorldState.CHUNK_SIZE*WorldState.CHUNK_SIZE:
 				world.chunks.erase(key); world.region_key_count = -1
 				world.region_bounds.erase(key); world.bounds_dirty.erase(key)
 		elif brush_terrain_dirty:
-			terrain_repair_job = WorldTerrainRepairJob.new(world)
+			if brush_repair_needed: terrain_repair_job = WorldTerrainRepairJob.new(world)
+			else: brush_terrain_dirty = false
+			brush_repair_needed = false
+			brush_repair_checked = false
 		elif brush_changed:
 			brush_changed = false
 			world.regions.trim(world,WorldState.NO_CELL,1)

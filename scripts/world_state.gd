@@ -100,6 +100,8 @@ var journey_index: Dictionary = {}
 var journey_people: Dictionary = {}
 var travel_paths: Dictionary = {}
 var travel_path_revision := -1
+var path_revision := 0
+var history_revision := 0
 var regions := WorldRegions.new()
 var stepping := false
 var profiling := false
@@ -146,6 +148,7 @@ func generate(seed_value: int) -> void:
 	occupied.clear()
 	building_index.clear()
 	navigation.clear(); site_cache.clear(); sea_routes.clear()
+	travel_paths.clear(); travel_path_revision = -1; path_revision = 0
 	sea_revision = 0
 	survey_regions.clear()
 	claims.clear()
@@ -154,6 +157,7 @@ func generate(seed_value: int) -> void:
 	for key in WorldEconomy.METRICS: metrics[key] = 0
 	fires.clear(); fire_regions.clear(); fire_revision += 1
 	history.clear()
+	history_revision += 1
 	wet_until = 0
 	drought_until = 0
 	weather = WorldWeather.defaults(world_seed)
@@ -264,9 +268,15 @@ func _set_terrain(cell: Vector2i, terrain: int) -> void:
 		return
 
 	if previous != terrain and (previous in [Terrain.WATER, Terrain.MOUNTAIN] or terrain in [Terrain.WATER, Terrain.MOUNTAIN]):
-		if not navigation.is_empty():
-			navigation_cleanup.append(WorldNavigationCleanupJob.new(navigation))
-			navigation = {}
+		if (previous in [Terrain.GRASS,Terrain.SAND,Terrain.FOREST]) != (terrain in [Terrain.GRASS,Terrain.SAND,Terrain.FOREST]): path_revision += 1
+		var retired := {}
+		for id in navigation:
+			var nav: Dictionary = navigation[id]
+			if nav.has("origin") and absi(cell.x-nav.origin.x)+absi(cell.y-nav.origin.y) > int(nav.reach)+1: continue
+			retired[id] = nav
+		if not retired.is_empty():
+			for id in retired: navigation.erase(id)
+			navigation_cleanup.append(WorldNavigationCleanupJob.new(retired))
 	else:
 		for nav in navigation.values():
 			if not nav.parents.has(cell): continue
@@ -608,6 +618,7 @@ func _random_event() -> void:
 	WorldWeather.schedule(self)
 
 func log_event(title: String, message: String) -> void:
+	history_revision += 1
 	history.push_front({"tick": ticks, "title": title, "message": message})
 	if history.size() > 60:
 		history.resize(60)

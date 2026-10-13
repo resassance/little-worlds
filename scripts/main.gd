@@ -97,6 +97,7 @@ var climate_update_job: WorldClimateConfigureJob
 var input_popups: Array[PopupMenu] = []
 
 func _ready() -> void:
+	WorldRegions.deferred_cleanup = true
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	get_window().content_scale_size = Vector2i.ZERO
 	preferences.load_preferences()
@@ -844,37 +845,39 @@ func _cycle_speed() -> void:
 
 func _process(delta: float) -> void:
 	if world == null: return
+	var work_deadline := Time.get_ticks_usec()+_work_budget()
+	if not view.active_stroke(): WorldRegions.cleanup_retired(200)
 	inspector_timer += delta
-	if climate_update_job != null:
-		if climate_update_job.advance(2000):
+	if climate_update_job != null and Time.get_ticks_usec() < work_deadline:
+		if climate_update_job.advance(mini(2000,maxi(1,work_deadline-Time.get_ticks_usec()))):
 			climate_update_job = null; view.edits_locked = false
 			show_message("Климат обновлён. Поселения приспосабливаются к новым условиям.")
 		else:
 			status_label.text = "Климат · %d%%" % (climate_update_job.cursor * 100 / maxi(1, climate_update_job.keys.size()))
 			status_panel.show()
-	if save_job != null:
-		if save_job.advance(2500):
+	if save_job != null and Time.get_ticks_usec() < work_deadline:
+		if save_job.advance(mini(2500,maxi(1,work_deadline-Time.get_ticks_usec()))):
 			var result := save_job.result
 			save_job = null
 			view.edits_locked = false
 			if result != OK: show_message("Не удалось сохранить мир: %s." % error_string(result))
 			elif not save_automatic: show_message("Мир сохранён на этом устройстве.")
-	if step_job != null:
-		if step_job.advance(4000): step_job = null
+	if step_job != null and Time.get_ticks_usec() < work_deadline:
+		if step_job.advance(maxi(1,work_deadline-Time.get_ticks_usec())): step_job = null
 	if step_job == null and save_job == null and climate_update_job == null:
-		view.flush_tools()
-		while not pending_actions.is_empty() and not view.has_pending_edits() and save_job == null and climate_update_job == null:
+		if Time.get_ticks_usec() < work_deadline: view.flush_tools(maxi(1,work_deadline-Time.get_ticks_usec()))
+		while not pending_actions.is_empty() and not view.has_pending_edits() and save_job == null and climate_update_job == null and Time.get_ticks_usec() < work_deadline:
 			var action: Callable = pending_actions.pop_front()
 			action.call()
-		if pending_inspection != WorldState.NO_CELL and not view.has_pending_edits() and save_job == null and climate_update_job == null:
+		if pending_inspection != WorldState.NO_CELL and not view.has_pending_edits() and save_job == null and climate_update_job == null and Time.get_ticks_usec() < work_deadline:
 			var cell := pending_inspection
 			var cycles := pending_inspection_cycles
 			pending_inspection = WorldState.NO_CELL; pending_inspection_cycles = 0
 			_inspect(cell, true, false, cycles)
-		if inspector_dirty and info_open and not hud_hidden and not view.has_pending_edits() and save_job == null and inspector_timer >= 0.25:
+		if inspector_dirty and info_open and not hud_hidden and not view.has_pending_edits() and save_job == null and inspector_timer >= 0.25 and Time.get_ticks_usec() < work_deadline:
 			_refresh_inspector()
-	if sculpt != null and step_job == null and save_job == null and climate_update_job == null:
-		sculpt.advance()
+	if sculpt != null and step_job == null and save_job == null and climate_update_job == null and Time.get_ticks_usec() < work_deadline:
+		sculpt.advance(mini(4000,maxi(1,work_deadline-Time.get_ticks_usec())))
 		status_label.text="Создание материка · %d%%" % (sculpt.cursor*100/maxi(1,sculpt.total))
 		status_panel.show()
 		if sculpt.finished:
@@ -883,7 +886,7 @@ func _process(delta: float) -> void:
 	platform.gameplay(running)
 	if running and save_job == null:
 		accumulator = minf(0.4, accumulator + minf(delta, 0.25) * speed)
-		if step_job == null and not view.has_pending_edits() and accumulator >= 0.2:
+		if step_job == null and not view.has_pending_edits() and not view.active_stroke() and accumulator >= 0.2:
 			accumulator -= 0.2
 			step_job = WorldStepJob.new(world)
 	autosave_timer += delta
@@ -893,6 +896,13 @@ func _process(delta: float) -> void:
 	if message_time > 0:
 		message_time -= delta
 		if message_time <= 0: status_panel.hide()
+
+func _work_budget() -> int:
+	return clampi(8000-view.process_usec-view.draw_usec,2000,6000)
+
+func _exit_tree() -> void:
+	WorldRegions.deferred_cleanup = false
+	WorldRegions.cleanup_retired(0)
 
 func _refresh() -> void:
 	if int(world.weather.sequence) > weather_sequence:
@@ -915,7 +925,7 @@ func _refresh_inspector() -> void:
 	inspector_timer = 0.0
 	inspector_updates += 1
 	if selected_cell != WorldState.NO_CELL: _inspect(selected_cell, false)
-	var signature := JSON.stringify(world.history)
+	var signature := str(world.history_revision)
 	if signature != history_signature:
 		history_signature = signature
 		for child in history_box.get_children():

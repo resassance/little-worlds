@@ -2,6 +2,7 @@ class_name WorldSocial
 extends RefCounted
 
 const SKILLS := {"food": "Собирательство", "wood": "Лесное дело", "build": "Строительство", "farm": "Земледелие"}
+const TASK_SKILLS := {"gather_food":"food","gather_wood":"wood","build":"build","plant":"farm","harvest":"farm"}
 const TRAITS := ["sociability", "diligence", "curiosity"]
 const MAX_LINKS := 8
 const MAX_XP := 240
@@ -96,7 +97,7 @@ static func practice(world, member: Dictionary, skill: String) -> void:
 		world.log_event("Мастер ремесла", "%s: %s." % [member.name, SKILLS[skill]])
 
 static func task_skill(kind: String) -> String:
-	return {"gather_food": "food", "gather_wood": "wood", "build": "build", "plant": "farm", "harvest": "farm"}.get(kind, "")
+	return TASK_SKILLS.get(kind, "")
 
 static func work_credit(world, member: Dictionary, skill: String) -> int:
 	return 2 if level(member, skill) >= 2 and (world.ticks + int(member.id)) % (3 if level(member, skill) == 3 else 4) == 0 else 1

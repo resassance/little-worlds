@@ -10,6 +10,29 @@ var failed := false
 var pins: Dictionary = {}
 var job_pins: Dictionary = {}
 var pin_signature: Array = []
+static var retired_directories: Array[String] = []
+static var cleanup_folder: DirAccess
+static var cleanup_path := ""
+static var deferred_cleanup := false
+
+static func retire(directory_path: String) -> void:
+	retired_directories.append(directory_path)
+	if not deferred_cleanup: cleanup_retired(0)
+
+static func cleanup_retired(budget_usec: int = 200) -> void:
+	var deadline := Time.get_ticks_usec()+budget_usec
+	while not retired_directories.is_empty() or cleanup_folder != null:
+		if cleanup_folder == null:
+			cleanup_path = retired_directories.pop_back()
+			cleanup_folder = DirAccess.open(cleanup_path)
+			if cleanup_folder != null: cleanup_folder.list_dir_begin()
+		else:
+			var entry := cleanup_folder.get_next()
+			if entry.is_empty():
+				cleanup_folder.list_dir_end(); cleanup_folder = null
+				DirAccess.remove_absolute(cleanup_path)
+			elif not cleanup_folder.current_is_dir(): cleanup_folder.remove(entry)
+		if budget_usec > 0 and Time.get_ticks_usec() >= deadline: return
 
 static func digest(bytes: PackedByteArray) -> String:
 	var context := HashingContext.new()
@@ -113,17 +136,9 @@ func clear() -> void:
 	cold.clear()
 	access.clear()
 	pins.clear(); job_pins.clear(); pin_signature.clear()
-	if not directory.is_empty():
-		var folder := DirAccess.open(directory)
-		if folder != null:
-			for name in folder.get_files(): folder.remove(name)
-		DirAccess.remove_absolute(directory)
+	if not directory.is_empty(): retire(directory)
 	directory = ""
 	failed = false
 
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_PREDELETE and not directory.is_empty():
-		var folder := DirAccess.open(directory)
-		if folder != null:
-			for name in folder.get_files(): folder.remove(name)
-		DirAccess.remove_absolute(directory)
+	if what == NOTIFICATION_PREDELETE and not directory.is_empty(): retire(directory)

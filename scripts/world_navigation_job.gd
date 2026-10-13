@@ -21,7 +21,7 @@ func _init(value, settlement: Dictionary) -> void:
 		var wood: Array[Vector2i] = []
 		var quarries: Array[Dictionary] = []
 		var coasts: Array[Dictionary] = []
-		result = {"parents":{origin:origin},"distances":{origin:0},"cells":cells,"food":food,"wood":wood,"quarries":quarries,"coasts":coasts,"routes":{},"order":{origin:0}}
+		result = {"parents":{origin:origin},"distances":{origin:0},"cells":cells,"food":food,"wood":wood,"quarries":quarries,"coasts":coasts,"routes":{},"order":{origin:0},"origin":origin,"reach":reach}
 
 func advance(budget_usec: int = 1000) -> bool:
 	var deadline := Time.get_ticks_usec() + budget_usec
