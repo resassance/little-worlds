@@ -45,14 +45,38 @@ func get_region(world, key: Vector2i) -> Dictionary:
 	access[key] = clock
 	if world.chunks.has(key): return world.chunks[key]
 	if not cold.has(key): return {}
+	var chunk := _read_region(key)
+	if chunk.is_empty(): return {}
+	world.chunks[key] = chunk
+	cold.erase(key)
+	if world.chunks.size() > CACHE_LIMIT * 2: trim(world, key, 1)
+	return chunk
+
+func snapshot(world, key: Vector2i) -> Dictionary:
+	if world.chunks.has(key): return world.chunks[key]
+	return _read_region(key) if cold.has(key) else {}
+
+func capture(world, key: Vector2i) -> Dictionary:
+	if world.chunks.has(key):
+		var chunk: Dictionary = world.chunks[key]
+		return {"chunk":{"coord":key,"epoch":chunk.epoch,"tiles":chunk.tiles.duplicate(),"food":chunk.food.duplicate(),"wood":chunk.wood.duplicate()}}
+	return _capture_cold(key) if cold.has(key) else {}
+
+func _capture_cold(key: Vector2i) -> Dictionary:
 	var metadata: Dictionary = cold[key]
-	var file := FileAccess.open(metadata.path, FileAccess.READ)
-	if file == null:
-		failed = true
-		return {}
-	var bytes := file.get_buffer(file.get_length())
-	file.close()
-	if digest(bytes) != metadata.hash:
+	var file := FileAccess.open(metadata.path,FileAccess.READ)
+	if file == null: failed = true; return {}
+	var bytes := file.get_buffer(file.get_length()); file.close()
+	return {"bytes":bytes,"hash":metadata.hash}
+
+func _read_region(key: Vector2i) -> Dictionary:
+	var packet := _capture_cold(key)
+	return decode_snapshot(key,packet) if not packet.is_empty() else {}
+
+func decode_snapshot(key: Vector2i, packet: Dictionary) -> Dictionary:
+	if packet.has("chunk"): return packet.chunk
+	var bytes: PackedByteArray = packet.bytes
+	if digest(bytes) != packet.hash:
 		failed = true
 		return {}
 	var chunk: Variant = bytes_to_var(bytes.decompress_dynamic(65536, FileAccess.COMPRESSION_GZIP))
@@ -63,9 +87,6 @@ func get_region(world, key: Vector2i) -> Dictionary:
 		if not chunk.get(field) is PackedInt32Array or chunk[field].size() != WorldState.CHUNK_SIZE * WorldState.CHUNK_SIZE:
 			failed = true
 			return {}
-	world.chunks[key] = chunk
-	cold.erase(key)
-	if world.chunks.size() > CACHE_LIMIT * 2: trim(world, key, 1)
 	return chunk
 
 func trim(world, pinned: Vector2i = WorldState.NO_CELL, max_regions: int = 0) -> void:

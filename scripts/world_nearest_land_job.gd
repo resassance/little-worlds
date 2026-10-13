@@ -17,6 +17,11 @@ func _init(value, center: Vector2i, reach: int = 12) -> void:
 
 func unit() -> void:
 	if finished: return
+	for i in 16:
+		_test_cell()
+		if finished: return
+
+func _test_cell() -> void:
 	var cell := origin+Vector2i(x,y)
 	if world.walkable(cell): result = cell; finished = true; return
 	if absi(y) == ring: x += 1

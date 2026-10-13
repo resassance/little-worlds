@@ -147,6 +147,23 @@ static func survival(world, member: Dictionary) -> bool:
 		return true
 	return false
 
+static func crew_candidates(world, home: Dictionary, count: int) -> Array:
+	var crew: Array = []
+	if WorldEconomy.members(world,home).size() < count+3: return crew
+	for member in WorldEconomy.members(world,home):
+		if not WorldLife.adult(world,member) or WorldTravel.away(world,member.id) or member.cargo > 0 or member.energy < 40 or member.hunger >= 25 or member.birth_due >= 0 or member.health < 70: continue
+		if member.task.get("kind","") in ["care","teach","research"] or not WorldLife.care_candidate(world,member).is_empty(): continue
+		crew.append(int(member.id))
+		if crew.size() == count: return crew
+	return []
+
+static func provisions(duration: int, count: int) -> int:
+	return ceili((duration*2+60)*count*WorldEconomy.HUNGER_PER_STEP/WorldEconomy.NUTRITION)+4
+
+static func can_supply(world, home: Dictionary, vessel: Dictionary, duration: int, count: int) -> bool:
+	var amount := provisions(duration,count)
+	return amount <= int(HOLD[vessel.kind]) and home.food-amount >= WorldEconomy.members(world,home).size()*3
+
 static func launch(world, home: Dictionary, vessel: Dictionary, destination: Dictionary, purpose: String = "explore", prepared_route: Variant = null) -> bool:
 	if world.voyages.size() >= MAX_VOYAGES or not vessel.ready or WorldEconomy.food_days(world, home) < 10: return false
 	for ship in world.voyages:
@@ -154,19 +171,16 @@ static func launch(world, home: Dictionary, vessel: Dictionary, destination: Dic
 	var landing: Vector2i = destination.land
 	var departure := shore(world, home, landing)
 	if departure.is_empty(): return false
+	var count := 3 if purpose == "colony" else 1
+	var crew := crew_candidates(world,home,count)
+	if crew.size() != count: return false
+	var minimum_duration := maxi(20,ceili(departure.water.distance_to(destination.water)/int(SPEED[vessel.kind])))
+	if not can_supply(world,home,vessel,minimum_duration,count): return false
 	var points: Array = route(world, departure.water, destination.water) if prepared_route == null else prepared_route
 	if points.is_empty(): return false
 	var duration: int = maxi(20, ceili(route_length(points) / int(SPEED[vessel.kind])))
-	var count := 3 if purpose == "colony" else 1
-	var provisions: int = ceili((duration * 2 + 60) * count * WorldEconomy.HUNGER_PER_STEP / WorldEconomy.NUTRITION) + 4
-	if provisions > int(HOLD[vessel.kind]) or home.food - provisions < WorldEconomy.members(world, home).size() * 3: return false
-	var crew: Array = []
-	for member in WorldEconomy.members(world, home):
-		if not WorldLife.adult(world, member) or WorldTravel.away(world, member.id) or member.cargo > 0 or member.energy < 40 or member.hunger >= 25 or member.birth_due >= 0 or member.health < 70: continue
-		if member.task.get("kind", "") in ["care", "teach", "research"] or not WorldLife.care_candidate(world, member).is_empty(): continue
-		crew.append(int(member.id))
-		if crew.size() == count: break
-	if crew.size() < count or WorldEconomy.members(world, home).size() < count + 3: return false
+	var provisions: int = provisions(duration,count)
+	if not can_supply(world,home,vessel,duration,count): return false
 	var ship := {"id": world.next_id, "home": int(home.id), "kind": vessel.kind, "crew": crew, "origin": [departure.land.x, departure.land.y], "landing": [landing.x, landing.y], "route": points, "phase": "boarding", "progress": 0, "duration": duration, "food": provisions, "cargo_kind": "", "cargo": 0, "purpose": purpose, "target": int(destination.get("town", -1)), "integrity": 12, "wait": 0}
 	world.next_id += 1
 	home.food -= provisions
@@ -385,6 +399,13 @@ static func save(world) -> Dictionary:
 	return {"voyages": world.voyages.duplicate(true), "contacts": world.contacts.duplicate(true), "explored": world.explored_coasts.duplicate(), "fishing": fishing}
 
 static func restore(world, data: Variant) -> bool:
+	for home in world.towns:
+		if home.has("sea_search_cursor"):
+			if not WorldState._integer(home.sea_search_cursor) or home.sea_search_cursor < 0 or home.sea_search_cursor >= WorldState.MAX_CHUNKS: return false
+			home.sea_search_cursor = int(home.sea_search_cursor)
+		if home.has("sea_route_cursor"):
+			if not WorldState._integer(home.sea_route_cursor) or home.sea_route_cursor < 0 or home.sea_route_cursor > WorldState.MAX_PEOPLE+WorldMaritimeDailyJob.SEARCH_REGIONS: return false
+			home.sea_route_cursor = int(home.sea_route_cursor)
 	if not data is Dictionary or not data.get("voyages") is Array or data.voyages.size() > MAX_VOYAGES or not data.get("contacts") is Array or data.contacts.size() > MAX_CONTACTS or not data.get("explored") is Dictionary or data.explored.size() > 8192: return false
 	var ids := {}
 	for values in [world.people, world.towns, world.buildings, world.households, world.ancestry_archive, world.societies]:

@@ -856,15 +856,19 @@ func _process(delta: float) -> void:
 			status_label.text = "Климат · %d%%" % (climate_update_job.cursor * 100 / maxi(1, climate_update_job.keys.size()))
 			status_panel.show()
 	if save_job != null and Time.get_ticks_usec() < work_deadline:
-		if save_job.advance(mini(2500,maxi(1,work_deadline-Time.get_ticks_usec()))):
+		var save_budget := maxi(1,work_deadline-Time.get_ticks_usec())
+		if save_job.snapshot_ready: save_budget = mini(2500,save_budget)
+		if save_job.advance(save_budget):
 			var result := save_job.result
 			save_job = null
 			view.edits_locked = false
 			if result != OK: show_message("Не удалось сохранить мир: %s." % error_string(result))
 			elif not save_automatic: show_message("Мир сохранён на этом устройстве.")
+		elif save_job.snapshot_ready:
+			view.edits_locked = false
 	if step_job != null and Time.get_ticks_usec() < work_deadline:
 		if step_job.advance(maxi(1,work_deadline-Time.get_ticks_usec())): step_job = null
-	if step_job == null and save_job == null and climate_update_job == null:
+	if step_job == null and (save_job == null or save_job.snapshot_ready) and climate_update_job == null:
 		if Time.get_ticks_usec() < work_deadline: view.flush_tools(maxi(1,work_deadline-Time.get_ticks_usec()))
 		while not pending_actions.is_empty() and not view.has_pending_edits() and save_job == null and climate_update_job == null and Time.get_ticks_usec() < work_deadline:
 			var action: Callable = pending_actions.pop_front()
@@ -884,7 +888,7 @@ func _process(delta: float) -> void:
 			sculpt_stop.hide(); sculpt=null; show_message("Создание суши завершено. Можно поселить жителей.")
 	var running := not paused and not suspended and not _modal_open() and sculpt == null and climate_update_job == null
 	platform.gameplay(running)
-	if running and save_job == null:
+	if running and (save_job == null or save_job.snapshot_ready):
 		accumulator = minf(0.4, accumulator + minf(delta, 0.25) * speed)
 		if step_job == null and not view.has_pending_edits() and not view.active_stroke() and accumulator >= 0.2:
 			accumulator -= 0.2

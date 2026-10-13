@@ -628,7 +628,7 @@ func to_dict(include_regions: bool = true, include_residents: bool = true) -> Di
 	var keys := region_keys()
 	keys.sort_custom(func(a: Vector2i, b: Vector2i): return a.y < b.y or (a.y == b.y and a.x < b.x))
 	for key in keys if include_regions else []:
-		var chunk: Dictionary = regions.get_region(self, key)
+		var chunk: Dictionary = regions.snapshot(self, key)
 		if chunk.is_empty(): return {}
 		saved_regions.append({"x": key.x, "y": key.y, "tiles": Array(chunk.tiles), "food": Array(chunk.food), "wood": Array(chunk.wood), "epoch": chunk.epoch})
 	var saved_fires: Array[Dictionary] = []

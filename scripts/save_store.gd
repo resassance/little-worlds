@@ -34,7 +34,7 @@ static func save_world(world: WorldState, path: String = SAVE_PATH) -> Error:
 	var regions: Array[Dictionary] = []
 	var used := {}
 	for key in world.region_keys():
-		var chunk: Dictionary = world.regions.get_region(world, key)
+		var chunk: Dictionary = world.regions.snapshot(world, key)
 		if chunk.is_empty() or world.regions.failed: return ERR_FILE_CORRUPT
 		var region := {"x": key.x, "y": key.y, "tiles": Array(chunk.tiles), "food": Array(chunk.food), "wood": Array(chunk.wood), "epoch": chunk.epoch}
 		var content := JSON.stringify(region)

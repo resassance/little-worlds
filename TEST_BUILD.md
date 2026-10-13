@@ -1,30 +1,26 @@
-# Тестовая сборка performance-04
+# Тестовая сборка simulation-05
 
-Версия 0.2.6-test.4, Android versionCode 13. Ветка test/performance-04; релиз не опубликован.
+Версия 0.2.6-test.5, Android versionCode 14. Ветка test/simulation-05.
 
-[Все файлы](https://github.com/resassance/little-worlds/tree/test/performance-04/test-builds).
+Сокращён перебор морских маршрутов. Перед поиском проверяются экипаж и запасы; попытки распределены между циклами. Автосохранение читает холодные участки без вытеснения кеша и освобождает симуляцию после подготовки снимка.
 
-- [Android Preview APK](https://github.com/resassance/little-worlds/raw/refs/heads/test/performance-04/test-builds/little-worlds-android-preview.apk)
-- [Windows](https://github.com/resassance/little-worlds/raw/refs/heads/test/performance-04/test-builds/little-worlds-windows-test.zip)
-- [Linux](https://github.com/resassance/little-worlds/raw/refs/heads/test/performance-04/test-builds/little-worlds-linux-test.zip)
-- [Web](https://github.com/resassance/little-worlds/raw/refs/heads/test/performance-04/test-builds/little-worlds-web-test.zip)
-- [Исходники](https://github.com/resassance/little-worlds/raw/refs/heads/test/performance-04/test-builds/little-worlds-godot-test.zip)
+[Все файлы](https://github.com/resassance/little-worlds/tree/test/simulation-05/test-builds).
 
-Если ссылка не скачивается, откройте папку сборки, выберите файл и нажмите Download raw file.
+- [Android Preview APK](https://github.com/resassance/little-worlds/raw/refs/heads/test/simulation-05/test-builds/little-worlds-android-preview.apk)
+- [Windows](https://github.com/resassance/little-worlds/raw/refs/heads/test/simulation-05/test-builds/little-worlds-windows-test.zip)
+- [Linux](https://github.com/resassance/little-worlds/raw/refs/heads/test/simulation-05/test-builds/little-worlds-linux-test.zip)
+- [Web](https://github.com/resassance/little-worlds/raw/refs/heads/test/simulation-05/test-builds/little-worlds-web-test.zip)
+- [Исходники](https://github.com/resassance/little-worlds/raw/refs/heads/test/simulation-05/test-builds/little-worlds-godot-test.zip)
 
-APK обновляет приложение «Маленькие миры · тест» из weather-02 и atlas-03, сохраняя его миры. Пакет org.littleworlds.sandbox.preview. Основная игра использует отдельный пакет и свои сохранения; прежний ключ её подписи недоступен в восстановленном окружении.
+APK обновляет предыдущую версию «Маленькие миры · тест» и сохраняет её миры. Основная игра установлена отдельно.
 
 ## Что проверить
 
-1. На ×1 и ×5 ведите кистью 15–30 секунд: прямая, круги, зигзаги, возврат по земле. Сравните радиусы 2, 8, 16 и 64. Земля должна появляться во время движения, подробности — достраиваться.
-2. Несколько раз нарисуйте землю, лес, горы, затем воду по тому же месту. Убедитесь, что форма и порядок сохраняются, после отпускания не остаётся длинного догоняния.
-3. Повторите огонь, дождь и биомы. Проверьте камеру, паузу, скорость и меню во время незавершённых правок.
-4. Проверьте обычное наблюдение, плотное поселение, жителей вдалеке, корабли, природные события и карточки людей. В больших мирах сравните реальное течение месяцев на ×1 и ×5.
-5. Удалите землю возле построек и жителей. Они должны правильно реагировать на потерю суши. Нарисуйте отдельный остров вдали от них: соседние задачи сохраняются.
-6. Несколько раз сохраните, загрузите и смените мир; сверните и верните приложение. Проведите длительную сессию на телефоне и сравните начало с состоянием после нагрева.
+1. Откройте мир, в котором останавливались жители. Оставьте ×1 или ×5 на несколько минут с включённым автосохранением. Наблюдайте за месяцами и людьми, включая время после сохранения.
+2. Проверьте корабли, знакомство островов и новые экспедиции. Поиск берегов теперь идёт постепенно.
+3. Нарисуйте сушу и воду возле поселения, затем отпустите кисть. Развитие должно продолжиться после применения правок.
+4. Сохраните и загрузите мир, сверните приложение и вернитесь. Проверьте население, здания и путешественников.
 
-При непрерывном рисовании новый шаг развития временно ждёт редактирование. После отпускания или остановки движения мир продолжает работу; меню и камера остаются доступны. Это поведение защищает согласованность данных мира.
+Если загрузка по ссылке не начинается, откройте папку сборки, выберите файл и нажмите Download raw file. Для Web распакуйте весь архив и запустите start-windows.exe или start-linux.
 
-Для Web распакуйте архив целиком и запустите start-windows.exe или start-linux.
-
-[Замеры и ограничения](docs/PERFORMANCE_04.md) · [Общий план оптимизации](docs/OPTIMIZATION_PLAN.md).
+[Разбор остановок](docs/SIMULATION_05.md) · [План жилья и городов](docs/SETTLEMENT_EVOLUTION.md).

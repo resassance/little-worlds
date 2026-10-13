@@ -21,13 +21,19 @@ func _init(value, first: Vector2i, last: Vector2i, regions: Array = []) -> void:
 func unit() -> void:
 	if finished: return
 	if sampling:
-		var point := Vector2i((Vector2(a) + delta * lerpf(start, end, float(sample_cursor) / sample_count)).floor())
-		if world.terrain_at(point) != WorldState.Terrain.WATER:
-			clear = false; finished = true; return
-		sample_cursor += 1
-		if sample_cursor > sample_count: sampling = false
+		for i in 16:
+			var point := Vector2i((Vector2(a) + delta * lerpf(start, end, float(sample_cursor) / sample_count)).floor())
+			if world.terrain_at(point) != WorldState.Terrain.WATER:
+				clear = false; finished = true; return
+			sample_cursor += 1
+			if sample_cursor > sample_count: sampling = false; return
 		return
-	if cursor >= keys.size(): finished = true; return
+	for i in 64:
+		if cursor >= keys.size(): finished = true; return
+		_scan_region()
+		if sampling: return
+
+func _scan_region() -> void:
 	var key: Vector2i = keys[cursor]; cursor += 1
 	var low := Vector2(key * WorldState.CHUNK_SIZE)
 	var high := low + Vector2.ONE * WorldState.CHUNK_SIZE
