@@ -1,48 +1,50 @@
 {
-  "build": "appearance-01",
-  "version": "0.2.6-test.1",
-  "android_version_code": 10,
-  "source_commit": "a2d9f3e45edd02e53c7235e45a9d0f8a6fc6c394",
+  "build": "weather-02",
+  "version": "0.2.6-test.2",
+  "android_version_code": 11,
+  "android_package": "org.littleworlds.sandbox.preview",
+  "android_updates_existing_app": false,
+  "source_commit": "026e186b3ce65f0b713e797ccd0cab29300d92fb",
   "files": [
     {
-      "name": "appearance-professions.png",
-      "bytes": 22191,
-      "sha256": "d5b151781949c84c7847f36131ad6be90cfc618802b5530edf60607e90f8f26d"
-    },
-    {
-      "name": "appearance-settlements.png",
-      "bytes": 73472,
-      "sha256": "2012c1ab9b29b2bc26757ff1cce799990c5e8285f177dae74e9b1d2547dae20d"
-    },
-    {
-      "name": "appearance-winter.png",
-      "bytes": 64661,
-      "sha256": "122a7d00ad9ca98cedf1d2c8d980ac8b8a48668e9249ac3f0d5a8cd94f1c9ab5"
-    },
-    {
-      "name": "little-worlds-android-test.apk",
-      "bytes": 53518397,
-      "sha256": "7258abde764e47a2aa2810aa0b01802b0b5e9683511df659e0e2f1079a661779"
+      "name": "little-worlds-android-preview.apk",
+      "bytes": 53531025,
+      "sha256": "f1bd991c703eb855499329e07e2acf5ea775de004dd0132916464f1744f3baae"
     },
     {
       "name": "little-worlds-godot-test.zip",
-      "bytes": 1188775,
-      "sha256": "38fb6e34fb0cf15b3727a8213e0565056fe5f620c2198f601f149f482999f3b6"
+      "bytes": 1202257,
+      "sha256": "e567077a03d685892a863fd3ddc780ab493710522142dcaeadc7da3bcae1747a"
     },
     {
       "name": "little-worlds-linux-test.zip",
-      "bytes": 29497820,
-      "sha256": "e84e84c5a068250ee9ee2ac860e4404ceb3dca09372307c9ead9e8be1287edfa"
+      "bytes": 29507572,
+      "sha256": "992352f7ff2d5eaf28f33a7f4c0d1d7f7584909dd69f6ad8b02f6f73c994b3fb"
     },
     {
       "name": "little-worlds-web-test.zip",
-      "bytes": 16308248,
-      "sha256": "7e7bfbfe07500e15d911383e303868ab38a8c444d0e3f69a911a948495476ba6"
+      "bytes": 16318276,
+      "sha256": "d144165c9b49b7ca9dd4bf7650db7e301a995bc625bc51abe4291fc97a78de14"
     },
     {
       "name": "little-worlds-windows-test.zip",
-      "bytes": 39039845,
-      "sha256": "2e8911f999b45e4ebaf2575ca68378889ef65204034c66b0edc890a6911323d0"
+      "bytes": 39049574,
+      "sha256": "4e04513cf7993aaa0763e06f643cbe308bac7e2c47f2cc74269b39eff8afbd34"
+    },
+    {
+      "name": "person-orientation.png",
+      "bytes": 4149,
+      "sha256": "506c9b7e773df72be980dfb37c4b74c778aef67467e25909119ae59350fd129c"
+    },
+    {
+      "name": "weather-frost.png",
+      "bytes": 87483,
+      "sha256": "b55039a5f696112efdeb991d958dc37f5f090c9cd8c38bc6e520dbb5eccad2f3"
+    },
+    {
+      "name": "weather-rain.png",
+      "bytes": 32806,
+      "sha256": "f325bf81a9d3f73d397835714f13ee263270985464176e63b1f9dc9a0dd7a3e7"
     }
   ]
 }

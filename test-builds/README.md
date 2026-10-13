@@ -1,11 +1,13 @@
-# appearance-01 · 0.2.6-test.1
+# weather-02 · 0.2.6-test.2
 
-Тестовая сборка: профессии и мастерство жителей, зимняя одежда и особенности поселений по хозяйству. Новые технологии в этой сборке не добавлены.
+Исправлена ориентация жителей. Добавлены самостоятельные местные дожди, грозы, засухи, заморозки и морские штормы. Частота выбирается в настройках климата; расписание сохраняется вместе с миром.
 
-[Android APK](little-worlds-android-test.apk?raw=true) · [Windows](little-worlds-windows-test.zip?raw=true) · [Linux](little-worlds-linux-test.zip?raw=true) · [Web](little-worlds-web-test.zip?raw=true) · [Исходники](little-worlds-godot-test.zip?raw=true)
+[Android Preview](little-worlds-android-preview.apk?raw=true) · [Windows](little-worlds-windows-test.zip?raw=true) · [Linux](little-worlds-linux-test.zip?raw=true) · [Web](little-worlds-web-test.zip?raw=true) · [Исходники](little-worlds-godot-test.zip?raw=true)
 
-Если ссылка не скачивается, откройте файл выше и нажмите Download raw file. APK устанавливается поверх 0.2.5. Для Web распакуйте архив целиком и запустите start-windows.exe или start-linux.
+Android Preview устанавливается отдельным приложением «Маленькие миры · тест» с собственными сохранениями. Его можно установить рядом с основной игрой. Это не обновление прежнего APK: прежний ключ подписи недоступен в восстановленном рабочем окружении.
 
-[Что проверить](../TEST_BUILD.md).
+Если ссылка не скачивается, откройте файл выше и нажмите Download raw file. Для Web распакуйте весь архив и запустите start-windows.exe или start-linux.
 
-[Профессии крупным планом](appearance-professions.png) · [Разные поселения](appearance-settlements.png) · [Зимний вид](appearance-winter.png).
+[Что проверить](../TEST_BUILD.md) · [Описание событий](../docs/NATURAL_EVENTS.md).
+
+[Житель крупным планом](person-orientation.png) · [Дождь](weather-rain.png) · [Заморозки](weather-frost.png).
