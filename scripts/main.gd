@@ -48,6 +48,7 @@ var hidden_tool := "inspect"
 var inspected_person_id := -1
 var selected_cell := WorldState.NO_CELL
 var history_signature := ""
+var weather_sequence := 0
 var autosave_timer := 0.0
 var message_time := 0.0
 var generation_dialog: ConfirmationDialog
@@ -71,6 +72,7 @@ var climate_biome: OptionButton
 var climate_scale: SpinBox
 var climate_equator: SpinBox
 var climate_seasons: CheckButton
+var climate_weather: OptionButton
 var help_dialog: AcceptDialog
 var sculpt_dialog: ConfirmationDialog
 var sculpt_width: SpinBox
@@ -757,6 +759,7 @@ func _world_menu_selected(id: int) -> void:
 			climate_mode.selected=["uniform","belts","manual"].find(world.climate.mode)
 			climate_biome.selected=world.climate.biome
 			climate_scale.value=world.climate.scale; climate_equator.value=world.climate.equator; climate_seasons.button_pressed=world.climate.seasons
+			climate_weather.selected = int(world.weather.rate)
 			_popup_dialog(climate_dialog, Vector2i(440,300))
 		6: _popup_dialog(help_dialog, Vector2i(470,300))
 		7: _at_boundary(func(): _save(true); platform.save_cloud(world))
@@ -785,6 +788,7 @@ func _set_world(value: WorldState) -> void:
 	if world != null and world.changed.is_connected(_refresh):
 		world.changed.disconnect(_refresh)
 	world = value
+	weather_sequence = int(world.weather.sequence)
 	world.changed.connect(_refresh)
 	view.set_world(world)
 	seed_input.text = str(world.world_seed)
@@ -885,6 +889,11 @@ func _process(delta: float) -> void:
 		if message_time <= 0: status_panel.hide()
 
 func _refresh() -> void:
+	if int(world.weather.sequence) > weather_sequence:
+		weather_sequence = int(world.weather.sequence)
+		if not hud_hidden:
+			for event in world.weather.active:
+				if int(event.id) == weather_sequence: show_message(WorldWeather.TITLES[event.kind]); break
 	stats_label.text = "%d жителей · %d поселений\n%s" % [world.people.size(), world.towns.size(),
 		"%d очагов огня" % world.fires.size() if not world.fires.is_empty() else ("Засуха" if world.ticks < world.drought_until else "Остров спокоен")]
 	day_label.text = "Год %d · месяц %d" % [world.year(), (world.month() - 1) % WorldEconomy.DAYS_PER_YEAR + 1]
@@ -1010,6 +1019,7 @@ func _generate() -> void:
 		return
 	var fresh := WorldState.new()
 	fresh.generate(seed_input.text.to_int())
+	fresh.weather.rate = int(world.weather.rate)
 	WorldClimate.configure(fresh,world.climate.mode,world.climate.biome,world.climate.equator,world.climate.scale,world.climate.seasons)
 	_set_world(fresh)
 	show_message("Новый остров готов. Разместите минимум трёх жителей рядом, чтобы появилось поселение.")
@@ -1124,6 +1134,10 @@ func _build_climate_and_help() -> void:
 	climate_equator=SpinBox.new(); climate_equator.min_value=-999999; climate_equator.max_value=999999; latitude.add_child(climate_equator)
 	latitude.add_child(_label("Ширина пояса",12)); climate_scale=SpinBox.new(); climate_scale.min_value=32; climate_scale.max_value=1000000; latitude.add_child(climate_scale)
 	climate_seasons=CheckButton.new(); climate_seasons.text="Смена сезонов"; content.add_child(climate_seasons)
+	var weather_row := HBoxContainer.new(); content.add_child(weather_row)
+	weather_row.add_child(_label("Природные события", 12))
+	climate_weather = OptionButton.new(); weather_row.add_child(climate_weather)
+	for caption in ["Выключены", "Редкие", "Обычные", "Частые"]: climate_weather.add_item(caption)
 	climate_dialog.confirmed.connect(func(): _at_boundary(_apply_climate))
 	add_child(climate_dialog)
 	help_dialog=AcceptDialog.new(); help_dialog.title="Как играть"; help_dialog.exclusive=true; help_dialog.ok_button_text="В мир"
@@ -1152,6 +1166,7 @@ func _begin_sculpt() -> void:
 
 func _apply_climate() -> void:
 	climate_scale.apply(); climate_equator.apply()
+	WorldWeather.set_rate(world, climate_weather.selected)
 	climate_update_job = WorldClimateConfigureJob.new(world,["uniform","belts","manual"][climate_mode.selected],climate_biome.selected,int(climate_equator.value),int(climate_scale.value),climate_seasons.button_pressed)
 	view.edits_locked = true
 

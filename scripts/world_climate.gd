@@ -33,7 +33,8 @@ static func growth_delta(world, cell: Vector2i, before: int, after: int) -> int:
 	return floori(after * factor) - floori(before * factor)
 
 static func hunger_factor(world, person: Dictionary) -> float:
-	var cold: bool = biome(world, Vector2i(person.x, person.y)) >= 4 or (world.climate.seasons and season(world) == 3)
+	var cell := Vector2i(person.x, person.y)
+	var cold: bool = biome(world, cell) >= 4 or (world.climate.seasons and season(world) == 3) or WorldWeather.at(world, cell, "frost")
 	if not cold: return 1.0
 	var supplies: Dictionary = WorldCivilization.get_data(world, person.home)
 	return 1.05 if not supplies.is_empty() and supplies.stock.cloth > 0 else 1.25
@@ -74,7 +75,7 @@ static func regrow(world, cell: Vector2i) -> bool:
 	return true
 
 static func describe(world, cell: Vector2i) -> String:
-	return "Климат: %s%s" % [NAMES[biome(world, cell)], " · " + ["весна", "лето", "осень", "зима"][season(world)] if world.climate.seasons else ""]
+	return "Климат: %s%s" % [NAMES[biome(world, cell)], " · " + ["весна", "лето", "осень", "зима"][season(world)] if world.climate.seasons else ""] + WorldWeather.describe(world, cell)
 
 static func save(world) -> Dictionary:
 	var overrides: Array = []

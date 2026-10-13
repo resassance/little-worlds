@@ -1,27 +1,28 @@
-# Тестовая сборка appearance-01
+# Тестовая сборка weather-02
 
-Версия `0.2.6-test.1`, Android versionCode 10. Сборка находится в ветке `test/appearance-01`; релиз не опубликован.
+Версия 0.2.6-test.2, Android versionCode 11. Ветка test/weather-02; релиз не опубликован.
 
-## Скачать
+[Все файлы](https://github.com/resassance/little-worlds/tree/test/weather-02/test-builds).
 
-[Все файлы сборки](https://github.com/resassance/little-worlds/tree/test/appearance-01/test-builds).
+- [Android Preview APK](https://github.com/resassance/little-worlds/raw/refs/heads/test/weather-02/test-builds/little-worlds-android-preview.apk)
+- [Windows](https://github.com/resassance/little-worlds/raw/refs/heads/test/weather-02/test-builds/little-worlds-windows-test.zip)
+- [Linux](https://github.com/resassance/little-worlds/raw/refs/heads/test/weather-02/test-builds/little-worlds-linux-test.zip)
+- [Web](https://github.com/resassance/little-worlds/raw/refs/heads/test/weather-02/test-builds/little-worlds-web-test.zip)
+- [Исходники](https://github.com/resassance/little-worlds/raw/refs/heads/test/weather-02/test-builds/little-worlds-godot-test.zip)
 
-- [Android APK](https://github.com/resassance/little-worlds/raw/refs/heads/test/appearance-01/test-builds/little-worlds-android-test.apk)
-- [Windows](https://github.com/resassance/little-worlds/raw/refs/heads/test/appearance-01/test-builds/little-worlds-windows-test.zip)
-- [Linux](https://github.com/resassance/little-worlds/raw/refs/heads/test/appearance-01/test-builds/little-worlds-linux-test.zip)
-- [Web](https://github.com/resassance/little-worlds/raw/refs/heads/test/appearance-01/test-builds/little-worlds-web-test.zip)
-- [Исходники](https://github.com/resassance/little-worlds/raw/refs/heads/test/appearance-01/test-builds/little-worlds-godot-test.zip)
+Если ссылка не скачивается, откройте папку сборки, выберите файл и нажмите Download raw file.
 
-Если прямая ссылка не скачивается, откройте папку сборки, выберите нужный файл и нажмите Download raw file. APK можно установить поверх версии 0.2.5; имя пакета, подпись и формат сохранений сохраняются.
+Android Preview — отдельное приложение «Маленькие миры · тест», пакет org.littleworlds.sandbox.preview. Прежний ключ подписи недоступен в восстановленном рабочем окружении, поэтому APK не является обновлением установленной игры. Для проверки не требуется удалять её; сохранения основной игры остаются в ней. У тестового приложения свои миры.
 
 ## Что проверить
 
-1. Приблизьте населённое поселение: инструменты и одежда должны отличать земледельца, рыбака, лесоруба, строителя, ремесленника, торговца и наставника. Во время доставки и отдыха одежда не должна мигать.
-2. Посмотрите общины с полями, портом, мастерскими, школой или рынком. Их хозяйство меняет символ флага и детали домов. Смешанные поселения могут показывать два направления.
-3. Найдите жителя с навыком уровня «мастер» и сравните с начинающим той же профессии. Дети не должны получать взрослые инструменты.
-4. Посмотрите ткацкую, школу и порт; проверьте свет в печах во время производства и простоя. Дождитесь зимы при включённых сезонах.
-5. На ×1 и ×5 перемещайте камеру, меняйте масштаб и рисуйте разными кистями в населённом мире. Сохраните и загрузите мир, проверьте возврат из общего обзора.
+1. Посмотрите жителей сверху и снизу карты при движении влево и вправо. Голова, инструменты и ноги должны сохранять правильное положение, груз — находиться с соответствующей стороны.
+2. В «Мир → Климат» выберите обычные или частые природные события. Они возникают самостоятельно с паузами, зависят от местности и климата и записываются в хронику.
+3. Дождь должен тушить огонь и восстанавливать растения в своей области; засуха — замедлять местные поля и уменьшать доступную еду. Проверьте здоровую область вдали от события.
+4. При заморозках жители носят тёплую одежду, поля растут медленнее. В море шторм задерживает корабли и может повреждать корпус; сухая гроза может поджечь землю.
+5. Сохраните и загрузите мир во время события. Оно должно продолжиться с оставшимся сроком. Переключение камеры и скорости не должно менять исход случайного события.
+6. На ×1 и ×5 проверьте кисти, масштаб и меню в населённом мире. Режим «Выключены» отключает самостоятельные события.
 
-Для Web распакуйте архив целиком и запустите `start-windows.exe` или `start-linux`.
+Для Web распакуйте архив целиком и запустите start-windows.exe или start-linux.
 
-[Правила визуального развития](docs/VISUAL_DEVELOPMENT.md).
+[Правила природных событий](docs/NATURAL_EVENTS.md).

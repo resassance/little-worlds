@@ -81,6 +81,7 @@ var history: Array[Dictionary] = []
 var rng := RandomNumberGenerator.new()
 var wet_until: int = 0
 var drought_until: int = 0
+var weather: Dictionary = WorldWeather.defaults(42817)
 var climate: Dictionary = WorldClimate.defaults()
 var biome_overrides: Dictionary = {}
 var stumps: Dictionary = {}
@@ -155,6 +156,7 @@ func generate(seed_value: int) -> void:
 	history.clear()
 	wet_until = 0
 	drought_until = 0
+	weather = WorldWeather.defaults(world_seed)
 	chunks.clear()
 	regions.clear()
 	revisions.clear()
@@ -606,19 +608,7 @@ func _step_fire() -> bool:
 	return job.dirty
 
 func _random_event() -> void:
-	if rng.randf() < 0.5:
-		drought_until = ticks + 100
-		log_event("Засуха", "На пять месяцев остановились рост урожая и восстановление еды на земле.")
-	else:
-		var origin := Vector2i(width / 2, height / 2)
-		if not people.is_empty():
-			var resident: Dictionary = people[rng.randi_range(0, people.size() - 1)]
-			origin = Vector2i(resident.x, resident.y)
-		var cell := nearest_land(origin, 20)
-		if cell != NO_CELL:
-			for target in cells_in_brush(cell, 5):
-				_set_food(target, capacity(terrain_at(target)))
-			log_event("Щедрая земля", "На острове созрели новые запасы еды.")
+	WorldWeather.schedule(self)
 
 func log_event(title: String, message: String) -> void:
 	history.push_front({"tick": ticks, "title": title, "message": message})
@@ -641,7 +631,7 @@ func to_dict(include_regions: bool = true, include_residents: bool = true) -> Di
 		"people": people.duplicate(true) if include_residents else [], "towns": towns.duplicate(true), "buildings": buildings.duplicate(true), "metrics": metrics.duplicate(), "fires": saved_fires,
 		"societies": societies.duplicate(true), "households": households.duplicate(true), "ancestry_archive": ancestry_archive.duplicate(true),
 		"history": history.duplicate(true), "rng_state": str(rng.state),
-		"wet_until": wet_until, "drought_until": drought_until}
+		"wet_until": wet_until, "drought_until": drought_until, "weather": weather.duplicate(true)}
 
 static func _integer(value: Variant) -> bool:
 	return (value is int or value is float) and is_finite(float(value)) and float(value) == float(int(value))
@@ -802,6 +792,7 @@ static func from_dict(source: Dictionary, region_files: Dictionary = {}) -> Worl
 		for value in world.buildings: WorldCivilization.material_defaults(value)
 		for home in world.towns: WorldCivilization.ensure(world, home)
 	elif not WorldClimate.restore(world, data.get("climate")) or not WorldCivilization.restore(world, data.get("civilization")) or not WorldMaritime.restore(world, data.get("maritime")) or not WorldTravel.restore(world, data.get("journeys")): return null
+	if not WorldWeather.restore(world, data.get("weather")): return null
 	return world
 
 func _profile_stage(label: String, before: int) -> int:

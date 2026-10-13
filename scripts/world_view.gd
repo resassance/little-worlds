@@ -120,6 +120,7 @@ var supplies_textures := {}
 var idle_furnaces := {}
 var appearance_usec := 0
 var appearance_builds := 0
+var weather_strikes := {}
 const JOB_SKILLS := WorldAppearanceJob.JOB_SKILLS
 
 func _ready() -> void:
@@ -173,6 +174,7 @@ func set_world(value: WorldState) -> void:
 	visible_regions.clear(); region_view_signature.clear(); visible_shores.clear()
 	if people_multimesh != null: people_multimesh.visible_instance_count = 0; ornaments_multimesh.visible_instance_count = 0
 	effects.clear()
+	weather_strikes.clear()
 	camera_origin = Vector2i.ZERO
 	chunk_textures.clear()
 	overview_textures.clear()
@@ -378,6 +380,7 @@ func _process(delta: float) -> void:
 	_refresh_visible_people()
 	_update_people_meshes(delta)
 	_advance_appearance()
+	_refresh_weather_effects()
 	_advance_fire_mesh()
 	season_material.set_shader_parameter("fire_time",visual_time)
 	queue_redraw()
@@ -422,7 +425,7 @@ func _person_outfit(member: Dictionary, life_stage: int) -> int:
 		person_outfits[int(member.id)] = previous
 		job = previous.job
 	var master := life_stage >= 3 and JOB_SKILLS.has(job) and WorldSocial.level(member, JOB_SKILLS[job]) == 3
-	var cold: bool = world.climate.seasons and visual_season == 3
+	var cold: bool = (world.climate.seasons and visual_season == 3) or WorldWeather.at(world, Vector2i(member.x, member.y), "frost")
 	return atlas_jobs.get(_outfit_key(job, master, cold), atlas_jobs.default)
 
 func _refresh_visible_people() -> void:
@@ -542,14 +545,14 @@ func _update_people_meshes(delta: float) -> void:
 		var scale_value := render_scales[index]
 		var facing: float = person_directions.get(id, 1.0)
 		var base := index * 12
-		people_buffer[base] = scale_value * facing; people_buffer[base + 5] = scale_value
+		people_buffer[base] = scale_value; people_buffer[base + 5] = scale_value
 		people_buffer[base + 3] = pos.x; people_buffer[base + 7] = pos.y + (-4 + bob) * scale_value
 		people_buffer[base + 8] = float(render_sprites[index]); people_buffer[base + 9] = 1.0
-		people_buffer[base + 10] = float(render_hunger[index]); people_buffer[base + 11] = 0.0
+		people_buffer[base + 10] = float(render_hunger[index]); people_buffer[base + 11] = 1.0 if facing < 0 else 0.0
 		if render_elder[index]: ornaments = _ornament(ornaments, Rect2(pos + Vector2(-2, -9 + bob) * scale_value, Vector2(4, 2) * scale_value), Color("e3dfcc"))
 		if render_cargo[index]:
-			ornaments = _ornament(ornaments, Rect2(pos + Vector2(3, -5) * scale_value, Vector2(4, 4) * scale_value), Color("334c40"))
-			ornaments = _ornament(ornaments, Rect2(pos + Vector2(4, -5) * scale_value, Vector2(3, 3) * scale_value), Color("956945") if render_cargo[index] == 1 else Color("e6c879"))
+			ornaments = _ornament(ornaments, Rect2(pos + Vector2(3 if facing > 0 else -7, -5) * scale_value, Vector2(4, 4) * scale_value), Color("334c40"))
+			ornaments = _ornament(ornaments, Rect2(pos + Vector2(4 if facing > 0 else -7, -5) * scale_value, Vector2(3, 3) * scale_value), Color("956945") if render_cargo[index] == 1 else Color("e6c879"))
 	people_multimesh.visible_instance_count = render_ids.size()
 	ornaments_multimesh.visible_instance_count = ornaments
 	if not render_ids.is_empty(): people_multimesh.buffer = people_buffer
@@ -585,6 +588,7 @@ func _draw() -> void:
 	if ornaments_multimesh.visible_instance_count > 0: draw_multimesh(ornaments_multimesh, null)
 	if fire_multimesh.visible_instance_count > 0: draw_multimesh(fire_multimesh,fire_atlas)
 	_draw_effects()
+	_draw_weather()
 	for ship in world.voyages:
 		var cell := WorldMaritime.position(ship)
 		if not Rect2(Vector2.ZERO, size).grow(50).has_point(cell_to_local(cell)): continue
@@ -693,6 +697,42 @@ func _draw_effects() -> void:
 				var pos := center + Vector2(cos(angle), sin(angle)) * t * radius
 				draw_rect(Rect2(pos, Vector2.ONE * 2.0 / zoom), Color(color, 1.0 - t))
 		draw_arc(center, radius * (0.45 + t * 0.65), 0, TAU, 40, Color(color, (1.0 - t) * 0.7), 1.2 / zoom)
+
+func _refresh_weather_effects() -> void:
+	var live := {}
+	for event in world.weather.active:
+		live[int(event.id)] = true
+		var strike: int = event.strike_tick
+		if strike < 0 or int(weather_strikes.get(event.id, -1)) == strike: continue
+		weather_strikes[int(event.id)] = strike
+		var cell := Vector2i(event.strike_x, event.strike_y)
+		if world.ticks - strike <= 1 and Rect2(Vector2.ZERO, size).has_point(cell_to_local(cell)): add_effect(cell, "fire", 0)
+	for id in weather_strikes.keys():
+		if not live.has(id): weather_strikes.erase(id)
+
+func _draw_weather() -> void:
+	if zoom < 0.35: return
+	for event in world.weather.active:
+		var cell := Vector2i(event.x, event.y)
+		var screen := cell_to_local(cell)
+		var radius := float(event.radius * TILE)
+		if not Rect2(Vector2.ZERO, size).grow(radius * zoom).has_point(screen): continue
+		var center := (Vector2(cell - camera_origin) + Vector2.ONE * 0.5) * TILE
+		for drop in 16:
+			var angle := drop * 2.399 + float(event.id)
+			var distance := sqrt(float(drop) / 16.0) * radius
+			var pos := center + Vector2(cos(angle), sin(angle)) * distance
+			if event.kind in ["rain", "storm"]:
+				pos.y += fmod(visual_time * 24.0 + drop * 3, 12.0) - 6.0
+				draw_line(pos, pos + Vector2(-3 if event.kind == "storm" else -1, 5), Color(0.65, 0.82, 0.88, 0.48), 1.0)
+			elif event.kind == "frost":
+				pos.y += sin(visual_time * 0.6 + drop) * 2.0
+				draw_rect(Rect2(pos, Vector2.ONE), Color(0.91, 0.94, 0.86, 0.7))
+			elif event.kind == "drought":
+				pos.x += sin(visual_time + drop) * 2.0
+				draw_line(pos, pos + Vector2(3, 0), Color(0.85, 0.7, 0.43, 0.4), 1.0)
+			else:
+				draw_rect(Rect2(pos + Vector2(0, -8), Vector2(4, 2)), Color(0.33, 0.42, 0.44, 0.22))
 
 func _draw_labels() -> void:
 	if label_font == null:

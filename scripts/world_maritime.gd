@@ -330,10 +330,9 @@ static func step_ship(world, ship: Dictionary) -> void:
 			ship.phase = "outbound"
 			world.log_event("Выход в море", "Экспедиция покинула берег. Длина маршрута: %d клеток." % roundi(route_length(ship.route)))
 		return
-	if world.ticks % WorldEconomy.DAY_TICKS == 0 and world.rng.randf() < (0.012 if ship.kind == "boat" else 0.003):
-		ship.integrity -= 2
-		ship.wait = WorldEconomy.DAY_TICKS
-		world.log_event("Шторм", "Корабль пережидает непогоду, расходуя запасы.")
+	if WorldWeather.at(world, position(ship), "storm"):
+		ship.wait = maxi(int(ship.wait), 1)
+		if world.ticks % (WorldEconomy.DAY_TICKS * (2 if ship.kind == "sailboat" else 1)) == 0: ship.integrity -= 1
 	if ship.integrity <= 0:
 		lose(world, ship)
 		return

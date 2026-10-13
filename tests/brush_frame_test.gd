@@ -48,6 +48,11 @@ func run() -> void:
 	var world := WorldState.from_dict(JSON.parse_string(FileAccess.get_file_as_string("res://artifacts/population-2000-world.json")))
 	check(world != null,"large gameplay fixture loads")
 	if world == null: quit(1); return
+	world.weather.next_tick = world.ticks + 10000
+	WorldWeather.start(world, "rain", Vector2i(64,64), 8, 60)
+	WorldWeather.start(world, "drought", Vector2i(96,64), 8, 60)
+	WorldWeather.start(world, "frost", Vector2i(64,100), 8, 60)
+	check(world.weather.active.size() == 3,"large gameplay fixture includes three independent weather areas")
 	game._set_world(world); game.view.zoom = 1.0; game.view.go_to_cell(Vector2i(64,64),false)
 	game.paused = false; game._set_speed(5)
 	for i in 80: game.view._process(0.016); await frame()

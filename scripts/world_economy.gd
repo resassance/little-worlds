@@ -509,6 +509,7 @@ static func step_claim(world, person: Dictionary) -> void:
 static func step_farm(world, value: Dictionary) -> void:
 	if not value.ready or value.kind != "farm" or not value.planted: return
 	if world.ticks < world.drought_until or world.fires.has(Vector2i(value.x, value.y)): return
+	if not WorldWeather.farm_work(world, Vector2i(value.x, value.y)): return
 	var home := town(world, value.town)
 	var advanced := WorldSociety.active(world, home, "rotation")
 	value.growth += 1

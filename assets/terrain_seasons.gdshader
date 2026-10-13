@@ -9,8 +9,13 @@ varying float hunger_amount;
 void vertex() {
 	hunger_amount = 0.0;
 	if (INSTANCE_CUSTOM.g > 1.5) {
+		UV.y = 1.0 - UV.y;
 		UV.x = (UV.x + mod(floor(fire_time * 8.0) + INSTANCE_CUSTOM.r, 4.0)) / 4.0;
 	} else if (INSTANCE_CUSTOM.g > 0.5) {
+		UV.y = 1.0 - UV.y;
+		if (INSTANCE_CUSTOM.a > 0.5) {
+			UV.x = 1.0 - UV.x;
+		}
 		UV.x = (UV.x + INSTANCE_CUSTOM.r) / atlas_columns;
 		hunger_amount = INSTANCE_CUSTOM.b;
 	}

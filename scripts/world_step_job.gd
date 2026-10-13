@@ -1,7 +1,7 @@
 class_name WorldStepJob
 extends RefCounted
 
-enum Phase { CLIMATE, REPAIR, HOMES, NAVIGATION, WORKFORCE, SOCIAL_TICK, CLAIMS, FARMS, PLANS, SPOIL, PEOPLE, TRAVEL, LIFE_REPAIR, FOUND, LIFE_BEGIN, COURT, BIRTHS, SOCIAL, SOCIETY, CIVILIZATION, DAILY_TRAVEL, FINISH }
+enum Phase { CLIMATE, WEATHER, REPAIR, HOMES, NAVIGATION, WORKFORCE, SOCIAL_TICK, CLAIMS, FARMS, PLANS, SPOIL, PEOPLE, TRAVEL, LIFE_REPAIR, FOUND, LIFE_BEGIN, COURT, BIRTHS, SOCIAL, SOCIETY, CIVILIZATION, DAILY_TRAVEL, FINISH }
 var world
 var phase := Phase.CLIMATE
 var cursor := 0
@@ -18,6 +18,7 @@ var max_unit_usec := 0
 var peak_phase := ""
 var population_job: WorldPopulationRebuildJob
 var climate_job: WorldClimateStepJob
+var weather_job: WorldWeatherStepJob
 var repair_job: WorldBuildingRepairJob
 var life_job: WorldLifeReconcileJob
 var sea_daily_job: WorldMaritimeDailyJob
@@ -53,6 +54,7 @@ func advance(budget_usec: int = 4000) -> bool:
 
 func _label() -> String:
 	if phase == Phase.CLIMATE: return "climate"
+	if phase == Phase.WEATHER: return "weather"
 	if phase == Phase.REPAIR: return "repair"
 	if phase == Phase.HOMES: return "burn"
 	if phase >= Phase.WORKFORCE and phase <= Phase.PEOPLE: return "economy"
@@ -105,6 +107,10 @@ func _unit() -> void:
 				if not climate_job.finished: climate_job.unit(); return
 				if world.ticks % WorldEconomy.DAY_TICKS == 0 and world.ticks >= world.drought_until: world.regrowth += 1
 				_next()
+		Phase.WEATHER:
+			if weather_job == null: weather_job = WorldWeatherStepJob.new(world)
+			if not weather_job.finished: weather_job.unit(); return
+			_next()
 		Phase.REPAIR:
 			if fire_job == null: fire_job = WorldFireStepJob.new(world)
 			if not fire_job.finished: fire_job.unit(); return
@@ -244,7 +250,6 @@ func _unit() -> void:
 				else: _next()
 		Phase.FINISH:
 			if cursor == 0:
-				if world.ticks % 300 == 0: world._random_event()
 				population_job = null if world.population.ready else WorldPopulationRebuildJob.new(world); cursor = 1
 			if population_job != null and not population_job.finished: population_job.unit(); return
 			if not world.navigation_cleanup.is_empty(): world.reclaim_navigation(300); return

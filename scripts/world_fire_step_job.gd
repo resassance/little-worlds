@@ -33,4 +33,4 @@ func unit() -> void:
 		return
 	if world.ticks < world.wet_until or world.rng.randf() > 0.08: return
 	var target: Vector2i = cell + WorldState.DIRECTIONS[world.rng.randi_range(0, 3)]
-	if world.inside(target) and world.terrain_at(target) in [WorldState.Terrain.GRASS, WorldState.Terrain.FOREST] and not world.fires.has(target): spreading.append(target)
+	if world.inside(target) and world.terrain_at(target) in [WorldState.Terrain.GRASS, WorldState.Terrain.FOREST] and not world.fires.has(target) and not WorldWeather.wet(world, target): spreading.append(target)
