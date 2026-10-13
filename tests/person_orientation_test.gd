@@ -28,7 +28,7 @@ func run() -> void:
 	member.born_tick = -WorldLife.YEAR * 25; member.job = "logger"
 	await frame()
 	view.set_world(world); view.zoom = 5.0; view.go_to_cell(Vector2i.ZERO, false)
-	var source := PixelArt.person_image("logger")
+	var source := PixelArt.person_image("logger", false, false, PixelArt.person_palette(world.world_seed, member.id))
 	for cell in [Vector2i(0, -6), Vector2i(0, 6)]:
 		member.x = cell.x; member.y = cell.y
 		for facing in [-1.0, 1.0]:

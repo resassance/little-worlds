@@ -47,11 +47,19 @@ const PERSON := [
 	".occcco.", "..oaao..", "..oooo..", "..o..o..", ".oo..oo.", ".kkkkkk."
 ]
 const JOB_COLORS := {"settler": ["b9d2be", "719a8e"], "forager": ["b8c58a", "827c54"], "logger": ["caa16f", "806049"], "builder": ["b4a5bd", "797186"], "farmer": ["a2bd86", "697f53"], "child": ["dcc4a3", "a88d72"], "teen": ["bac6a2", "829472"], "carer": ["d0afbb", "957d8b"], "teacher": ["d3bf8d", "95805a"], "researcher": ["a7b9c8", "718697"], "miner": ["a8b0a6", "697970"], "artisan": ["c8a08a", "92745c"], "fisher": ["8eb5b7", "5c848d"], "sailor": ["d4c9a2", "758c9e"], "merchant": ["c5adbd", "91788d"], "scout": ["b3bd8e", "778267"]}
+const SKIN_TONES := [Color("efcf9b"), Color("d1a076"), Color("a77552"), Color("745039")]
+const CLOTH_TONES := [Color.TRANSPARENT, Color("b78570"), Color("899fb4"), Color("cbb791"), Color("aa8397"), Color("929f98")]
+const PEOPLE_PALETTES := 24
 
-static func person_image(job: String, master: bool = false, cold: bool = false) -> Image:
+static func person_palette(seed_value: int, id: int) -> int:
+	return posmod(hash(Vector3i(seed_value, id, 9187)), PEOPLE_PALETTES)
+
+static func person_image(job: String, master: bool = false, cold: bool = false, palette: int = 0) -> Image:
 	var colors: Array = JOB_COLORS.get(job, JOB_COLORS.settler)
+	var cloth: Color = CLOTH_TONES[palette % CLOTH_TONES.size()]
+	if cloth.a > 0: colors = [cloth.to_html(false), cloth.darkened(0.28).to_html(false)]
 	var image := Image.create(16, 16, false, Image.FORMAT_RGBA8)
-	image.blit_rect(sprite_image(PERSON, {"c": Color(colors[0]), "a": Color(colors[1])}), Rect2i(0, 0, 8, 12), Vector2i(4, 3))
+	image.blit_rect(sprite_image(PERSON, {"c": Color(colors[0]), "a": Color(colors[1]), "s": SKIN_TONES[palette / CLOTH_TONES.size()]}), Rect2i(0, 0, 8, 12), Vector2i(4, 3))
 	var ink := PALETTE.o
 	var wood := Color("94734f")
 	var edge := Color("bac1af")
@@ -113,9 +121,11 @@ static func settlement_mark(domain: String) -> ImageTexture:
 	var patterns := {"food": ["..y...", ".yyy..", "..y.y.", "..yyy.", "..y...", "..y..."], "maritime": ["..w...", "..ww..", "..www.", "..b...", "bbbbbb", ".vvvv."], "engineering": [".mmmmm", "...b..", "...b..", "...b..", "...b..", "......"], "materials": ["...y..", "..yy..", ".yfy..", ".fff..", ".mmm..", "mmmmmm"], "education": ["......", "wwooww", "wwooww", "wwooww", "wwooww", "......"], "trade": [".yyyy.", "yo..oy", "yoyyoy", "yo..oy", ".yyyy.", "......"], "mixed": ["..cc..", ".cccc.", "cccccc", "cc..cc", "cc..cc", "......"]}
 	return sprite_texture(patterns.get(domain, patterns.mixed))
 
-static func house_variant(domain: String) -> ImageTexture:
+static func house_variant(domain: String, form: int = 0) -> ImageTexture:
 	var color: Color = WorldAppearanceJob.COLORS.get(domain, WorldAppearanceJob.COLORS.mixed)
 	var image := sprite_image(HOUSE)
+	if form == 1: image = sprite_image([".......oo.......", "......ottro.....", ".....ottttro....", "....ottttttro...", "...otttttttrro..", "..ottttttttrrro.", "oooooooooooooooo"] + HOUSE.slice(7))
+	elif form == 2: image = sprite_image(["................", "................", "..oooooooooooo..", "..ottttttttrro..", "..ottttttttrro..", "..oooooooooooo..", ".oooooooooooooo."] + HOUSE.slice(7))
 	image.fill_rect(Rect2i(6, 2, 3, 1), color)
 	image.fill_rect(Rect2i(2, 8, 1, 3), color.darkened(0.15))
 	image.fill_rect(Rect2i(12, 8, 1, 3), color.darkened(0.15))
@@ -187,6 +197,7 @@ static func idle_furnace(kind: String) -> ImageTexture:
 static func icon(key: String) -> ImageTexture:
 	if key.begins_with("biome_"): return sprite_texture(TREE,{"l":WorldClimate.COLORS[int(key.trim_prefix("biome_"))],"g":WorldClimate.COLORS[int(key.trim_prefix("biome_"))].darkened(.12)})
 	var patterns := {
+		"atlas": ["..oooooooo..", ".osssssssso.", ".oswwwwssso.", ".oswbwwssso.", ".oswbbbwsso.", ".oswwbwwsso.", ".oswwwwssso.", ".osssssssso.", "..oooooooo.."],
 		"inspect": [".ww......", ".wcw.....", ".wccw....", ".wcccw...", ".wccccw..", ".wccwwww.", ".wcww....", ".ww.wc...", ".....wc.."],
 		"pan": ["...cc.cc...", "cc.cc.cc.cc", "cc.cc.cc.cc", "cc.cc.cc.cc", "cccccccccc", ".ccccccccc", "..ccccccc.", "..ccccccc.", "...ccccc.."],
 		"water": [".....v.....", "....vvv....", "...vvvvv...", "..vvvuvvv..", ".vvvuuvvvv.", ".vuuuuuuuv.", "..uuuuuuu..", "...uuuuu..."],
@@ -205,4 +216,4 @@ static func icon(key: String) -> ImageTexture:
 		"leaf": [".......ggggg", "....gggllllg", "..gglllllllg", ".gglllllllg.", "gglllhlllg..", "gllllllgg...", "gllllgg.....", ".gggg.......", "..b.........", ".b.........."],
 		"fit": ["cccc..cccc", "c........c", "c........c", "c........c", "..........", "..........", "c........c", "c........c", "cccc..cccc"]
 	}
-	return sprite_texture(patterns.get(key, patterns.leaf))
+	return sprite_texture(patterns.get(key, patterns.leaf), {"c": Color("c3a871"), "a": Color("8c7754")})

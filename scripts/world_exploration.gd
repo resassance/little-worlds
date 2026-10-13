@@ -122,6 +122,7 @@ static func execute(world, member: Dictionary, home: Dictionary) -> void:
 	var state := state_for(world, home)
 	state.next_tick = world.ticks + WorldEconomy.DAY_TICKS * RETRY_DAYS
 	if task.surveyed:
+		WorldVocation.milestone(member, "explore")
 		state.pending_radius = mini(MAX_RANGE, int(task.radius) + RANGE_STEP)
 		state.report = true
 		state.trips = mini(1000000, int(state.trips) + 1)

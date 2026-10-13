@@ -144,7 +144,7 @@ func _initialize() -> void:
 		"history": a.history.duplicate(true), "rng_state": str(a.rng.state), "wet_until": a.wet_until, "drought_until": a.drought_until}
 
 	for person in legacy.people:
-		for field in ["name", "rations", "cargo", "cargo_kind", "energy", "job", "task", "birth_tick", "sex", "parents", "ancestors", "generation", "guardian", "partner", "household", "courting", "bond", "birth_due", "last_birth", "care_until", "health", "skills", "traits", "links", "social_need", "lesson", "trained_by", "ideas"]: person.erase(field)
+		for field in ["name", "rations", "cargo", "cargo_kind", "energy", "job", "task", "birth_tick", "sex", "parents", "ancestors", "generation", "guardian", "partner", "household", "courting", "bond", "birth_due", "last_birth", "care_until", "health", "skills", "traits", "links", "social_need", "lesson", "trained_by", "ideas", "vocation"]: person.erase(field)
 	for cell in a.fires: legacy.fires[a.index_of(cell)] = a.fires[cell]
 	check(WorldState.from_dict(JSON.parse_string(JSON.stringify(legacy))) != null, "original 128x128 saves migrate to chunks")
 	check(SaveStore._write_atomic(test_path, JSON.stringify(legacy)) == OK and SaveStore.load_world(test_path) != null, "legacy disk saves load through migration")

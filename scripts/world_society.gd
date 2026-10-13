@@ -120,6 +120,7 @@ static func research(world, member: Dictionary, home: Dictionary) -> void:
 	if not succeeded: return
 	state.progress = int(TECH[key].work)
 	state.mastered = true
+	WorldVocation.milestone(member, "research")
 	state.discovered_tick = world.ticks
 	world.metrics.discoveries += 1
 	remember(member, key)

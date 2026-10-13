@@ -18,6 +18,7 @@ static func defaults(world, member: Dictionary) -> void:
 	member.social_need = 0.0
 	member.lesson = {}
 	member.trained_by = {}
+	WorldVocation.defaults(world, member)
 
 static func level(member: Dictionary, skill: String) -> int:
 	var xp: int = member.skills[skill]
@@ -105,11 +106,11 @@ static func preferred(world, member: Dictionary, home: Dictionary, skill: String
 	if WorldEconomy.food_days(world, home) < 6: return true
 	if world.workforce.active: return world.workforce.preferred(world, member, home, skill)
 	var best_id: int = member.id
-	var best: int = int(member.skills[skill]) * 4 + int(member.traits.diligence)
+	var best: int = WorldWorkforce.score(member, skill)
 	for other in WorldEconomy.members(world, home):
 		if other.id == member.id or not WorldLife.adult(world, other) or other.cargo > 0 or not other.task.is_empty() or other.hunger >= 35 or other.energy < 18: continue
 		if not WorldLife.care_candidate(world, other).is_empty() or other.birth_due >= 0: continue
-		var score: int = int(other.skills[skill]) * 4 + int(other.traits.diligence)
+		var score: int = WorldWorkforce.score(other, skill)
 		if score > best or (score == best and other.id < best_id):
 			best = score
 			best_id = other.id
@@ -147,6 +148,7 @@ static func finish_visit(world, member: Dictionary, home: Dictionary) -> void:
 		met += 1
 		if met >= 3: break
 	help(world, member)
+	if met > 0: WorldVocation.milestone(member, "connect")
 
 static func cancel_lesson(world, student: Dictionary) -> void:
 	if student.lesson.is_empty(): return
@@ -181,6 +183,7 @@ static func offer_lesson(world, student: Dictionary, home: Dictionary) -> bool:
 			var rank: float = mentor.skills[skill] - student.skills[skill] + closeness(student, mentor) + (30 if mentor.household == student.household else 0)
 
 			if (posmod(world.world_seed + int(student.id), SKILLS.size()) == SKILLS.keys().find(skill)) and student.traits.curiosity == 2: rank += 30
+			rank += WorldVocation.lesson_rank(student, mentor, skill)
 			if rank > score:
 				score = rank
 				best = mentor
@@ -238,6 +241,7 @@ static func teach(world, mentor: Dictionary, home: Dictionary) -> void:
 	world.workforce.skill_changed(world, student, skill)
 	student.trained_by[skill] = int(mentor.id)
 	world.metrics.lessons += 1
+	WorldVocation.milestone(mentor, "teach")
 	WorldSociety.taught(world, mentor, student)
 	if required_work == 8: WorldSociety.use(world, home, "records", mentor)
 	contact(world, mentor, student, 2)
@@ -310,7 +314,7 @@ static func remove(world, member: Dictionary) -> void:
 		if not successors: world.log_event("Утрата мастера", "%s: %s осталось без опытного наставника." % [member.name, SKILLS[skill]])
 
 static func describe(world, member: Dictionary) -> String:
-	var text := "\n\nНавыки"
+	var text := WorldVocation.describe(member) + "\n\nНавыки"
 	var levels := ["Новичок", "Практик", "Опытный", "Мастер"]
 	for skill in SKILLS:
 		text += "\n%s: %s · %d" % [SKILLS[skill], levels[level(member, skill)], member.skills[skill]]
@@ -358,6 +362,7 @@ static func restore(world) -> bool:
 			member.traits[trait_key] = int(member.traits[trait_key])
 		if not (member.get("social_need") is int or member.get("social_need") is float) or not is_finite(float(member.social_need)) or member.social_need < 0 or member.social_need > 100: return false
 		member.social_need = float(member.social_need)
+		if not WorldVocation.restore(world, member): return false
 		if not member.get("links") is Array or member.links.size() > MAX_LINKS: return false
 		var used := {}
 		for link in member.links:

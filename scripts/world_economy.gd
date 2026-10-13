@@ -268,9 +268,11 @@ static func assign(world, person: Dictionary, home: Dictionary) -> void:
 		set_task(world, person, task("visit", WorldSocial.visit_target(world, person, home)))
 		return
 	var plan: Dictionary = world.workforce.context(world, home)
+	WorldVocation.review(world, person, home)
 	var population: int = plan.population
 	var food_workers: int = plan.food_workers
 	var wood_workers: int = plan.wood_workers
+	if WorldVocation.assign_goal(world, person, home): return
 
 	for value in world.workforce.buildings(world, home):
 		if value.town != home.id or value.kind != "farm" or not value.ready: continue

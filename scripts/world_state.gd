@@ -590,10 +590,7 @@ func _found_town(p: Dictionary) -> void:
 		if parents.has(Vector2i(other.x, other.y)): neighbors += 1
 	navigation.erase(probe.id)
 	if neighbors >= 3:
-		var names := ["Ивовый берег", "Тихая роща", "Солнечный дол", "Лесной приют", "Новый рассвет"]
-		var name_value: String = names[towns.size() % names.size()]
-		if towns.size() >= names.size():
-			name_value += " %d" % (towns.size() + 1)
+		var name_value := WorldSettlementIdentity.name_for(self, cell, prepared_navigation)
 		var home := {"id": next_id, "name": name_value, "x": cell.x, "y": cell.y, "food": 0, "wood": 0, "level": 1}
 		next_id += 1
 		towns.append(home)

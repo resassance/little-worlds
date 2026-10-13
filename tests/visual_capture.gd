@@ -198,6 +198,10 @@ func capture() -> void:
  game.view._gui_input(touch)
  touch.pressed = false
  game.view._gui_input(touch)
+ for i in 120:
+  if not game.view.has_pending_edits(): break
+  game._process(0.016)
+  await process_frame
  check(demo.terrain_at(target) == WorldState.Terrain.GRASS, "touch tap applies selected tool")
  game._select_tool("pan")
  var one := InputEventScreenTouch.new()

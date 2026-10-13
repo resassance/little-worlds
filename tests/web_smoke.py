@@ -75,11 +75,14 @@ with sync_playwright() as p:
     page.screenshot(path=str(artifacts / 'world-web-closeup.png'))
     page.keyboard.press('Control+s')
     first_save = await_persisted()
+    assert set(first_save['weather']) == {'rate', 'rng', 'next_tick', 'sequence', 'active'}, 'Normal Web saves include the complete weather schedule'
     assert any(person['task'] for person in first_save['people']), 'Save should include active worker tasks'
     assert all(set(person['skills']) == {'food', 'wood', 'build', 'farm'} and
                set(person['traits']) == {'sociability', 'diligence', 'curiosity'} and
                isinstance(person['links'], list) and isinstance(person['lesson'], dict)
                and isinstance(person['ideas'], list)
+               and person['vocation']['skill'] in {'food', 'wood', 'build', 'farm'}
+               and person['vocation']['goal'] in {'master', 'learn', 'connect', 'explore', 'research', 'teach'}
                for person in first_save['people']), 'Web save includes skills, personality, friendships and lessons'
     assert {society['town'] for society in first_save['societies']} == {town['id'] for town in first_save['towns']}, 'Every Web settlement has its own society'
     assert all(set(society['tech']) == {'preservation','carpentry','rotation','records','stonework','ceramics','weaving','metallurgy','governance','navigation','sailing'}
@@ -124,6 +127,7 @@ with sync_playwright() as p:
     far_save = await_persisted([-18750, 21875])
     assert far_save['people'] == first_save['people'], 'Painting distant land must preserve paused worker tasks and cargo'
     assert far_save['societies'] == first_save['societies'], 'Distant painting must preserve paused local ideas, research and eras'
+    assert far_save['weather'] == first_save['weather'], 'Painting distant land preserves the weather schedule while paused'
     page.reload(wait_until='domcontentloaded')
     page.wait_for_function("!document.getElementById('status')", timeout=60000)
     page.wait_for_timeout(3500)

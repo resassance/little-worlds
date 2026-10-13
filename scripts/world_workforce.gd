@@ -224,7 +224,7 @@ func moved(world, member: Dictionary, previous: Vector2i) -> void:
 	plan.warm_need += amount if was_cold else -amount
 
 static func score(member: Dictionary, skill: String) -> int:
-	return int(member.skills[skill]) * 4 + int(member.traits.diligence)
+	return int(member.skills[skill]) * 4 + int(member.traits.diligence) + WorldVocation.score(member, skill)
 
 static func before(world, a: int, b: int, skill: String) -> bool:
 	var left: Dictionary = world.person_index[a]

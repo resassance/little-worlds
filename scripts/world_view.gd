@@ -108,6 +108,7 @@ var render_sprites := PackedInt32Array()
 var render_elder := PackedByteArray()
 var render_cargo := PackedByteArray()
 var render_hunger := PackedByteArray()
+var render_palettes := PackedByteArray()
 var person_outfits := {}
 var appearance_job: WorldAppearanceJob
 var appearance_dirty := true
@@ -145,6 +146,7 @@ func _ready() -> void:
 	alert_texture = person_texture
 	for domain in WorldAppearanceJob.COLORS:
 		house_variants[domain] = PixelArt.house_variant(domain)
+		for form in 3: house_variants[domain + ":" + str(form)] = PixelArt.house_variant(domain, form)
 		settlement_marks[domain] = PixelArt.settlement_mark(domain)
 	for domain in ["food", "materials", "maritime", "trade"]: supplies_textures[domain] = PixelArt.supplies_texture(domain)
 	for kind in ["forge", "kiln"]: idle_furnaces[kind] = PixelArt.idle_furnace(kind)
@@ -433,7 +435,7 @@ func _refresh_visible_people() -> void:
 	if signature == population_view_signature: return
 	population_view_signature = signature
 	visible_people.clear(); live_visible_ids.clear()
-	render_ids.clear(); render_targets.clear(); render_scales.clear(); render_sprites.clear(); render_elder.clear(); render_cargo.clear(); render_hunger.clear()
+	render_ids.clear(); render_targets.clear(); render_scales.clear(); render_sprites.clear(); render_elder.clear(); render_cargo.clear(); render_hunger.clear(); render_palettes.clear()
 	mesh_dirty = true
 	var base_scale := maxf(0.85, 0.7 / zoom)
 	if zoom >= 0.15:
@@ -447,23 +449,29 @@ func _refresh_visible_people() -> void:
 				render_scales.append(base_scale * ([0.5, 0.65, 0.8][life_stage] if life_stage < 3 else 1.0))
 				render_sprites.append(_person_outfit(member, life_stage))
 				render_hunger.append(1 if member.hunger >= 60 else 0)
+				render_palettes.append(PixelArt.person_palette(world.world_seed, member.id))
 				render_elder.append(1 if life_stage == 5 else 0)
 				render_cargo.append(0 if member.cargo == 0 else (1 if member.cargo_kind == "wood" else 2))
 	for id in person_positions.keys():
 		if not live_visible_ids.has(id): person_positions.erase(id); person_directions.erase(id)
 
 func _prepare_people_meshes() -> void:
-	var atlas := Image.create((job_textures.size() + 2) * 16, 16, false, Image.FORMAT_RGBA8)
+	var atlas := Image.create((job_textures.size() + 2) * 16, 16 * PixelArt.PEOPLE_PALETTES, false, Image.FORMAT_RGBA8)
 	var index := 0
 	for job in job_textures:
 		atlas_jobs[job] = index
-		atlas.blit_rect(job_textures[job].get_image(), Rect2i(0, 0, 16, 16), Vector2i(index * 16, 0)); index += 1
+		var parts: PackedStringArray = job.split(":")
+		for palette in PixelArt.PEOPLE_PALETTES:
+			atlas.blit_rect(PixelArt.person_image(parts[0], parts.has("master"), parts.has("cold"), palette), Rect2i(0, 0, 16, 16), Vector2i(index * 16, palette * 16))
+		index += 1
 	atlas_jobs["default"] = index
-	atlas.blit_rect(person_texture.get_image(), Rect2i(0, 0, 16, 16), Vector2i(index * 16, 0)); index += 1
+	for palette in PixelArt.PEOPLE_PALETTES: atlas.blit_rect(PixelArt.person_image("settler", false, false, palette), Rect2i(0, 0, 16, 16), Vector2i(index * 16, palette * 16))
+	index += 1
 	atlas_jobs["alert"] = index
-	atlas.blit_rect(alert_texture.get_image(), Rect2i(0, 0, 16, 16), Vector2i(index * 16, 0))
+	for palette in PixelArt.PEOPLE_PALETTES: atlas.blit_rect(PixelArt.person_image("settler", false, false, palette), Rect2i(0, 0, 16, 16), Vector2i(index * 16, palette * 16))
 	people_atlas = ImageTexture.create_from_image(atlas)
 	season_material.set_shader_parameter("atlas_columns", float(job_textures.size() + 2))
+	season_material.set_shader_parameter("atlas_rows", float(PixelArt.PEOPLE_PALETTES))
 	people_multimesh = _multimesh(Vector2(16, 16), WorldState.MAX_PEOPLE, true)
 	ornaments_multimesh = _multimesh(Vector2.ONE, WorldState.MAX_PEOPLE * 3, false)
 	people_buffer.resize(WorldState.MAX_PEOPLE * 12)
@@ -548,7 +556,7 @@ func _update_people_meshes(delta: float) -> void:
 		people_buffer[base] = scale_value; people_buffer[base + 5] = scale_value
 		people_buffer[base + 3] = pos.x; people_buffer[base + 7] = pos.y + (-4 + bob) * scale_value
 		people_buffer[base + 8] = float(render_sprites[index]); people_buffer[base + 9] = 1.0
-		people_buffer[base + 10] = float(render_hunger[index]); people_buffer[base + 11] = 1.0 if facing < 0 else 0.0
+		people_buffer[base + 10] = float(render_palettes[index] + render_hunger[index] * PixelArt.PEOPLE_PALETTES); people_buffer[base + 11] = 1.0 if facing < 0 else 0.0
 		if render_elder[index]: ornaments = _ornament(ornaments, Rect2(pos + Vector2(-2, -9 + bob) * scale_value, Vector2(4, 2) * scale_value), Color("e3dfcc"))
 		if render_cargo[index]:
 			ornaments = _ornament(ornaments, Rect2(pos + Vector2(3 if facing > 0 else -7, -5) * scale_value, Vector2(4, 4) * scale_value), Color("334c40"))
@@ -642,7 +650,7 @@ func _draw_building(value: Dictionary) -> void:
 	elif value.kind == "workshop": sprite = workshop_texture
 	elif value.kind == "archive": sprite = archive_texture
 	elif industry_textures.has(value.kind): sprite = industry_textures[value.kind]
-	if value.kind == "house": sprite = house_variants[style.get("focus", "mixed")]
+	if value.kind == "house": sprite = house_variants[style.get("focus", "mixed") + ":" + str(style.get("form", 0))]
 	if idle_furnaces.has(value.kind) and not working_buildings.has(value.id): sprite = idle_furnaces[value.kind]
 	draw_rect(Rect2(pos + Vector2(-2, 1), extent + Vector2(4, 3)), Color("bdad84"))
 	var sprite_size := Vector2(sprite.get_width(), sprite.get_height())

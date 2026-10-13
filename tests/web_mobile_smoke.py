@@ -21,7 +21,7 @@ with sync_playwright() as p:
         assert image.size==(round(width*density),round(height*density))
         checks+=1
         menu_pixel=image.getpixel((round(22*density),round(35*density)))[:3]
-        assert max(abs(a-b) for a,b in zip(menu_pixel,(37,41,52)))<4,f'World menu is correctly scaled at system density: {menu_pixel}'
+        assert max(abs(a-b) for a,b in zip(menu_pixel,(231,216,182)))<4,f'World menu is correctly scaled at system density: {menu_pixel}'
         checks+=1
         page.touchscreen.tap(60,height-36)
         page.wait_for_timeout(450)

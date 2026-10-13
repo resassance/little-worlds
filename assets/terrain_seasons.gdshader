@@ -3,6 +3,7 @@ shader_type canvas_item;
 uniform float autumn_amount = 0.0;
 uniform float winter_amount = 0.0;
 uniform float atlas_columns = 18.0;
+uniform float atlas_rows = 24.0;
 uniform float fire_time = 0.0;
 varying float hunger_amount;
 
@@ -17,7 +18,8 @@ void vertex() {
 			UV.x = 1.0 - UV.x;
 		}
 		UV.x = (UV.x + INSTANCE_CUSTOM.r) / atlas_columns;
-		hunger_amount = INSTANCE_CUSTOM.b;
+		UV.y = (UV.y + mod(INSTANCE_CUSTOM.b, atlas_rows)) / atlas_rows;
+		hunger_amount = floor(INSTANCE_CUSTOM.b / atlas_rows);
 	}
 }
 

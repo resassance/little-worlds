@@ -308,6 +308,7 @@ static func give_birth(world, mother: Dictionary) -> bool:
 	world.metrics.spawn_food -= baby.rations
 	baby.rations = 0
 	baby.birth_tick = world.ticks
+	WorldVocation.defaults(world, baby)
 	baby.home = int(mother.home)
 
 

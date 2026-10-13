@@ -111,6 +111,8 @@ func unit() -> void:
 	var rotation: Dictionary = society.get("tech", {}).get("rotation", {})
 	var goods: Dictionary = world.civilization.get(home.id, {}).get("stock", {})
 	var style := {"focus": focus, "secondary": second, "share": best / maxf(total, 1.0), "buildings": counts.get(home.id, {}), "rotation": rotation.get("mastered", false) and int(rotation.get("used", 0)) > 0, "food": int(home.food) >= WorldEconomy.LOAD, "stone": int(goods.get("stone", 0)) > 0, "wood": int(home.wood) >= WorldEconomy.LOAD}
+	var biome := WorldClimate.biome(world, Vector2i(home.x, home.y))
+	style.form = 1 if biome >= 3 else (2 if biome == 1 else posmod(hash(Vector2i(world.world_seed, home.id)), 3))
 	var previous: Dictionary = previous_styles.get(home.id, {})
 	if previous.is_empty() or (previous.focus == focus and previous.secondary == second):
 		candidates.erase(home.id)

@@ -2,8 +2,8 @@ extends Control
 
 const FONT := preload("res://assets/fonts/DejaVuSans.ttf")
 const BOLD := preload("res://assets/fonts/DejaVuSans-Bold.ttf")
-const ACCENT := Color("e8ba83")
-const MUTED := Color("b4aeb6")
+const ACCENT := AtlasTheme.COPPER
+const MUTED := AtlasTheme.MUTED
 var world: WorldState
 var view: WorldView
 var accumulator := 0.0
@@ -97,6 +97,7 @@ var climate_update_job: WorldClimateConfigureJob
 var input_popups: Array[PopupMenu] = []
 
 func _ready() -> void:
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	get_window().content_scale_size = Vector2i.ZERO
 	preferences.load_preferences()
 	_configure_display()
@@ -221,7 +222,7 @@ func _style(color: Color, border: Color = Color.TRANSPARENT, radius: int = 8) ->
 	box.bg_color = color
 	box.border_color = border
 	box.set_border_width_all(1 if border.a > 0 else 0)
-	box.set_corner_radius_all(radius)
+	box.set_corner_radius_all(mini(radius, 2))
 	box.content_margin_left = 12
 	box.content_margin_right = 12
 	box.content_margin_top = 8
@@ -235,60 +236,57 @@ func _build_theme() -> void:
 	if touch_ui:
 		ui.set_constant("buttons_min_height", "AcceptDialog", ceili(_touch_target()))
 		ui.set_constant("buttons_min_width", "AcceptDialog", 120)
-	ui.set_color("font_color", "Label", Color("ece8d6"))
-	ui.set_color("font_color", "Button", Color("d5ded2"))
-	ui.set_color("font_pressed_color", "Button", Color("302526"))
-	ui.set_color("font_hover_color", "Button", Color("fff4d4"))
+	ui.set_color("font_color", "Label", AtlasTheme.INK)
+	ui.set_color("font_color", "Button", AtlasTheme.INK)
+	ui.set_color("font_pressed_color", "Button", Color("fff0cf"))
+	ui.set_color("font_hover_color", "Button", AtlasTheme.INK)
 	ui.set_color("icon_pressed_color", "Button", Color("75472f"))
-	ui.set_stylebox("normal", "Button", _style(Color("252934"), Color("44414a"), 6))
-	ui.set_stylebox("hover", "Button", _style(Color("36343c"), Color("b28b65"), 6))
-	ui.set_stylebox("pressed", "Button", _style(ACCENT, Color("ffe2b1"), 6))
-	ui.set_stylebox("focus", "Button", _style(Color.TRANSPARENT, Color("e4ca8d"), 6))
-	var panel := _style(Color("232631"), Color("50464a"), 10)
+	ui.set_stylebox("normal", "Button", AtlasTheme.frame(AtlasTheme.PAPER, Color("8d7759")))
+	ui.set_stylebox("hover", "Button", AtlasTheme.frame(Color("f0e3c7"), AtlasTheme.COPPER))
+	ui.set_stylebox("pressed", "Button", AtlasTheme.frame(ACCENT, Color("b99b65")))
+	ui.set_stylebox("focus", "Button", _style(Color.TRANSPARENT, AtlasTheme.COPPER, 6))
+	var panel := AtlasTheme.frame(AtlasTheme.PAPER, Color("827052"))
 	panel.content_margin_left = 14
 	panel.content_margin_right = 14
 	panel.content_margin_top = 14
 	panel.content_margin_bottom = 14
-	panel.shadow_color = Color(0, 0, 0, 0.22)
-	panel.shadow_size = 8
-	panel.shadow_offset = Vector2(0, 3)
 	ui.set_stylebox("panel", "PanelContainer", panel)
-	ui.set_stylebox("normal", "LineEdit", _style(Color("1b202a"), Color("63514b")))
-	ui.set_stylebox("focus", "LineEdit", _style(Color("1b202a"), ACCENT))
-	ui.set_color("font_color", "LineEdit", Color("ece8d6"))
-	ui.set_stylebox("panel", "PopupMenu", _style(Color("252934"), Color("675348")))
-	ui.set_stylebox("hover", "PopupMenu", _style(Color("463c38")))
-	ui.set_color("font_color", "PopupMenu", Color("ece8d6"))
-	ui.set_stylebox("panel", "TooltipPanel", _style(Color("202430"), Color("a68160")))
-	ui.set_color("font_color", "TooltipLabel", Color("ece8d6"))
-	ui.set_stylebox("panel", "AcceptDialog", _style(Color("252934"), Color("a68160"), 8))
-	var window_border := _style(Color("252934"), Color("a68160"), 8)
+	ui.set_stylebox("normal", "LineEdit", _style(Color("f1e5c8"), Color("ad9571")))
+	ui.set_stylebox("focus", "LineEdit", _style(Color("f1e5c8"), ACCENT))
+	ui.set_color("font_color", "LineEdit", AtlasTheme.INK)
+	ui.set_stylebox("panel", "PopupMenu", AtlasTheme.frame(AtlasTheme.PAPER, Color("8d7759")))
+	ui.set_stylebox("hover", "PopupMenu", _style(Color("cbb996")))
+	ui.set_color("font_color", "PopupMenu", AtlasTheme.INK)
+	ui.set_stylebox("panel", "TooltipPanel", _style(Color("cab792"), AtlasTheme.COPPER))
+	ui.set_color("font_color", "TooltipLabel", AtlasTheme.INK)
+	ui.set_stylebox("panel", "AcceptDialog", _style(AtlasTheme.PAPER, AtlasTheme.COPPER, 8))
+	var window_border := _style(AtlasTheme.PAPER, AtlasTheme.COPPER, 8)
 	window_border.border_width_top = 30
 	ui.set_stylebox("embedded_border", "Window", window_border)
-	ui.set_color("title_color", "Window", Color("f0e6c9"))
+	ui.set_color("title_color", "Window", AtlasTheme.INK)
 	ui.set_font("title_font", "Window", BOLD)
 	ui.set_font_size("title_font_size", "Window", 14)
 	var separator := StyleBoxLine.new()
-	separator.color = Color("4b4147")
+	separator.color = Color("9f8c69")
 	separator.thickness = 1
 	ui.set_stylebox("separator", "HSeparator", separator)
-	var scroll := _style(Color("4b4147"), Color.TRANSPARENT, 3)
+	var scroll := _style(Color("9f8c69"), Color.TRANSPARENT, 3)
 	ui.set_stylebox("grabber", "VScrollBar", scroll)
 	ui.set_stylebox("grabber_highlight", "VScrollBar", _style(Color("866a57"), Color.TRANSPARENT, 3))
 	ui.set_stylebox("grabber_pressed", "VScrollBar", _style(ACCENT, Color.TRANSPARENT, 3))
-	ui.set_stylebox("scroll", "VScrollBar", _style(Color("202430"), Color.TRANSPARENT, 3))
-	var slider := _style(Color("51454c"), Color.TRANSPARENT, 3)
+	ui.set_stylebox("scroll", "VScrollBar", _style(Color("cab792"), Color.TRANSPARENT, 3))
+	var slider := _style(Color("ae9973"), Color.TRANSPARENT, 3)
 	slider.content_margin_top = 2
 	slider.content_margin_bottom = 2
 	ui.set_stylebox("slider", "HSlider", slider)
-	ui.set_stylebox("grabber_area", "HSlider", _style(Color("c79b70"), Color.TRANSPARENT, 3))
-	ui.set_icon("grabber", "HSlider", PixelArt.sprite_texture([".cccc.", "cccccc", "cccccc", "cccccc", ".cccc."]))
+	ui.set_stylebox("grabber_area", "HSlider", _style(AtlasTheme.COPPER, Color.TRANSPARENT, 3))
+	ui.set_icon("grabber", "HSlider", PixelArt.sprite_texture([".cccc.", "cccccc", "cccccc", "cccccc", ".cccc."], {"c": Color("a98a57")}))
 	ui.set_icon("grabber_highlight", "HSlider", PixelArt.sprite_texture([".wwww.", "wwwwww", "wwwwww", "wwwwww", ".wwww."]))
 	ui.set_constant("separation", "VBoxContainer", 8)
 	ui.set_constant("separation", "HBoxContainer", 8)
 	theme = ui
 
-func _label(text_value: String, font_size: int = 14, color: Color = Color("e4ece4")) -> Label:
+func _label(text_value: String, font_size: int = 14, color: Color = AtlasTheme.INK) -> Label:
 	var label := Label.new()
 	label.text = text_value
 	label.add_theme_font_size_override("font_size", maxi(16, font_size) if touch_ui else font_size)
@@ -353,6 +351,8 @@ func _build_ui() -> void:
 	add_child(hud)
 	world_menu = MenuButton.new()
 	world_menu.text = "Мир  ▾"
+	world_menu.icon = PixelArt.icon("atlas")
+	world_menu.add_theme_constant_override("icon_max_width", 18)
 	world_menu.flat = false
 	world_menu.position = Vector2(16, 16)
 	world_menu.custom_minimum_size = Vector2(90, 44)
@@ -372,7 +372,7 @@ func _build_ui() -> void:
 	top_time.add_theme_constant_override("separation", 6)
 	hud.add_child(top_time)
 	var day_panel := PanelContainer.new()
-	day_panel.add_theme_stylebox_override("panel", _style(Color("252934"), Color("51464b"), 6))
+	day_panel.add_theme_stylebox_override("panel", AtlasTheme.frame(AtlasTheme.PAPER, AtlasTheme.COPPER))
 	top_time.add_child(day_panel)
 	day_label = _label("Месяц 1", 12, ACCENT)
 	day_panel.add_child(day_label)
@@ -421,7 +421,7 @@ func _build_ui() -> void:
 	bottom_controls.add_child(clean)
 	status_panel = PanelContainer.new()
 	status_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	status_panel.add_theme_stylebox_override("panel", _style(Color(0.14, 0.15, 0.2, 0.95), Color("82654f"), 6))
+	status_panel.add_theme_stylebox_override("panel", AtlasTheme.frame(AtlasTheme.PAPER, AtlasTheme.COPPER))
 	hud.add_child(status_panel)
 	status_label = _label("", 12, ACCENT)
 	status_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -435,9 +435,15 @@ func _build_ui() -> void:
 	_build_dialogs()
 
 func _drawer_heading(parent: VBoxContainer, title: String, close: Callable) -> void:
+	var cover := PanelContainer.new()
+	var frame := AtlasTheme.frame(AtlasTheme.INK, AtlasTheme.COPPER)
+	frame.content_margin_left = 6; frame.content_margin_right = 6
+	frame.content_margin_top = 3; frame.content_margin_bottom = 3
+	cover.add_theme_stylebox_override("panel", frame)
+	parent.add_child(cover)
 	var row := HBoxContainer.new()
-	parent.add_child(row)
-	var heading := _label(title, 18, ACCENT)
+	cover.add_child(row)
+	var heading := _label(title, 18, AtlasTheme.PAPER)
 	heading.add_theme_font_override("font", BOLD)
 	heading.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(heading)
@@ -452,7 +458,7 @@ func _build_tool_drawer() -> void:
 	toolbar = VBoxContainer.new()
 	toolbar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(toolbar)
-	_drawer_heading(toolbar, "Инструменты", _toggle_tools)
+	_drawer_heading(toolbar, "Кисти мира", _toggle_tools)
 	var nav := HBoxContainer.new()
 	toolbar.add_child(nav)
 	for item in [["inspect", "Обзор", "Коснитесь земли, жителя или поселения"], ["pan", "Камера", "Перетащите карту; два пальца меняют масштаб"]]:
@@ -512,7 +518,7 @@ func _build_info_drawer() -> void:
 	hud.add_child(sidebar)
 	var side := VBoxContainer.new()
 	sidebar.add_child(side)
-	_drawer_heading(side, "Мир", _toggle_info)
+	_drawer_heading(side, "Атлас мира", _toggle_info)
 
 
 	history_scroll = ScrollContainer.new()
@@ -530,7 +536,7 @@ func _build_info_drawer() -> void:
 	inspector_label.custom_minimum_size.x = 240
 	content.add_child(inspector_label)
 	content.add_child(HSeparator.new())
-	content.add_child(_label("Хроника", 14, ACCENT))
+	content.add_child(_label("Летопись", 14, ACCENT))
 	history_box = VBoxContainer.new()
 	history_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	history_box.add_theme_constant_override("separation", 14)
@@ -813,7 +819,7 @@ func _select_tool(value: String) -> void:
 		var active: bool = key == value
 		tool_buttons[key].button_pressed = active
 		var caption: Label = tool_buttons[key].get_meta("caption_label")
-		caption.add_theme_color_override("font_color", Color("302526") if active else Color("e3d9cf"))
+		caption.add_theme_color_override("font_color", Color("fff0cf") if active else AtlasTheme.INK)
 	tool_title.text = tool_buttons[value].get_meta("caption")
 	tool_description.text = tool_buttons[value].get_meta("description")
 	tools_button.icon = PixelArt.icon(value)

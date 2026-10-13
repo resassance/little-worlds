@@ -21,7 +21,7 @@ func _init(value, references: Array[Dictionary]) -> void:
 		"journeys": world.journeys, "ticks": world.ticks, "next_id": world.next_id, "regions": references, "regrowth": world.regrowth,
 		"towns": world.towns, "buildings": world.buildings, "metrics": world.metrics, "fires": [],
 		"societies": world.societies, "households": world.households, "ancestry_archive": world.ancestry_archive,
-		"history": world.history, "rng_state": str(world.rng.state), "wet_until": world.wet_until, "drought_until": world.drought_until}
+		"history": world.history, "rng_state": str(world.rng.state), "wet_until": world.wet_until, "drought_until": world.drought_until, "weather": world.weather}
 	maps = [
 		{"source": world.biome_overrides, "keys": world.biome_overrides.keys(), "target": data.climate.overrides, "kind": 0},
 		{"source": world.stumps, "keys": world.stumps.keys(), "target": data.climate.stumps, "kind": 0},
