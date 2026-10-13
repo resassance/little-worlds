@@ -1,50 +1,51 @@
 {
-  "build": "weather-02",
-  "version": "0.2.6-test.2",
-  "android_version_code": 11,
+  "build": "atlas-03",
+  "version": "0.2.6-test.3",
+  "android_version_code": 12,
   "android_package": "org.littleworlds.sandbox.preview",
   "android_updates_existing_app": false,
-  "source_commit": "026e186b3ce65f0b713e797ccd0cab29300d92fb",
+  "android_updates_previous_preview": true,
+  "source_commit": "0e63f3a01fcf19a4742705b7a47e682dd1a547b3",
   "files": [
     {
       "name": "little-worlds-android-preview.apk",
-      "bytes": 53531025,
-      "sha256": "f1bd991c703eb855499329e07e2acf5ea775de004dd0132916464f1744f3baae"
+      "bytes": 53543818,
+      "sha256": "f224cfb7f7518d968680d3dc47ca696b41ae5c08e1d3eda0d5734d0ba5307f90"
     },
     {
       "name": "little-worlds-godot-test.zip",
-      "bytes": 1202257,
-      "sha256": "e567077a03d685892a863fd3ddc780ab493710522142dcaeadc7da3bcae1747a"
+      "bytes": 1217238,
+      "sha256": "f5f24d144c94f3ecee55d9eb9dd4c0948bbcb73f2e198b899f9c75301f72becf"
     },
     {
       "name": "little-worlds-linux-test.zip",
-      "bytes": 29507572,
-      "sha256": "992352f7ff2d5eaf28f33a7f4c0d1d7f7584909dd69f6ad8b02f6f73c994b3fb"
+      "bytes": 29627043,
+      "sha256": "578c45e5942b44c9cd8b3e7dc4dad239cf6fc70029815d0d2860655e513715d1"
     },
     {
       "name": "little-worlds-web-test.zip",
-      "bytes": 16318276,
-      "sha256": "d144165c9b49b7ca9dd4bf7650db7e301a995bc625bc51abe4291fc97a78de14"
+      "bytes": 16415258,
+      "sha256": "e8356851403e0c0ec4277b17223fad59e110fd93a8f2b55cbad67a85efcfcc18"
     },
     {
       "name": "little-worlds-windows-test.zip",
-      "bytes": 39049574,
-      "sha256": "4e04513cf7993aaa0763e06f643cbe308bac7e2c47f2cc74269b39eff8afbd34"
+      "bytes": 39242867,
+      "sha256": "77f3a8aa4099e175899813bb57efeaaa9c55aa7a755f192e873057a027d3f7af"
     },
     {
-      "name": "person-orientation.png",
-      "bytes": 4149,
-      "sha256": "506c9b7e773df72be980dfb37c4b74c778aef67467e25909119ae59350fd129c"
+      "name": "people-palettes.png",
+      "bytes": 10144,
+      "sha256": "79a86e6ab111b354f416dc4a969b0b54ce566955a0d00a4d50c6467db32cb59a"
     },
     {
-      "name": "weather-frost.png",
-      "bytes": 87483,
-      "sha256": "b55039a5f696112efdeb991d958dc37f5f090c9cd8c38bc6e520dbb5eccad2f3"
+      "name": "world-mobile-tools.png",
+      "bytes": 93820,
+      "sha256": "b29d88577872523d2cc410fca9a4e24d212e6e82ce2b375d80038284a8771d24"
     },
     {
-      "name": "weather-rain.png",
-      "bytes": 32806,
-      "sha256": "f325bf81a9d3f73d397835714f13ee263270985464176e63b1f9dc9a0dd7a3e7"
+      "name": "world-resident.png",
+      "bytes": 101866,
+      "sha256": "e89f0989f6484678555bcf6318ef6298eb9330045a72b51f753d9837ad28099d"
     }
   ]
 }
