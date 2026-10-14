@@ -1,7 +1,7 @@
 class_name WorldStepJob
 extends RefCounted
 
-enum Phase { CLIMATE, WEATHER, REPAIR, HOMES, NAVIGATION, WORKFORCE, SOCIAL_TICK, CLAIMS, FARMS, PLANS, SPOIL, PEOPLE, TRAVEL, LIFE_REPAIR, FOUND, LIFE_BEGIN, COURT, BIRTHS, SOCIAL, SOCIETY, CIVILIZATION, DAILY_TRAVEL, FINISH }
+enum Phase { CLIMATE, WEATHER, REPAIR, HOMES, NAVIGATION, WORKFORCE, SOCIAL_TICK, CLAIMS, FARMS, PLANS, SPOIL, PEOPLE, TRAVEL, LIFE_REPAIR, FOUND, LIFE_BEGIN, COURT, BIRTHS, SOCIAL, SOCIETY, CIVILIZATION, DAILY_TRAVEL, LANDSCAPE, FINISH }
 var world
 var phase := Phase.CLIMATE
 var cursor := 0
@@ -27,6 +27,7 @@ var fire_job: WorldFireStepJob
 var journeys: Array = []
 var construction_job: WorldConstructionPlanJob
 var removal_context: WorldRemovalContext
+var landscape_job: WorldLandscapeJob
 
 func _init(value) -> void:
 	world = value
@@ -204,7 +205,7 @@ func _unit() -> void:
 			else: navigation_job = WorldNavigationJob.new(world,{"id":-member.id,"x":cell.x,"y":cell.y})
 		Phase.LIFE_BEGIN:
 			if world.ticks % WorldEconomy.DAY_TICKS != 0:
-				phase = Phase.FINISH
+				phase = Phase.LANDSCAPE; cursor = 0
 			else:
 				if life_job == null: life_job = WorldLifeReconcileJob.new(world)
 				if not life_job.finished: life_job.unit(); return
@@ -248,6 +249,10 @@ func _unit() -> void:
 				if sea_daily_job == null: sea_daily_job = WorldMaritimeDailyJob.new(world)
 				if not sea_daily_job.finished: sea_daily_job.unit()
 				else: _next()
+		Phase.LANDSCAPE:
+			if landscape_job == null: landscape_job = WorldLandscapeJob.new(world)
+			if not landscape_job.finished: landscape_job.unit(); return
+			_next()
 		Phase.FINISH:
 			if cursor == 0:
 				population_job = null if world.population.ready else WorldPopulationRebuildJob.new(world); cursor = 1

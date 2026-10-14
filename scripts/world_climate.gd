@@ -66,12 +66,14 @@ static func regrow(world, cell: Vector2i) -> bool:
 	if world.ticks - int(world.stumps[cell]) < WorldLife.YEAR * 2: return false
 	if world.terrain_at(cell) != WorldState.Terrain.GRASS:
 		world.stumps.erase(cell)
+		world.landscape.remove_site(cell,"stump")
 		return false
 	if biome(world, cell) in [1, 4, 5] or world.fires.has(cell) or not world.building_at(cell).is_empty(): return false
 	var food: int = world.food_at(cell)
 	world._set_terrain(cell, WorldState.Terrain.FOREST)
 	world._set_food(cell, food)
 	world.stumps.erase(cell)
+	world.landscape.remove_site(cell,"stump")
 	return true
 
 static func describe(world, cell: Vector2i) -> String:

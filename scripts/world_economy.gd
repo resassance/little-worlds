@@ -166,6 +166,7 @@ static func add_building(world, home: Dictionary, kind: String, cell: Vector2i, 
 	for y in rect.size.y:
 		for x in rect.size.x: world.occupied[rect.position + Vector2i(x, y)] = value
 	world.touch_terrain(cell, int(SIZE[kind]))
+	world.landscape.building(world,value)
 	return value
 
 static func site(world, home: Dictionary, kind: String) -> Vector2i:
@@ -439,6 +440,7 @@ static func execute(world, person: Dictionary, home: Dictionary) -> void:
 			if value.work >= int(WORK[value.kind]):
 				world.workforce.building_ready(value)
 				value.ready = true
+				world.landscape.building(world,value)
 				WorldSociety.invalidate(world)
 				world.metrics.built_wood += int(COST[value.kind])
 				world.log_event("Стройка завершена", "%s: %s готов%s." % [home.name, NAMES[value.kind], "о" if value.kind == "farm" else ""])

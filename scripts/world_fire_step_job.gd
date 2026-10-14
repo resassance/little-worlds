@@ -29,6 +29,8 @@ func unit() -> void:
 		if world.terrain_at(cell) == WorldState.Terrain.FOREST:
 			world._set_terrain(cell, WorldState.Terrain.GRASS)
 			world._set_food(cell, 0)
+			if world.stumps.size() < 4096: world.stumps[cell] = world.ticks; world.landscape.site(cell,"stump")
+			world.landscape.scar(world,cell,"burn")
 			dirty = true
 		return
 	if world.ticks < world.wet_until or world.rng.randf() > 0.08: return

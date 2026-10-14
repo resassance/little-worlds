@@ -21,13 +21,15 @@ func _init(value, references: Array[Dictionary]) -> void:
 		"journeys": world.journeys, "ticks": world.ticks, "next_id": world.next_id, "regions": references, "regrowth": world.regrowth,
 		"towns": world.towns, "buildings": world.buildings, "metrics": world.metrics, "fires": [],
 		"societies": world.societies, "households": world.households, "ancestry_archive": world.ancestry_archive,
-		"history": world.history, "rng_state": str(world.rng.state), "wet_until": world.wet_until, "drought_until": world.drought_until, "weather": world.weather}
+		"history": world.history, "rng_state": str(world.rng.state), "wet_until": world.wet_until, "drought_until": world.drought_until, "weather": world.weather,"landscape":{"paths":[],"scars":[]}}
 	maps = [
 		{"source": world.biome_overrides, "keys": world.biome_overrides.keys(), "target": data.climate.overrides, "kind": 0},
 		{"source": world.stumps, "keys": world.stumps.keys(), "target": data.climate.stumps, "kind": 0},
 		{"source": world.mineral_deposits, "keys": world.mineral_deposits.keys(), "target": data.civilization.deposits, "kind": 0},
 		{"source": world.fishing, "keys": world.fishing.keys(), "target": data.maritime.fishing, "kind": 1},
-		{"source": world.fires, "keys": world.fires.keys(), "target": data.fires, "kind": 2}]
+		{"source": world.fires, "keys": world.fires.keys(), "target": data.fires, "kind": 2},
+		{"source":world.landscape.paths,"keys":world.landscape.paths.keys(),"target":data.landscape.paths,"kind":3},
+		{"source":world.landscape.scars,"keys":world.landscape.scars.keys(),"target":data.landscape.scars,"kind":4}]
 
 func unit() -> void:
 	if finished: return
@@ -42,6 +44,12 @@ func unit() -> void:
 			0: mapping.target.append([cell.x, cell.y, mapping.source[cell]])
 			1: mapping.target.append([cell.x, cell.y, mapping.source[cell].day, mapping.source[cell].amount])
 			2: mapping.target.append({"x": cell.x, "y": cell.y, "ttl": mapping.source[cell]})
+			3:
+				var item: Dictionary = mapping.source[cell]
+				mapping.target.append([cell.x,cell.y,item.wear,item.tick,item.links])
+			4:
+				var item: Dictionary = mapping.source[cell]
+				mapping.target.append([cell.x,cell.y,item.kind,item.size,item.tick])
 		return
 	if stack.is_empty():
 		result = "".join(parts)

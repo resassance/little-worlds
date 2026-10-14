@@ -15,7 +15,7 @@ read_world = """async () => {
   const [keys,values]=await Promise.all([read(store.getAllKeys()),read(store.getAll())]);
   const index=keys.findIndex(k=>k.endsWith('/world.json')); if(index<0) return false;
   const decode=value=>JSON.parse(new TextDecoder().decode(value.contents));
-  const data=decode(values[index]); if(data.version!==10||!data.regions) return false;
+  const data=decode(values[index]); if(data.version!==11||!data.regions) return false;
   data.chunks=[];
   for(const r of data.regions){const at=keys.indexOf(keys[index]+'.regions/'+r.file);if(at<0)return false;data.chunks.push(decode(values[at]));}
   delete data.regions; return data;

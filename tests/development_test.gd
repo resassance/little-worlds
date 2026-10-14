@@ -187,7 +187,7 @@ func run() -> void:
 			for field in ["experiment_rng", "threshold", "intensity", "attempts", "attempt_work", "work_done", "retry_tick", "spent"]: state.erase(field)
 	loaded = WorldState.from_dict(JSON.parse_string(JSON.stringify(legacy)))
 	check(loaded != null and loaded.societies[0].tech.carpentry.progress == 10 and not loaded.societies[0].tech.carpentry.mastered, "v9 migration preserves an unfinished project without gifting a discovery")
-	check(loaded != null and loaded.towns == world.towns and loaded.people == world.people and WorldState.from_dict(loaded.to_dict()) != null, "migration preserves resources, people and subsequent v10 saves")
+	check(loaded != null and loaded.towns == world.towns and loaded.people == world.people and WorldState.from_dict(loaded.to_dict()) != null, "migration preserves resources, people and subsequent current-format saves")
 	for mutation in ["rng", "stream", "threshold", "intensity", "attempt", "work", "paid", "cooldown", "domain", "missing"]:
 		var broken := world.to_dict()
 		var state: Dictionary = broken.societies[0].tech.carpentry

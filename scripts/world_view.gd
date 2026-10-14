@@ -16,6 +16,11 @@ var world: WorldState
 var texture: ImageTexture
 var chunk_textures: Dictionary = {}
 var overview_textures: Dictionary = {}
+var landscape_textures: Dictionary = {}
+var landscape_queue: Array[Vector2i] = []
+var landscape_pending: Dictionary = {}
+var landscape_job: WorldLandscapeBakeJob
+var farm_textures: Dictionary = {}
 var camera_origin := Vector2i.ZERO
 var cache_clock := 0
 var minimap_bounds := Rect2i()
@@ -186,6 +191,7 @@ func set_world(value: WorldState) -> void:
 	camera_origin = Vector2i.ZERO
 	chunk_textures.clear()
 	overview_textures.clear()
+	landscape_textures.clear(); landscape_queue.clear(); landscape_pending.clear(); landscape_job = null
 	bake_job = null; bake_queue.clear(); bake_pending.clear()
 	minimap_job = null; minimap_revision = -1; visual_season = -1
 	pending_tools.clear()
@@ -359,6 +365,7 @@ func _draw_regions() -> void:
 		var alpha := 0.1 + (sin(visual_time * 1.4 + shore.x * 0.5 + shore.y) + 1.0) * 0.12
 		var point := offset + (Vector2(shore - camera_origin) * TILE + Vector2(2, 2.5)) * zoom
 		draw_rect(Rect2(point, Vector2(4, 1) * zoom), Color(0.82, 0.93, 0.79, alpha))
+	_draw_landscape()
 	for key in brush_previews:
 		var patch: Dictionary = brush_previews[key]
 		if patch.texture == null: continue
@@ -369,6 +376,80 @@ func _draw_regions() -> void:
 
 	for key in overview_textures.keys():
 		if not world.has_region(key): overview_textures.erase(key)
+
+func _draw_landscape() -> void:
+	if zoom*get_window().content_scale_factor < 0.15: return
+	for key in visible_regions:
+		var living := world.landscape.path_regions.has(key) or world.landscape.site_regions.has(key) or world.landscape.grounds.has(key) or world.landscape.scar_regions.has(key)
+		if not living:
+			landscape_textures.erase(key)
+			continue
+		var revision: int = int(world.landscape.versions.get(key,0))
+		var terrain_revision: int = int(world.revisions.get(key,0))
+		var entry: Dictionary = landscape_textures.get(key,{})
+		if (entry.is_empty() or entry.revision != revision or entry.terrain_revision != terrain_revision) and not landscape_pending.has(key) and landscape_queue.size() < 64:
+			landscape_pending[key] = true; landscape_queue.append(key)
+		if entry.is_empty(): continue
+		cache_clock += 1; entry.used = cache_clock
+		drawn_textures.append(entry.image)
+		var rect := Rect2(offset+Vector2(key*WorldState.CHUNK_SIZE-camera_origin)*TILE*zoom,Vector2.ONE*WorldState.CHUNK_SIZE*TILE*zoom)
+		draw_texture_rect(entry.image,rect,false)
+
+func _advance_landscape() -> void:
+	if landscape_job == null and not landscape_queue.is_empty():
+		var nearest := 0
+		var center := Vector2(local_to_cell(size*0.5))/WorldState.CHUNK_SIZE
+		var best := INF
+		for i in landscape_queue.size():
+			var distance := Vector2(landscape_queue[i]).distance_squared_to(center)
+			if distance < best: nearest = i; best = distance
+		var key: Vector2i = landscape_queue[nearest]; landscape_queue.remove_at(nearest)
+		landscape_job = WorldLandscapeBakeJob.new(world,key)
+	if landscape_job == null or not landscape_job.advance(400): return
+	var job := landscape_job; landscape_job = null; landscape_pending.erase(job.coord)
+	cache_clock += 1
+	var texture_value: ImageTexture
+	if landscape_textures.has(job.coord):
+		texture_value = landscape_textures[job.coord].image; texture_value.update(job.image)
+	else: texture_value = ImageTexture.create_from_image(job.image)
+	landscape_textures[job.coord] = {"image":texture_value,"revision":job.revision,"terrain_revision":job.terrain_revision,"used":cache_clock}
+	if landscape_textures.size() > 32:
+		var oldest := job.coord
+		for key in landscape_textures:
+			if landscape_textures[key].used < landscape_textures[oldest].used: oldest = key
+		landscape_textures.erase(oldest)
+
+func _farm_texture(value: Dictionary, style: Dictionary) -> ImageTexture:
+	var stage := 3 if value.stock > 0 else (2 if value.planted and value.growth > 30 else (1 if value.planted else 0))
+	var biome := WorldClimate.biome(world,Vector2i(value.x,value.y))
+	var rotation: bool = bool(style.get("rotation",false))
+	var winter: bool = world.climate.seasons and WorldClimate.season(world) == 3 and biome in [0,3,4,5]
+	var key := Vector4i(stage,biome,1 if rotation else 0,1 if winter else 0)
+	if farm_textures.has(key): return farm_textures[key]
+	var side := int(WorldEconomy.SIZE.farm)*TILE
+	var picture := Image.create(side,side,false,Image.FORMAT_RGBA8)
+	var soil := Color("78624c"); soil.a = 250.0/255.0 if biome in [0,3,4,5] else 1.0
+	if winter: soil = Color("b3beac")
+	picture.fill(soil)
+	for row in 5:
+		var y := 3+row*4
+		picture.fill_rect(Rect2i(2,y,side-4,1),Color("514c3d"))
+		if stage == 0: continue
+		var crop := Color("d3b965") if stage == 3 else (Color("9caf5c") if stage == 2 else Color("769559"))
+		if rotation and row%2 == 1: crop = crop.lerp(Color("6a956e"),0.45)
+		if winter: crop = crop.lerp(Color("a79c79"),0.65)
+		var height := 3 if stage > 1 else 1
+		for column in 5:
+			var x := 3+column*4
+			picture.fill_rect(Rect2i(x,y-height,1,height),crop.darkened(0.2))
+			picture.fill_rect(Rect2i(x+1,y-height,1,height),crop)
+			if stage > 1: picture.set_pixel(x,y-height,crop.lightened(0.22))
+	for x in range(0,side,5):
+		picture.fill_rect(Rect2i(x,0,1,2),Color("b79c6e")); picture.fill_rect(Rect2i(x,side-2,1,2),Color("b79c6e"))
+	picture.fill_rect(Rect2i(0,1,side,1),Color("a28960")); picture.fill_rect(Rect2i(0,side-2,side,1),Color("a28960"))
+	var result := ImageTexture.create_from_image(picture)
+	farm_textures[key] = result
+	return result
 
 func _make_chunk_texture(coord: Vector2i) -> ImageTexture:
 	var job := WorldChunkBakeJob.new(world, coord, true)
@@ -389,6 +470,7 @@ func _process(delta: float) -> void:
 	_advance_population_index()
 	_update_brush_previews()
 	_advance_baking()
+	_advance_landscape()
 	_advance_minimap()
 	if texture_dirty:
 		rebuild_texture()
@@ -690,17 +772,9 @@ func _draw_building(value: Dictionary) -> void:
 		draw_rect(Rect2(pos + Vector2(0, extent.y + 2), Vector2(extent.x * progress, 2)), Color("edcc8b"))
 		return
 	if value.kind == "farm":
-		draw_rect(Rect2(pos, extent), Color("78624c"))
-		draw_rect(Rect2(pos, extent), Color("b4a16e"), false, 1)
-		for row in 5:
-			var y := 2 + row * 4
-			draw_line(pos + Vector2(2, y), pos + Vector2(extent.x - 3, y), Color("514f3d"), 1)
-			if not value.planted and value.stock == 0: continue
-			var crop := Color("e1cd7e") if value.stock > 0 else (Color("b6c578") if value.growth > 30 else Color("7f9e60"))
-			if style.get("rotation", false) and row % 2 == 1: crop = crop.lerp(Color("9fba7d"), 0.35)
-			var height := 3 if value.stock > 0 or value.growth > 30 else 1
-			for column in 5:
-				draw_rect(Rect2(pos + Vector2(3 + column * 4, y - height), Vector2(2, height)), crop)
+		draw_texture_rect(_farm_texture(value,style),Rect2(pos,extent),false)
+		if value.stock >= 6 and zoom >= 0.8:
+			draw_texture_rect(supplies_textures.food,Rect2(pos+Vector2(extent.x-5,extent.y-3),Vector2(8,6)),false)
 		return
 	var sprite := house_texture
 	if value.kind == "camp": sprite = camp_texture

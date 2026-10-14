@@ -26,6 +26,8 @@ var rejected := false
 var finished := false
 var cells_written := 0
 var previews: Dictionary = {}
+var history_region := WorldState.NO_CELL
+var history_present := false
 
 func _init(value, edit: Dictionary) -> void:
 	world = value; command = edit; mode = edit.tool; radius = edit.radius; coverage = edit.coverage
@@ -125,9 +127,14 @@ func unit() -> void:
 		else: column = spans[span_cursor].x
 	if not world.inside(cell): return
 	if terrain >= 0:
+		var key := WorldState.chunk_of(cell)
+		if history_region != key:
+			history_region = key
+			history_present = world.landscape.path_regions.has(key) or world.landscape.scar_regions.has(key)
 		var previous: int = world.terrain_at(cell)
 		world._set_terrain(cell,terrain); world.erase_fire(cell)
-		touched[WorldState.chunk_of(cell)] = true
+		if history_present and terrain not in [WorldState.Terrain.WATER,WorldState.Terrain.MOUNTAIN]: world.landscape.clear_cell(cell,key)
+		touched[key] = true
 		terrain_dirty = terrain_dirty or previous != terrain; changed = true; cells_written += 1
 		if previous != terrain: _preview(cell,terrain)
 	elif biome >= 0:

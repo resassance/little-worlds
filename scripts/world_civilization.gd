@@ -141,6 +141,7 @@ static func execute(world, member: Dictionary, home: Dictionary) -> bool:
 		if task.work < 6: return true
 		var amount: int = mini(3, world.mineral_deposits.get(rock, 36))
 		world.mineral_deposits[rock] = int(world.mineral_deposits.get(rock, 36)) - amount
+		if world.mineral_deposits[rock] == 0 or int(world.mineral_deposits[rock])/12 != (int(world.mineral_deposits[rock])+amount)/12 or not world.landscape.site_regions.get(WorldState.chunk_of(rock),{}).has(rock): world.landscape.site(rock,"quarry")
 		member.cargo = amount
 		member.cargo_kind = task.resource
 		world.industry.produced[task.resource] += amount

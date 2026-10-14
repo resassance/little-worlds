@@ -8,7 +8,7 @@ signal changed
 enum Terrain { WATER, SAND, GRASS, FOREST, MOUNTAIN }
 const MAP_SIZE := 128
 const MAX_PEOPLE := 2000
-const SAVE_VERSION := 10
+const SAVE_VERSION := 11
 const MAX_BUILDINGS := 2048
 const CHUNK_SIZE := 32
 const MAX_CHUNKS := 2048
@@ -106,6 +106,7 @@ var regions := WorldRegions.new()
 var stepping := false
 var profiling := false
 var timings: Dictionary = {}
+var landscape := WorldLandscape.new()
 
 func _init() -> void:
 	for key in WorldEconomy.METRICS: metrics[key] = 0
@@ -113,6 +114,7 @@ func _init() -> void:
 		industry[category] = WorldCivilization.empty_stock()
 
 func generate(seed_value: int) -> void:
+	landscape = WorldLandscape.new()
 	population.clear()
 	workforce.end()
 	world_seed = seed_value
@@ -260,6 +262,7 @@ func _set_terrain(cell: Vector2i, terrain: int) -> void:
 	var chunk: Dictionary = chunks[key]
 	_grow(chunk)
 	var previous: int = chunk.tiles[local_index(cell)]
+	if terrain in [Terrain.WATER,Terrain.MOUNTAIN]: landscape.clear_cell(cell,key)
 	chunk.tiles[local_index(cell)] = terrain
 	chunk.food[local_index(cell)] = capacity(terrain)
 	chunk.wood[local_index(cell)] = 12 if terrain == Terrain.FOREST else 0
@@ -329,7 +332,7 @@ func harvest_wood(cell: Vector2i, amount: int) -> void:
 		var existing_food := mini(food_at(cell), capacity(Terrain.GRASS))
 		_set_terrain(cell, Terrain.GRASS)
 		_set_food(cell, existing_food)
-		if stumps.size() < 4096: stumps[cell] = ticks
+		if stumps.size() < 4096: stumps[cell] = ticks; landscape.site(cell,"stump")
 		terrain_changed.emit()
 
 func touch_terrain(cell: Vector2i, radius: int = 0, notify: bool = true) -> void:
@@ -519,6 +522,7 @@ func step() -> void:
 	job.advance(0)
 
 func track_person_move(member: Dictionary, previous: Vector2i) -> void:
+	landscape.moved(self,member,previous)
 	if chunk_of(previous) != chunk_of(Vector2i(member.x, member.y)): regions.pin_signature.clear()
 	population.moved(self, member)
 	workforce.moved(self, member, previous)
@@ -554,6 +558,8 @@ func repair_building(i: int, lost_stores: Dictionary) -> void:
 			family.food = 0
 	life_dirty = true
 	workforce.building_removed(value)
+	landscape.building(self,value,false)
+	if value.ready and walkable(Vector2i(value.x,value.y)): landscape.scar(self,Vector2i(value.x,value.y),"ruin",int(WorldEconomy.SIZE[value.kind]))
 	buildings.remove_at(i)
 	WorldSociety.invalidate(self)
 	touch_terrain(Vector2i(value.x, value.y), int(WorldEconomy.SIZE[value.kind]))
@@ -638,7 +644,7 @@ func to_dict(include_regions: bool = true, include_residents: bool = true) -> Di
 		"ticks": ticks, "next_id": next_id, "chunks": saved_regions, "regrowth": regrowth,
 		"people": people.duplicate(true) if include_residents else [], "towns": towns.duplicate(true), "buildings": buildings.duplicate(true), "metrics": metrics.duplicate(), "fires": saved_fires,
 		"societies": societies.duplicate(true), "households": households.duplicate(true), "ancestry_archive": ancestry_archive.duplicate(true),
-		"history": history.duplicate(true), "rng_state": str(rng.state),
+		"history": history.duplicate(true), "rng_state": str(rng.state), "landscape":landscape.save(),
 		"wet_until": wet_until, "drought_until": drought_until, "weather": weather.duplicate(true)}
 
 static func _integer(value: Variant) -> bool:
@@ -678,7 +684,7 @@ static func _migrate(data: Dictionary) -> Dictionary:
 
 static func from_dict(source: Dictionary, region_files: Dictionary = {}) -> WorldState:
 	var data := _migrate(source) if source.get("version") == 1 else source
-	if not _integer(data.get("version")) or int(data.version) not in [2, 3, 4, 5, 6, 7, 8, 9, SAVE_VERSION] or data.get("chunk_size") != CHUNK_SIZE: return null
+	if not _integer(data.get("version")) or int(data.version) not in [2, 3, 4, 5, 6, 7, 8, 9, 10, SAVE_VERSION] or data.get("chunk_size") != CHUNK_SIZE: return null
 	for key in ["chunks", "people", "towns", "history", "fires"]:
 		if not data.get(key) is Array: return null
 	if data.chunks.size() > MAX_CHUNKS or data.people.size() > MAX_PEOPLE or data.towns.size() > MAX_PEOPLE or data.history.size() > 60: return null
@@ -801,6 +807,8 @@ static func from_dict(source: Dictionary, region_files: Dictionary = {}) -> Worl
 		for home in world.towns: WorldCivilization.ensure(world, home)
 	elif not WorldClimate.restore(world, data.get("climate")) or not WorldCivilization.restore(world, data.get("civilization")) or not WorldMaritime.restore(world, data.get("maritime")) or not WorldTravel.restore(world, data.get("journeys")): return null
 	if not WorldWeather.restore(world, data.get("weather")): return null
+	if data.version >= 11 and not data.has("landscape"): return null
+	if not world.landscape.restore(world,data.get("landscape")): return null
 	return world
 
 func _profile_stage(label: String, before: int) -> int:
