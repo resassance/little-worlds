@@ -1,12 +1,27 @@
 {
-  "build": "economy-save-08",
-  "version": "0.2.6-test.8",
-  "android_version_code": 17,
+  "build": "ruins-09",
+  "version": "0.2.6-test.9",
+  "android_version_code": 18,
   "android_package": "org.littleworlds.sandbox.preview",
   "android_updates_existing_app": false,
   "android_updates_previous_preview": true,
-  "source_commit": "87f72a3610382a352d4202e824fd65c252fefa31",
+  "source_commit": "1d19f64d09afbed2e23266c16b5a815505462aef",
   "files": [
+    {
+      "name": "heritage-1080x2400.png",
+      "bytes": 132890,
+      "sha256": "55f32792144accbbbebea8dce5cb2de1c97342eb34e6c72044126991f0bc83e5"
+    },
+    {
+      "name": "heritage-2160x1080.png",
+      "bytes": 91888,
+      "sha256": "462469ad7143d3b5d2c0398f76ab0cb1145613a46f9ed21347aa9771fb027577"
+    },
+    {
+      "name": "heritage-desktop.png",
+      "bytes": 89569,
+      "sha256": "1c3c792daa90a1159008c27d33060cb4d1fd97e2449090573a87743308492040"
+    },
     {
       "name": "inspector-before-desktop.png",
       "bytes": 133928,
@@ -54,33 +69,33 @@
     },
     {
       "name": "little-worlds-android-preview.apk",
-      "bytes": 53593833,
-      "sha256": "9e5c2b6cf93692d043c420a5c85dfab62dd94193a70e8573ea99fc23cc9c5949"
+      "bytes": 53618743,
+      "sha256": "8bfadc6844bd39da508f27072028d2f9441fc7572199c3b3696d14d5418cd4cb"
     },
     {
       "name": "little-worlds-godot-test.zip",
-      "bytes": 1299743,
-      "sha256": "c87d4c11b01a9c5bc30e620d4788f67e13e68ec6ed39f108eef038bd042ece0d"
+      "bytes": 1337938,
+      "sha256": "854cca8804826c92671eb728a59227e36fa38df6512b05af27450a9b56d04cc4"
     },
     {
       "name": "little-worlds-linux-test.zip",
-      "bytes": 29671182,
-      "sha256": "29e6565ea1c905d5ca58f3daa644ace57183a004898cc72d19407bc7c43457ca"
+      "bytes": 29696861,
+      "sha256": "a7e7cd9f3b7c3204c8acee1f30a670f7a098b9be5c9e77ea66896f3212670f78"
     },
     {
       "name": "little-worlds-web-test.zip",
-      "bytes": 16459322,
-      "sha256": "271cb34054623ba765f7fc3158df019e4738a9b8d480d23b332b6948bbc6a8f6"
+      "bytes": 16485053,
+      "sha256": "9e2160e6c11dda404e734b0469880ba23d9acab57d8974ed77283f74fcf34534"
     },
     {
       "name": "little-worlds-windows-test.zip",
-      "bytes": 39287209,
-      "sha256": "0adce50792a47a9b98a22107925da680092797be6c2305b46f89486b2e8ab6b7"
+      "bytes": 39312436,
+      "sha256": "18824c64f00e35bcfc202f123546e6069998918490e8fa457b213d5d9d752627"
     },
     {
       "name": "validation.json",
-      "bytes": 6765,
-      "sha256": "6ff448af4fe6507a54031e352637c634330796857024465e0fc59784a953c84a"
+      "bytes": 2817,
+      "sha256": "4352946c75438d91e76bf1e6482964599da48557a7f82e49c9c75f014c05d893"
     }
   ]
 }

@@ -1,283 +1,92 @@
 {
-  "version": "0.2.6-test.8",
-  "engine": "Godot 4.7.2 stable",
-  "source_commit": "87f72a3610382a352d4202e824fd65c252fefa31",
-  "exports": [
-    "Linux",
-    "Windows",
-    "Android Preview",
-    "Web"
+  "version": "0.2.6-test.9",
+  "save_format": 12,
+  "source_commit": "1d19f64d09afbed2e23266c16b5a815505462aef",
+  "models": [
+    "historical abandonment and terrain loss",
+    "finite resource balances",
+    "knowledge delivery and carrier death",
+    "old save migration and strict history validation",
+    "immutable background snapshot",
+    "autonomous scout route and return",
+    "resettlement with actual construction costs",
+    "identical full and sliced continuation",
+    "historical limits and spatial index cleanup"
   ],
-  "android_version_code": 17,
-  "android_signature_verified": true,
-  "linux_export_boot": true,
-  "models": {
-    "region_snapshot": 24,
-    "workforce_delivery": 116,
-    "economy": 79,
-    "population": 46,
-    "life": 53,
-    "social": 48,
-    "expansion": 354,
-    "development": 136,
-    "mobile_simulation": 496
+  "performance": {
+    "baseline_first": {
+      "cold_reads": 0,
+      "mean_step_ms": 175.9045,
+      "slice_max_ms": 14.861,
+      "slice_p95_ms": 3.137,
+      "unit_max_ms": 13.771
+    },
+    "baseline_last": {
+      "cold_reads": 0,
+      "mean_step_ms": 169.73765,
+      "slice_max_ms": 15.824,
+      "slice_p95_ms": 3.239,
+      "unit_max_ms": 14.558
+    },
+    "conserved": true,
+    "heritage_job_usec": 7731,
+    "heritage_unit_max_usec": 2769,
+    "heritage_units": 2279,
+    "people": 2000,
+    "sites": 256,
+    "with_256_sites": {
+      "cold_reads": 0,
+      "mean_step_ms": 173.5742,
+      "slice_max_ms": 7.739,
+      "slice_p95_ms": 3.181,
+      "unit_max_ms": 7.084
+    }
   },
-  "model_failures": 0,
-  "save_snapshot_isolation": true,
-  "bounded_simulation_regression": true,
-  "web_desktop_save_load": true,
-  "web_mobile": {
-    "checks": 12,
-    "failures": 0
+  "web": {
+    "web_smoke": {
+      "passed": true,
+      "result": "Web: Chromium launch, drawers, camera, resize, v11 save/load with local societies and technologies, distant painting without canceling work or resetting knowledge, complete IndexedDB commit and land persistence across page reload; no console errors."
+    },
+    "web_cold_save_test": {
+      "passed": true,
+      "result": "Web cold save: cloud-loaded world with 300 remote regions saves a complete unchanged snapshot without console errors"
+    },
+    "web_heritage_test": {
+      "passed": true,
+      "result": "Web heritage: historical places, finite reserves and a carried record survive cloud import, IndexedDB save and browser reload without console errors"
+    },
+    "web_mobile_smoke": {
+      "passed": true,
+      "result": "Web mobile: 12 checks, 0 failures"
+    },
+    "web_sdk_smoke": {
+      "passed": true,
+      "result": "Web SDK: 10 checks, 0 failures; actual bridge readiness, pause/resume, one reward, cloud restore and 2000-person WASM simulation; no console errors."
+    }
   },
-  "web_cold_terrain_save": {
-    "extra_regions": 300,
-    "unchanged_world": true,
-    "console_errors": 0
+  "platforms": {
+    "Linux": "exported and booted",
+    "Windows": "exported",
+    "Android Preview": "exported, zipaligned, signature and package verified",
+    "Web": "exported and browser tested"
   },
-  "physical_android_test": false,
-  "comparison": {
-    "same_local_simulation": true,
-    "rows": [
-      {
-        "current": false,
-        "step_ms": 170.625325,
-        "save": [
-          {
-            "capture_ms": 11.037,
-            "deferred_regions": 0,
-            "people": 6,
-            "regions": 527,
-            "roundtrip_equal": true,
-            "save_ms": 232.568
-          },
-          {
-            "capture_ms": 112.917,
-            "deferred_regions": 0,
-            "people": 2000,
-            "regions": 592,
-            "roundtrip_equal": true,
-            "save_ms": 496.848
-          }
-        ]
-      },
-      {
-        "current": true,
-        "step_ms": 155.490875,
-        "save": [
-          {
-            "capture_ms": 4.03,
-            "deferred_regions": 399,
-            "people": 6,
-            "regions": 527,
-            "roundtrip_equal": true,
-            "save_ms": 227.42
-          },
-          {
-            "capture_ms": 55.998,
-            "deferred_regions": 464,
-            "people": 2000,
-            "regions": 592,
-            "roundtrip_equal": true,
-            "save_ms": 498.823
-          }
-        ]
-      },
-      {
-        "current": true,
-        "step_ms": 162.54615,
-        "save": [
-          {
-            "capture_ms": 4.294,
-            "deferred_regions": 399,
-            "people": 6,
-            "regions": 527,
-            "roundtrip_equal": true,
-            "save_ms": 313.343
-          },
-          {
-            "capture_ms": 60.228,
-            "deferred_regions": 464,
-            "people": 2000,
-            "regions": 592,
-            "roundtrip_equal": true,
-            "save_ms": 602.751
-          }
-        ]
-      },
-      {
-        "current": false,
-        "step_ms": 163.7769,
-        "save": [
-          {
-            "capture_ms": 11.017,
-            "deferred_regions": 0,
-            "people": 6,
-            "regions": 527,
-            "roundtrip_equal": true,
-            "save_ms": 258.843
-          },
-          {
-            "capture_ms": 116.746,
-            "deferred_regions": 0,
-            "people": 2000,
-            "regions": 592,
-            "roundtrip_equal": true,
-            "save_ms": 473.321
-          }
-        ]
-      }
-    ],
-    "metadata_serialization_deferred": true,
-    "step_order": [
-      "reference",
-      "new",
-      "new",
-      "reference"
-    ],
-    "save_order": [
-      "reference",
-      "reference",
-      "new",
-      "new"
-    ]
-  },
-  "brush_game_loop": {
-    "renderer": "llvmpipe (LLVM 19.1.7, 256 bits)",
-    "results": [
-      {
-        "brush_cpu": {
-          "max_ms": 6.896,
-          "p50_ms": 0.72,
-          "p95_ms": 1.74,
-          "p99_ms": 5.999
-        },
-        "brush_radius": 16,
-        "completed_steps_per_second": 0.0,
-        "data_latency": {
-          "max_ms": 43.933,
-          "p50_ms": 27.686,
-          "p95_ms": 35.035,
-          "p99_ms": 36.034
-        },
-        "draw_calls": 34,
-        "draw_cpu": {
-          "max_ms": 0.922,
-          "p50_ms": 0.24,
-          "p95_ms": 0.46,
-          "p99_ms": 0.799
-        },
-        "frame": {
-          "max_ms": 48.677,
-          "p50_ms": 27.802,
-          "p95_ms": 36.301,
-          "p99_ms": 44.752
-        },
-        "frames": 175,
-        "input_cpu": {
-          "max_ms": 0.199,
-          "p50_ms": 0.043,
-          "p95_ms": 0.095,
-          "p99_ms": 0.151
-        },
-        "memory_delta_bytes": 257440,
-        "missing_visible_samples": 0,
-        "name": "continuous-brush",
-        "people": 2000,
-        "queue_peak": 0,
-        "regions": 88,
-        "samples": 22,
-        "seconds": 5.010891,
-        "tail_ms": 0.004,
-        "timings_usec": {},
-        "towns": 20,
-        "unfinished_edits": false,
-        "view_cpu": {
-          "max_ms": 3.575,
-          "p50_ms": 1.428,
-          "p95_ms": 2.137,
-          "p99_ms": 3.047
-        },
-        "visible_latency": {
-          "max_ms": 43.933,
-          "p50_ms": 27.686,
-          "p95_ms": 35.035,
-          "p99_ms": 36.034
-        }
-      },
-      {
-        "brush_cpu": {
-          "max_ms": 6.001,
-          "p50_ms": 0.766,
-          "p95_ms": 1.415,
-          "p99_ms": 5.583
-        },
-        "brush_radius": 16,
-        "completed_steps_per_second": 0.0,
-        "data_latency": {
-          "max_ms": 34.043,
-          "p50_ms": 27.102,
-          "p95_ms": 33.342,
-          "p99_ms": 33.495
-        },
-        "draw_calls": 34,
-        "draw_cpu": {
-          "max_ms": 5.477,
-          "p50_ms": 0.263,
-          "p95_ms": 0.527,
-          "p99_ms": 0.803
-        },
-        "frame": {
-          "max_ms": 49.419,
-          "p50_ms": 27.788,
-          "p95_ms": 35.01,
-          "p99_ms": 38.078
-        },
-        "frames": 175,
-        "input_cpu": {
-          "max_ms": 0.252,
-          "p50_ms": 0.042,
-          "p95_ms": 0.12,
-          "p99_ms": 0.172
-        },
-        "memory_delta_bytes": 269272,
-        "missing_visible_samples": 0,
-        "name": "continuous-brush-x5",
-        "people": 2000,
-        "queue_peak": 0,
-        "regions": 88,
-        "samples": 22,
-        "seconds": 5.002195,
-        "tail_ms": 0.005,
-        "timings_usec": {},
-        "towns": 20,
-        "unfinished_edits": false,
-        "view_cpu": {
-          "max_ms": 4.577,
-          "p50_ms": 1.479,
-          "p95_ms": 1.911,
-          "p99_ms": 2.255
-        },
-        "visible_latency": {
-          "max_ms": 34.043,
-          "p50_ms": 27.102,
-          "p95_ms": 33.342,
-          "p99_ms": 33.495
-        }
-      }
-    ],
-    "scene_ready_ms": 916.01,
-    "version": "0.2.6-test.8",
-    "viewport": [
-      1280,
-      800
-    ]
-  },
-  "large_world_gameplay": [
-    "SAVE completed 1 at tick 11143",
-    "Liveness: ticks=11209 saves=1 people=17 largest_gap_ms=1526.798 captures_usec=[69963]"
+  "screens": [
+    {
+      "width": 1440,
+      "height": 900,
+      "density": 1
+    },
+    {
+      "width": 2160,
+      "height": 1080,
+      "density": 2.25
+    },
+    {
+      "width": 1080,
+      "height": 2400,
+      "density": 3
+    }
   ],
-  "content_priority": "ruins-discoveries-world-history",
-  "content_status": "planned",
-  "release_created": false
+  "user_test_pending": true,
+  "release_published": false
 }
