@@ -1,11 +1,11 @@
 {
-  "build": "inspector-07",
-  "version": "0.2.6-test.7",
-  "android_version_code": 16,
+  "build": "economy-save-08",
+  "version": "0.2.6-test.8",
+  "android_version_code": 17,
   "android_package": "org.littleworlds.sandbox.preview",
   "android_updates_existing_app": false,
   "android_updates_previous_preview": true,
-  "source_commit": "aca04ee7769563a1a05b8359be88e6763050a116",
+  "source_commit": "87f72a3610382a352d4202e824fd65c252fefa31",
   "files": [
     {
       "name": "inspector-before-desktop.png",
@@ -54,33 +54,33 @@
     },
     {
       "name": "little-worlds-android-preview.apk",
-      "bytes": 53585464,
-      "sha256": "5ec8445a81ddae3726b2793468b824115cb6142030198cc9989c29c2a0f2b349"
+      "bytes": 53593833,
+      "sha256": "9e5c2b6cf93692d043c420a5c85dfab62dd94193a70e8573ea99fc23cc9c5949"
     },
     {
       "name": "little-worlds-godot-test.zip",
-      "bytes": 1283632,
-      "sha256": "3dc3276d8ac290879d811c62ebcecceaa3a02d57c8ddb1323d0b80649a5069e0"
+      "bytes": 1299743,
+      "sha256": "c87d4c11b01a9c5bc30e620d4788f67e13e68ec6ed39f108eef038bd042ece0d"
     },
     {
       "name": "little-worlds-linux-test.zip",
-      "bytes": 29666312,
-      "sha256": "c66973de05d319aa2e76dda702451ea4c31ef379b7a080cb34e32f1ae9ea279d"
+      "bytes": 29671182,
+      "sha256": "29e6565ea1c905d5ca58f3daa644ace57183a004898cc72d19407bc7c43457ca"
     },
     {
       "name": "little-worlds-web-test.zip",
-      "bytes": 16454719,
-      "sha256": "9407ad27b7220425e5f4aec28a4f4d1866a463edb49b6e62a2a7572e05a444d6"
+      "bytes": 16459322,
+      "sha256": "271cb34054623ba765f7fc3158df019e4738a9b8d480d23b332b6948bbc6a8f6"
     },
     {
       "name": "little-worlds-windows-test.zip",
-      "bytes": 39282327,
-      "sha256": "7698b2d1eb06da555de92e608b723689ccd179b71524d8a3db00cc2e8382306d"
+      "bytes": 39287209,
+      "sha256": "0adce50792a47a9b98a22107925da680092797be6c2305b46f89486b2e8ab6b7"
     },
     {
       "name": "validation.json",
-      "bytes": 2729,
-      "sha256": "d61c6f483cdaf3f68df0bce40c2a8fe7b84ffff1ef12e3311876e4ef475d7de7"
+      "bytes": 6765,
+      "sha256": "6ff448af4fe6507a54031e352637c634330796857024465e0fc59784a953c84a"
     }
   ]
 }

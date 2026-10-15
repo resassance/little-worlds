@@ -1,129 +1,283 @@
 {
-  "version": "0.2.6-test.7",
+  "version": "0.2.6-test.8",
   "engine": "Godot 4.7.2 stable",
-  "source_commit": "aca04ee7769563a1a05b8359be88e6763050a116",
-  "platform_exports": [
+  "source_commit": "87f72a3610382a352d4202e824fd65c252fefa31",
+  "exports": [
     "Linux",
     "Windows",
     "Android Preview",
     "Web"
   ],
+  "android_version_code": 17,
   "android_signature_verified": true,
   "linux_export_boot": true,
-  "inspector_ui": {
-    "checks": 127,
-    "failures": 0,
-    "expanded_refresh_p95_ms": 0.646,
-    "expanded_refresh_max_ms": 0.692,
-    "host": "Linux, llvmpipe, 1440x900"
+  "models": {
+    "region_snapshot": 24,
+    "workforce_delivery": 116,
+    "economy": 79,
+    "population": 46,
+    "life": 53,
+    "social": 48,
+    "expansion": 354,
+    "development": 136,
+    "mobile_simulation": 496
   },
-  "mobile_layout": {
-    "checks": 245,
-    "failures": 0,
-    "physical_viewport_emulations": [
-      [
-        2160,
-        1080
-      ],
-      [
-        1920,
-        1080
-      ],
-      [
-        2340,
-        1080
-      ],
-      [
-        2400,
-        1080
-      ],
-      [
-        1080,
-        2400
-      ],
-      [
-        1180,
-        820
-      ]
-    ],
-    "minimum_button_dp": 48
-  },
-  "touch_input_failures": 0,
-  "visual_input": {
-    "checks": 94,
-    "failures": 0
-  },
-  "web_desktop_save_and_input": true,
+  "model_failures": 0,
+  "save_snapshot_isolation": true,
+  "bounded_simulation_regression": true,
+  "web_desktop_save_load": true,
   "web_mobile": {
     "checks": 12,
     "failures": 0
   },
-  "web_inspector_tabs_and_close": true,
+  "web_cold_terrain_save": {
+    "extra_regions": 300,
+    "unchanged_world": true,
+    "console_errors": 0
+  },
   "physical_android_test": false,
-  "whole_game_ui_benchmark": {
+  "comparison": {
+    "same_local_simulation": true,
+    "rows": [
+      {
+        "current": false,
+        "step_ms": 170.625325,
+        "save": [
+          {
+            "capture_ms": 11.037,
+            "deferred_regions": 0,
+            "people": 6,
+            "regions": 527,
+            "roundtrip_equal": true,
+            "save_ms": 232.568
+          },
+          {
+            "capture_ms": 112.917,
+            "deferred_regions": 0,
+            "people": 2000,
+            "regions": 592,
+            "roundtrip_equal": true,
+            "save_ms": 496.848
+          }
+        ]
+      },
+      {
+        "current": true,
+        "step_ms": 155.490875,
+        "save": [
+          {
+            "capture_ms": 4.03,
+            "deferred_regions": 399,
+            "people": 6,
+            "regions": 527,
+            "roundtrip_equal": true,
+            "save_ms": 227.42
+          },
+          {
+            "capture_ms": 55.998,
+            "deferred_regions": 464,
+            "people": 2000,
+            "regions": 592,
+            "roundtrip_equal": true,
+            "save_ms": 498.823
+          }
+        ]
+      },
+      {
+        "current": true,
+        "step_ms": 162.54615,
+        "save": [
+          {
+            "capture_ms": 4.294,
+            "deferred_regions": 399,
+            "people": 6,
+            "regions": 527,
+            "roundtrip_equal": true,
+            "save_ms": 313.343
+          },
+          {
+            "capture_ms": 60.228,
+            "deferred_regions": 464,
+            "people": 2000,
+            "regions": 592,
+            "roundtrip_equal": true,
+            "save_ms": 602.751
+          }
+        ]
+      },
+      {
+        "current": false,
+        "step_ms": 163.7769,
+        "save": [
+          {
+            "capture_ms": 11.017,
+            "deferred_regions": 0,
+            "people": 6,
+            "regions": 527,
+            "roundtrip_equal": true,
+            "save_ms": 258.843
+          },
+          {
+            "capture_ms": 116.746,
+            "deferred_regions": 0,
+            "people": 2000,
+            "regions": 592,
+            "roundtrip_equal": true,
+            "save_ms": 473.321
+          }
+        ]
+      }
+    ],
+    "metadata_serialization_deferred": true,
+    "step_order": [
+      "reference",
+      "new",
+      "new",
+      "reference"
+    ],
+    "save_order": [
+      "reference",
+      "reference",
+      "new",
+      "new"
+    ]
+  },
+  "brush_game_loop": {
     "renderer": "llvmpipe (LLVM 19.1.7, 256 bits)",
     "results": [
       {
         "brush_cpu": {
-          "max_ms": 0.003,
-          "p50_ms": 0.003,
-          "p95_ms": 0.003,
-          "p99_ms": 0.003
+          "max_ms": 6.896,
+          "p50_ms": 0.72,
+          "p95_ms": 1.74,
+          "p99_ms": 5.999
         },
         "brush_radius": 16,
-        "completed_steps_per_second": 0.398032683657753,
-        "data_latency": {},
-        "draw_calls": 101,
+        "completed_steps_per_second": 0.0,
+        "data_latency": {
+          "max_ms": 43.933,
+          "p50_ms": 27.686,
+          "p95_ms": 35.035,
+          "p99_ms": 36.034
+        },
+        "draw_calls": 34,
         "draw_cpu": {
-          "max_ms": 1.791,
-          "p50_ms": 0.512,
-          "p95_ms": 0.825,
-          "p99_ms": 1.478
+          "max_ms": 0.922,
+          "p50_ms": 0.24,
+          "p95_ms": 0.46,
+          "p99_ms": 0.799
         },
         "frame": {
-          "max_ms": 60.006,
-          "p50_ms": 53.307,
-          "p95_ms": 57.77,
-          "p99_ms": 58.746
+          "max_ms": 48.677,
+          "p50_ms": 27.802,
+          "p95_ms": 36.301,
+          "p99_ms": 44.752
         },
-        "frames": 95,
-        "input_cpu": {},
-        "memory_delta_bytes": 5890290,
+        "frames": 175,
+        "input_cpu": {
+          "max_ms": 0.199,
+          "p50_ms": 0.043,
+          "p95_ms": 0.095,
+          "p99_ms": 0.151
+        },
+        "memory_delta_bytes": 257440,
         "missing_visible_samples": 0,
-        "name": "population-2000-ui",
+        "name": "continuous-brush",
         "people": 2000,
         "queue_peak": 0,
-        "regions": 80,
-        "samples": 0,
-        "seconds": 5.024713,
-        "tail_ms": 0.007,
-        "timings_usec": {
-          "burn": 255,
-          "climate": 130,
-          "economy": 349354,
-          "life": 39,
-          "maritime": 3771,
-          "other": 130069,
-          "repair": 3041,
-          "weather": 59
-        },
+        "regions": 88,
+        "samples": 22,
+        "seconds": 5.010891,
+        "tail_ms": 0.004,
+        "timings_usec": {},
         "towns": 20,
         "unfinished_edits": false,
         "view_cpu": {
-          "max_ms": 6.761,
-          "p50_ms": 1.747,
-          "p95_ms": 2.31,
-          "p99_ms": 4.958
+          "max_ms": 3.575,
+          "p50_ms": 1.428,
+          "p95_ms": 2.137,
+          "p99_ms": 3.047
         },
-        "visible_latency": {}
+        "visible_latency": {
+          "max_ms": 43.933,
+          "p50_ms": 27.686,
+          "p95_ms": 35.035,
+          "p99_ms": 36.034
+        }
+      },
+      {
+        "brush_cpu": {
+          "max_ms": 6.001,
+          "p50_ms": 0.766,
+          "p95_ms": 1.415,
+          "p99_ms": 5.583
+        },
+        "brush_radius": 16,
+        "completed_steps_per_second": 0.0,
+        "data_latency": {
+          "max_ms": 34.043,
+          "p50_ms": 27.102,
+          "p95_ms": 33.342,
+          "p99_ms": 33.495
+        },
+        "draw_calls": 34,
+        "draw_cpu": {
+          "max_ms": 5.477,
+          "p50_ms": 0.263,
+          "p95_ms": 0.527,
+          "p99_ms": 0.803
+        },
+        "frame": {
+          "max_ms": 49.419,
+          "p50_ms": 27.788,
+          "p95_ms": 35.01,
+          "p99_ms": 38.078
+        },
+        "frames": 175,
+        "input_cpu": {
+          "max_ms": 0.252,
+          "p50_ms": 0.042,
+          "p95_ms": 0.12,
+          "p99_ms": 0.172
+        },
+        "memory_delta_bytes": 269272,
+        "missing_visible_samples": 0,
+        "name": "continuous-brush-x5",
+        "people": 2000,
+        "queue_peak": 0,
+        "regions": 88,
+        "samples": 22,
+        "seconds": 5.002195,
+        "tail_ms": 0.005,
+        "timings_usec": {},
+        "towns": 20,
+        "unfinished_edits": false,
+        "view_cpu": {
+          "max_ms": 4.577,
+          "p50_ms": 1.479,
+          "p95_ms": 1.911,
+          "p99_ms": 2.255
+        },
+        "visible_latency": {
+          "max_ms": 34.043,
+          "p50_ms": 27.102,
+          "p95_ms": 33.342,
+          "p99_ms": 33.495
+        }
       }
     ],
-    "scene_ready_ms": 2762.233,
-    "version": "0.2.6-test.7",
+    "scene_ready_ms": 916.01,
+    "version": "0.2.6-test.8",
     "viewport": [
       1280,
       800
     ]
   },
+  "large_world_gameplay": [
+    "SAVE completed 1 at tick 11143",
+    "Liveness: ticks=11209 saves=1 people=17 largest_gap_ms=1526.798 captures_usec=[69963]"
+  ],
+  "content_priority": "ruins-discoveries-world-history",
+  "content_status": "planned",
   "release_created": false
 }
