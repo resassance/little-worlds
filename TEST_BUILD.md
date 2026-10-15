@@ -1,3 +1,5 @@
+Контентный пак вошёл в [релиз 0.2.6](https://github.com/resassance/little-worlds/releases/tag/v0.2.6). Ниже сохранены ссылки на предрелизную проверку.
+
 # Тестовый контентный пак ruins-09
 
 Версия 0.2.6-test.9, Android versionCode 18.
