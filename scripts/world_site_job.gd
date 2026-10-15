@@ -12,12 +12,14 @@ var result := WorldState.NO_CELL
 var finished := false
 var signature: Array
 var cache_key := ""
+var ruin_cursor := 0
 
 func _init(value, settlement: Dictionary, type: String) -> void:
 	world = value; home = settlement; kind = type
 	center = Vector2i(home.x, home.y)
 	nav = WorldEconomy.navigation(world, home)
-	signature = [world.revision, world.buildings.size(), world.fires.size(), world.ticks if not world.fires.is_empty() else 0, nav.cells.size()]
+	if world.heritage.origin_index.get(home.id,{}).get("site",-1) == -1: ruin_cursor = WorldHeritage.FOOTPRINTS
+	signature = [world.revision, world.buildings.size(), world.fires.size(), world.ticks if not world.fires.is_empty() else 0, nav.cells.size(),world.heritage.revision]
 	cache_key = "%d:%s" % [home.id, kind]
 	var cached: Dictionary = world.site_cache.get(cache_key, {})
 	if cached.get("signature") == signature:
@@ -25,6 +27,10 @@ func _init(value, settlement: Dictionary, type: String) -> void:
 
 func unit() -> void:
 	if finished: return
+	if ruin_cursor < WorldHeritage.FOOTPRINTS:
+		var old: Vector2i = world.heritage.restoration(world,home,kind,nav,ruin_cursor); ruin_cursor += 1
+		if old != WorldState.NO_CELL: result = old; _finish()
+		return
 	var cell: Vector2i
 	if cursor < 13 * DIRECTIONS.size(): cell = center + DIRECTIONS[cursor % DIRECTIONS.size()] * (cursor / DIRECTIONS.size() + 3)
 	else:

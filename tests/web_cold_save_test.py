@@ -56,7 +56,7 @@ with sync_playwright() as playwright:
         assert not errors, errors
         page.wait_for_timeout(500)
     assert isinstance(saved, dict) and saved['regions'] == len(world['chunks']), (saved, errors)
-    assert saved['people'] == len(world['people']) and saved['ticks'] == world['ticks'] and saved['version'] == 11, saved
+    assert saved['people'] == len(world['people']) and saved['ticks'] == world['ticks'] and saved['version'] == 12, saved
     assert not errors, errors
     browser.close()
 print('Web cold save: cloud-loaded world with 300 remote regions saves a complete unchanged snapshot without console errors')

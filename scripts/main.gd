@@ -1038,7 +1038,7 @@ func _inspect(cell: Vector2i, reveal: bool = true, open_panel: bool = true, cycl
 					distance = gap
 	if reveal: _set_info_tab(false)
 	inspector.present(world, cell, person, nearest, structure)
-	object_tab.text = {"town": "Поселение", "person": "Житель", "terrain": "Клетка"}[inspector.selection_kind]
+	object_tab.text = {"town": "Поселение", "person": "Житель", "terrain": "Клетка", "site":"Руины"}[inspector.selection_kind]
 	world.workforce.end()
 	world.population.active = false
 	inspector_dirty = false

@@ -28,7 +28,7 @@ func _init(value, references: Array[Dictionary], capture_only: bool = false, sna
 		"journeys": world.journeys, "ticks": world.ticks, "next_id": world.next_id, "regions": references, "regrowth": world.regrowth,
 		"towns": world.towns, "buildings": world.buildings, "metrics": world.metrics, "fires": [],
 		"societies": world.societies, "households": world.households, "ancestry_archive": world.ancestry_archive,
-		"history": world.history, "rng_state": str(world.rng.state), "wet_until": world.wet_until, "drought_until": world.drought_until, "weather": world.weather,"landscape":{"paths":[],"scars":[]}}
+		"history": world.history, "rng_state": str(world.rng.state), "wet_until": world.wet_until, "drought_until": world.drought_until, "weather": world.weather,"landscape":{"paths":[],"scars":[]},"heritage":{"sites":world.heritage.sites,"origins":world.heritage.origins,"couriers":world.heritage.couriers,"archived":world.heritage.archived,"rng":str(world.heritage.random.state)}}
 	maps = [
 		{"source": world.biome_overrides, "keys": world.biome_overrides.keys(), "target": data.climate.overrides, "kind": 0},
 		{"source": world.stumps, "keys": world.stumps.keys(), "target": data.climate.stumps, "kind": 0},
@@ -43,6 +43,7 @@ func _init(value, references: Array[Dictionary], capture_only: bool = false, sna
 		data.metrics = world.metrics.duplicate()
 		data.weather = world.weather.duplicate(true)
 		for key in ["towns", "buildings", "societies", "households", "ancestry_archive", "history", "journeys"]: _copy_array(data, key)
+		for key in ["sites","origins","couriers"]: _copy_array(data.heritage,key)
 		_copy_array(data.civilization, "towns")
 		_copy_array(data.maritime, "voyages")
 		_copy_array(data.maritime, "contacts")

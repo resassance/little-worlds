@@ -25,6 +25,9 @@ static func balances(world) -> Dictionary:
 		if ship.cargo_kind == "food": food += int(ship.cargo)
 		elif ship.cargo_kind == "wood": wood += int(ship.cargo)
 		elif materials.has(ship.cargo_kind): materials[ship.cargo_kind] += int(ship.cargo)
+	for site in world.heritage.sites:
+		wood += int(site.wood)
+		for key in materials: materials[key] += int(site.stock[key])
 	var m: Dictionary = world.metrics
 	var result := {"food": int(m.spawn_food + m.harvested_food + m.crop_food) - food - int(m.eaten_food + m.seed_food + m.spoiled_food + m.growth_food + m.lost_food + m.processed_food), "wood": int(m.harvested_wood) - wood - int(m.built_wood + m.growth_wood + m.lost_wood + m.processed_wood)}
 	for key in materials: result[key] = int(world.industry.produced[key]) - int(materials[key]) - int(world.industry.consumed[key]) - int(world.industry.lost[key])

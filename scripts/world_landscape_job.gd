@@ -11,8 +11,9 @@ var finished := false
 
 func _init(value) -> void:
 	world = value
-	paths = world.landscape.paths.keys(); scars = world.landscape.scars.keys(); stumps = world.stumps.keys()
 	finished = world.ticks%WorldEconomy.DAY_TICKS != 0
+	if finished: return
+	paths = world.landscape.paths.keys(); scars = world.landscape.scars.keys(); stumps = world.stumps.keys()
 
 func unit() -> void:
 	if finished: return

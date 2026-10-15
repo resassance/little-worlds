@@ -325,6 +325,7 @@ static func assign(world, person: Dictionary, home: Dictionary) -> void:
 				set_task(world, person, task("build", cell, value.id))
 				return
 	if WorldExploration.assign(world, person, home): return
+	if WorldExploration.assign_ruins(world, person, home): return
 	if WorldSociety.research_assign(world, person, home): return
 	if WorldCivilization.assign(world, person, home): return
 	if home.food < food_capacity(world, home) - LOAD:
@@ -346,6 +347,7 @@ static func assign(world, person: Dictionary, home: Dictionary) -> void:
 	set_task(world, person, task("rest", resting))
 
 static func execute(world, person: Dictionary, home: Dictionary) -> void:
+	world.heritage.returned(world,person)
 	if person.task.is_empty(): assign(world, person, home)
 	if person.task.is_empty(): return
 	var active: Dictionary = person.task
@@ -443,6 +445,7 @@ static func execute(world, person: Dictionary, home: Dictionary) -> void:
 			if value.work >= int(WORK[value.kind]):
 				world.workforce.building_ready(value)
 				value.ready = true
+				world.heritage.restored(world,value)
 				world.landscape.building(world,value)
 				WorldSociety.invalidate(world)
 				world.metrics.built_wood += int(COST[value.kind])
@@ -696,8 +699,8 @@ static func restore(world, data: Dictionary) -> bool:
 			person.task[key] = int(person.task[key])
 		if person.task.work < 0 or (not world.walkable(Vector2i(person.task.x, person.task.y)) and not WorldMaritime.saved_onboard(data, person.id)): return false
 		if person.task.kind == "explore":
-			if not person.task.get("phase") in ["outbound", "returning"] or not person.task.get("surveyed") is bool or person.task.get("reason") not in ["food", "wood"]: return false
-			if not WorldState._integer(person.task.get("radius")) or person.task.radius < RANGE or person.task.radius >= WorldExploration.MAX_RANGE or (int(person.task.radius) - RANGE) % WorldExploration.RANGE_STEP != 0: return false
+			if not person.task.get("phase") in ["outbound", "returning"] or not person.task.get("surveyed") is bool or person.task.get("reason") not in ["food", "wood", "ruins"]: return false
+			if not WorldState._integer(person.task.get("radius")) or person.task.radius < RANGE or person.task.radius > WorldExploration.MAX_RANGE or (person.task.radius == WorldExploration.MAX_RANGE and person.task.reason != "ruins") or (int(person.task.radius) - RANGE) % WorldExploration.RANGE_STEP != 0: return false
 			person.task.radius = int(person.task.radius)
 			var home := town(world, person.home)
 			if home.is_empty() or not home.has("survey") or person.task.building != home.id or int(person.task.radius) != int(home.survey.radius): return false

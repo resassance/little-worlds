@@ -79,6 +79,7 @@ static func finish(world, journey: Dictionary, home: Dictionary, reconcile_life:
 		member.home = int(home.id) if not home.is_empty() else -1
 		WorldEconomy.set_task(world, member, {})
 		world.journey_people.erase(id)
+		world.heritage.returned(world,member)
 	journey.crew = []
 	if relocated:
 		world.population_dirty = true
@@ -142,6 +143,7 @@ static func step_journey(world, journey: Dictionary) -> void:
 		var member := WorldLife.person(world, id)
 		member.x = point.x
 		member.y = point.y
+		world.heritage.visit(world,member,point)
 	if journey.phase == "returning" and next == 0:
 		finish(world, journey, WorldEconomy.town(world, journey.home))
 	elif journey.phase == "outbound" and next == journey.route.size() - 1:

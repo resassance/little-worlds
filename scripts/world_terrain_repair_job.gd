@@ -15,6 +15,7 @@ var life: WorldLifeReconcileJob
 var societies: Array
 var civilizations: Array
 var orphan: Dictionary = {}
+var doomed_towns: Dictionary = {}
 var finished := false
 var workforce_was_active := false
 
@@ -77,11 +78,24 @@ func unit() -> void:
 				elif not world.walkable(Vector2i(member.x, member.y)):
 					relocation = WorldNearestLandJob.new(world,Vector2i(member.x,member.y)); return
 				cursor -= 1
-			else: phase = 2; cursor = world.towns.size() - 1
+			else: phase = 10; cursor = 0
+		10:
+			if cursor >= world.towns.size():
+				if doomed_towns.is_empty(): phase = 2; cursor = world.towns.size()-1
+				else: phase = 11; cursor = 0
+				return
+			var home: Dictionary = world.towns[cursor]; cursor += 1
+			if not world.walkable(Vector2i(home.x,home.y)): doomed_towns[home.id] = true
+		11:
+			if cursor >= world.buildings.size(): phase = 2; cursor = world.towns.size()-1; return
+			var value: Dictionary = world.buildings[cursor]; cursor += 1
+			if doomed_towns.has(value.town): world.heritage.remember_building(world,value)
 		2:
 			if cursor >= 0:
 				var home: Dictionary = world.towns[cursor]
 				if not world.walkable(Vector2i(home.x, home.y)):
+					world.heritage.abandon(world,home,"Потеря земли")
+					world.heritage.forget_origin(home)
 					world.log_event("Поселение исчезло", "%s потеряло землю под собой." % home.name)
 					world.metrics.lost_food += home.food; world.metrics.lost_wood += home.wood
 					WorldExploration.forget(world, home)

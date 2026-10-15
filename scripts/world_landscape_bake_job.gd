@@ -11,6 +11,7 @@ var tiles := PackedInt32Array()
 var buildings: Array
 var paths: Array
 var sites: Array
+var ruins: Array
 var scars: Array
 var phase := 0
 var cursor := 0
@@ -22,6 +23,7 @@ func _init(value: WorldState, key: Vector2i) -> void:
 	image = Image.create(WorldState.CHUNK_SIZE*TILE,WorldState.CHUNK_SIZE*TILE,false,Image.FORMAT_RGBA8); image.fill(Color.TRANSPARENT)
 	var chunk := world.regions.snapshot(world,key)
 	if not chunk.is_empty(): tiles = chunk.tiles
+	ruins = world.heritage.draw_regions.get(key,[]).duplicate()
 	buildings = world.landscape.grounds.get(key,{}).values()
 	paths = world.landscape.path_regions.get(key,{}).keys()
 	sites = world.landscape.site_regions.get(key,{}).keys()
@@ -35,17 +37,18 @@ func advance(budget_usec: int = 400) -> bool:
 	return finished
 
 func _unit() -> void:
-	var items: Array = [buildings,scars,paths,sites][phase]
+	var items: Array = [buildings,scars,ruins,paths,sites][phase]
 	if cursor >= items.size():
 		phase += 1; cursor = 0
-		if phase == 4: finished = true
+		if phase == 5: finished = true
 		return
 	var value: Variant = items[cursor]; cursor += 1
 	match phase:
 		0: _ground(value)
 		1: _scar(value)
-		2: _path(value)
-		3: _site(value)
+		2: _ruin(value)
+		3: _path(value)
+		4: _site(value)
 
 func _terrain(cell: Vector2i) -> int:
 	if tiles.is_empty() or WorldState.chunk_of(cell) != coord: return WorldState.Terrain.WATER
@@ -147,3 +150,34 @@ func _scar(cell: Vector2i) -> void:
 			if value.kind == "ruin":
 				_rect(position+Vector2i(1,1),Vector2i(2,3),Color("c6b190").lerp(color,age))
 				_rect(position+Vector2i(5,3),Vector2i(2,2),Color("a29b82"))
+
+func _ruin(value: Dictionary) -> void:
+	var site: Dictionary = world.heritage.site_index.get(value.site,{})
+	if site.is_empty(): return
+	var row: Array = value.row
+	var origin := Vector2i(row[0],row[1])
+	var size: int = int(WorldEconomy.SIZE[row[2]])
+	var last: Dictionary = site.periods.back()
+	var age := clampf(float(world.ticks-maxi(0,int(last.end)))/(WorldLife.YEAR*12),0,1)
+	var stone := Color("bcb399").lerp(Color("899372"),age*0.5)
+	for y in size:
+		for x in size:
+			var cell := origin+Vector2i(x,y)
+			if _terrain(cell) not in [WorldState.Terrain.GRASS,WorldState.Terrain.FOREST,WorldState.Terrain.SAND] or world.occupied.has(cell): continue
+			var pos := _pos(cell)
+			_rect(pos,Vector2i(8,8),Color("9e9275").lerp(Color("8d976e"),age*0.5))
+			if (x+y)%2 == 0: _rect(pos+Vector2i(3,4),Vector2i(3,1),Color("817b65"))
+			if y == 0: _rect(pos+Vector2i(1,1),Vector2i(6,2),stone)
+			if x == 0: _rect(pos+Vector2i(1,1),Vector2i(2,6),stone)
+			if x == size-1: _rect(pos+Vector2i(6,2),Vector2i(1,4),stone.darkened(0.1))
+			if y == size-1: _rect(pos+Vector2i(1,6),Vector2i(5,1),stone.darkened(0.2))
+			if x == size-1 and y == size-1 and row[2] in ["archive","school"]:
+				_rect(pos+Vector2i(4,3),Vector2i(2,3),Color("ddc995"))
+				_rect(pos+Vector2i(4,4),Vector2i(2,1),Color("805e43"))
+			elif x == size-1 and y == size-1 and row[2] in ["workshop","forge","kiln","loom"]:
+				_rect(pos+Vector2i(4,3),Vector2i(3,2),Color("666661"))
+				_rect(pos+Vector2i(5,2),Vector2i(1,4),Color("b68959"))
+			if row[2] == "camp":
+				_rect(pos+Vector2i(3,0),Vector2i(1,6),Color("725b44"))
+				_rect(pos+Vector2i(4,0),Vector2i(3,2),Color("be9361"))
+			if age > 0.25 and (x == 0 or y == size-1): _rect(pos+Vector2i(0,5),Vector2i(3,2),Color("718953"))

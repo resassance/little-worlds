@@ -19,6 +19,7 @@ var peak_phase := ""
 var population_job: WorldPopulationRebuildJob
 var climate_job: WorldClimateStepJob
 var weather_job: WorldWeatherStepJob
+var heritage_job: WorldHeritageJob
 var repair_job: WorldBuildingRepairJob
 var life_job: WorldLifeReconcileJob
 var sea_daily_job: WorldMaritimeDailyJob
@@ -113,6 +114,8 @@ func _unit() -> void:
 			if not weather_job.finished: weather_job.unit(); return
 			_next()
 		Phase.REPAIR:
+			if heritage_job == null: heritage_job = WorldHeritageJob.new(world)
+			if not heritage_job.finished: heritage_job.unit(); return
 			if fire_job == null: fire_job = WorldFireStepJob.new(world)
 			if not fire_job.finished: fire_job.unit(); return
 			terrain_dirty = fire_job.dirty

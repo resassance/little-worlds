@@ -275,6 +275,7 @@ static func land_crew(world, ship: Dictionary, home: Dictionary, cell: Vector2i)
 		WorldEconomy.set_task(world, member, {})
 		member.job = "settler"
 		world.voyage_people.erase(id)
+		world.heritage.returned(world,member)
 	ship.crew = []
 	world.population_dirty = true
 	world.life_dirty = true
@@ -288,6 +289,9 @@ static func arrive(world, ship: Dictionary) -> void:
 		ship.progress = 0
 		world.log_event("Берег изменился", "Экспедиция возвращается: высадка стала невозможной.")
 		return
+	for id in ship.crew:
+		var visitor := WorldLife.person(world,id)
+		if not visitor.is_empty(): world.heritage.visit(world,visitor,landing)
 	var home := WorldEconomy.town(world, ship.home)
 	var target: Dictionary = world._town_near(landing, 28)
 	if not target.is_empty():
@@ -309,6 +313,7 @@ static func arrive(world, ship: Dictionary) -> void:
 		var colony := {"id": world.next_id, "name": "Новый берег %d" % world.next_id, "x": landing.x, "y": landing.y, "food": 0, "wood": 0, "level": 1}
 		world.next_id += 1
 		world.towns.append(colony)
+		world.heritage.settled(world,colony)
 		WorldEconomy.add_building(world, colony, "camp", landing, true)
 		land_crew(world, ship, colony, landing)
 		colony.food = mini(ship.food, WorldEconomy.food_capacity(world, colony))

@@ -99,6 +99,25 @@ static func assign(world, member: Dictionary, home: Dictionary) -> bool:
 	world.log_event("Разведка окрестностей", "%s: %s ищет %s за пределами привычных мест." % [home.name, member.name, "еду" if reason == "food" else "лес"])
 	return true
 
+static func assign_ruins(world, member: Dictionary, home: Dictionary) -> bool:
+	if world.heritage.sites.is_empty() or member.hunger >= 25 or member.energy < 60 or member.birth_due >= 0 or member.cargo > 0 or world.claims.has("explore:%d" % home.id): return false
+	if WorldEconomy.food_days(world,home) < 6: return false
+	var provision := 2-int(member.rations)
+	if provision > 0 and (Vector2i(member.x,member.y) != Vector2i(home.x,home.y) or home.food < provision): return false
+	var nav: Dictionary = WorldEconomy.navigation(world,home)
+	var cell: Vector2i = world.heritage.research_target(world,home,nav)
+	if cell == WorldState.NO_CELL or world.fires.has(cell): return false
+	var current := Vector2i(member.x,member.y)
+	var distance: int = 2*int(nav.distances[cell])+int(nav.distances.get(current,0))
+	if distance*WorldLife.hunger_rate(world,member)+SURVEY_WORK > 2*WorldEconomy.NUTRITION+25-member.hunger: return false
+	home.food -= provision; member.rations += provision
+	var state := state_for(world,home)
+	var task := WorldEconomy.task("explore",cell,home.id)
+	task.phase = "outbound"; task.reason = "ruins"; task.radius = int(state.radius); task.surveyed = false
+	WorldEconomy.set_task(world,member,task); member.job = "scout"
+	world.log_event("По следам прежних жителей","%s: %s отправляется обследовать старые основания." % [home.name,member.name])
+	return true
+
 static func execute(world, member: Dictionary, home: Dictionary) -> void:
 	var task: Dictionary = member.task
 	var target := Vector2i(task.x, task.y)
@@ -121,6 +140,10 @@ static func execute(world, member: Dictionary, home: Dictionary) -> void:
 		return
 	var state := state_for(world, home)
 	state.next_tick = world.ticks + WorldEconomy.DAY_TICKS * RETRY_DAYS
+	if task.surveyed and task.reason == "ruins":
+		WorldVocation.milestone(member,"explore")
+		WorldEconomy.set_task(world,member,{})
+		return
 	if task.surveyed:
 		WorldVocation.milestone(member, "explore")
 		state.pending_radius = mini(MAX_RANGE, int(task.radius) + RANGE_STEP)

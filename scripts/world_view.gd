@@ -380,7 +380,7 @@ func _draw_regions() -> void:
 func _draw_landscape() -> void:
 	if zoom*get_window().content_scale_factor < 0.15: return
 	for key in visible_regions:
-		var living := world.landscape.path_regions.has(key) or world.landscape.site_regions.has(key) or world.landscape.grounds.has(key) or world.landscape.scar_regions.has(key)
+		var living := world.landscape.path_regions.has(key) or world.landscape.site_regions.has(key) or world.landscape.grounds.has(key) or world.landscape.scar_regions.has(key) or world.heritage.draw_regions.has(key)
 		if not living:
 			landscape_textures.erase(key)
 			continue
@@ -714,6 +714,7 @@ func _draw() -> void:
 		return
 	_draw_regions()
 	draw_set_transform(offset, 0, Vector2.ONE * zoom)
+	_draw_historical_marks()
 	for town in world.towns:
 		if not Rect2(Vector2.ZERO, size).grow(60).has_point(cell_to_local(Vector2i(town.x, town.y))): continue
 		var pos := Vector2(Vector2i(town.x, town.y) - camera_origin) * TILE
@@ -1160,3 +1161,20 @@ func _apply_tool_now(cell: Vector2i) -> void:
 		"rain":
 			world.rain(cell, mini(brush_radius, 8) + 3)
 			add_effect(cell, tool)
+
+func _draw_historical_marks() -> void:
+	var shown := {}
+	for key in visible_regions:
+		for id in world.heritage.regions.get(key,[]):
+			if shown.has(id): continue
+			shown[id] = true
+			var site: Dictionary = world.heritage.site_index[id]
+			if site.current != -1 or site.remains.is_empty(): continue
+			var cell := Vector2i(site.x,site.y)
+			var chunk: Dictionary = world.chunks.get(WorldState.chunk_of(cell),{})
+			if not chunk.is_empty() and chunk.tiles[WorldState.local_index(cell)] == WorldState.Terrain.WATER: continue
+			if not Rect2(Vector2.ZERO,size).grow(16).has_point(cell_to_local(cell)): continue
+			var pos := Vector2(cell-camera_origin)*TILE+Vector2(4,4)
+			var scale := 1.0/zoom
+			var mark := PackedVector2Array([pos+Vector2(0,-4)*scale,pos+Vector2(4,0)*scale,pos+Vector2(0,4)*scale,pos+Vector2(-4,0)*scale,pos+Vector2(0,-4)*scale])
+			draw_polyline(mark,Color("e0c38e"),scale)

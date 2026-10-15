@@ -8,7 +8,7 @@ signal changed
 enum Terrain { WATER, SAND, GRASS, FOREST, MOUNTAIN }
 const MAP_SIZE := 128
 const MAX_PEOPLE := 2000
-const SAVE_VERSION := 11
+const SAVE_VERSION := 12
 const MAX_BUILDINGS := 2048
 const CHUNK_SIZE := 32
 const MAX_CHUNKS := 2048
@@ -107,6 +107,7 @@ var stepping := false
 var profiling := false
 var timings: Dictionary = {}
 var landscape := WorldLandscape.new()
+var heritage := WorldHeritage.new()
 
 func _init() -> void:
 	for key in WorldEconomy.METRICS: metrics[key] = 0
@@ -115,6 +116,8 @@ func _init() -> void:
 
 func generate(seed_value: int) -> void:
 	landscape = WorldLandscape.new()
+	heritage = WorldHeritage.new()
+	heritage.initialize(seed_value)
 	population.clear()
 	workforce.end()
 	world_seed = seed_value
@@ -523,6 +526,8 @@ func step() -> void:
 
 func track_person_move(member: Dictionary, previous: Vector2i) -> void:
 	landscape.moved(self,member,previous)
+	heritage.visit(self,member,Vector2i(member.x,member.y))
+	heritage.returned(self,member)
 	if chunk_of(previous) != chunk_of(Vector2i(member.x, member.y)): regions.pin_signature.clear()
 	population.moved(self, member)
 	workforce.moved(self, member, previous)
@@ -543,6 +548,7 @@ func repair_building(i: int, lost_stores: Dictionary) -> void:
 			if fires.has(cell): burning = true
 	if burning: value.integrity -= 2
 	if valid and value.integrity > 0: return
+	heritage.remember_building(self,value)
 	metrics.lost_food += value.stock
 	WorldCivilization.lost_building(self, value)
 	if not value.ready: metrics.lost_wood += value.delivered
@@ -611,6 +617,7 @@ func _found_town(p: Dictionary) -> void:
 		next_id += 1
 		towns.append(home)
 		navigation[home.id] = prepared_navigation
+		heritage.settled(self,home)
 		WorldEconomy.add_building(self, home, "camp", cell, true)
 		log_event("Основано поселение", "%s: жители обустроили общий лагерь." % name_value)
 
@@ -644,7 +651,7 @@ func to_dict(include_regions: bool = true, include_residents: bool = true) -> Di
 		"ticks": ticks, "next_id": next_id, "chunks": saved_regions, "regrowth": regrowth,
 		"people": people.duplicate(true) if include_residents else [], "towns": towns.duplicate(true), "buildings": buildings.duplicate(true), "metrics": metrics.duplicate(), "fires": saved_fires,
 		"societies": societies.duplicate(true), "households": households.duplicate(true), "ancestry_archive": ancestry_archive.duplicate(true),
-		"history": history.duplicate(true), "rng_state": str(rng.state), "landscape":landscape.save(),
+		"history": history.duplicate(true), "rng_state": str(rng.state), "landscape":landscape.save(), "heritage":heritage.save(),
 		"wet_until": wet_until, "drought_until": drought_until, "weather": weather.duplicate(true)}
 
 static func _integer(value: Variant) -> bool:
@@ -684,7 +691,7 @@ static func _migrate(data: Dictionary) -> Dictionary:
 
 static func from_dict(source: Dictionary, region_files: Dictionary = {}) -> WorldState:
 	var data := _migrate(source) if source.get("version") == 1 else source
-	if not _integer(data.get("version")) or int(data.version) not in [2, 3, 4, 5, 6, 7, 8, 9, 10, SAVE_VERSION] or data.get("chunk_size") != CHUNK_SIZE: return null
+	if not _integer(data.get("version")) or int(data.version) not in [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, SAVE_VERSION] or data.get("chunk_size") != CHUNK_SIZE: return null
 	for key in ["chunks", "people", "towns", "history", "fires"]:
 		if not data.get(key) is Array: return null
 	if data.chunks.size() > MAX_CHUNKS or data.people.size() > MAX_PEOPLE or data.towns.size() > MAX_PEOPLE or data.history.size() > 60: return null
@@ -809,6 +816,8 @@ static func from_dict(source: Dictionary, region_files: Dictionary = {}) -> Worl
 	if not WorldWeather.restore(world, data.get("weather")): return null
 	if data.version >= 11 and not data.has("landscape"): return null
 	if not world.landscape.restore(world,data.get("landscape")): return null
+	if data.version >= 12 and not data.get("heritage") is Dictionary: return null
+	if not world.heritage.restore(world,data.get("heritage")): return null
 	return world
 
 func _profile_stage(label: String, before: int) -> int:

@@ -55,7 +55,7 @@ func setup(mobile: bool, target: float) -> void:
 	add_child(notice)
 	notice_label = label("", 14, AtlasTheme.INK)
 	notice.add_child(notice_label)
-	for item in [["development", "Развитие"], ["technology", "Технологии"], ["economy", "Хозяйство"], ["population", "Жители"], ["sea", "Море и соседи"], ["family", "Семья"], ["skills", "Навыки и характер"], ["relations", "Отношения"], ["building", "Постройка"], ["terrain", "Местность"]]:
+	for item in [["history", "История места"], ["development", "Развитие"], ["technology", "Технологии"], ["economy", "Хозяйство"], ["population", "Жители"], ["sea", "Море и соседи"], ["family", "Семья"], ["skills", "Навыки и характер"], ["relations", "Отношения"], ["building", "Постройка"], ["terrain", "Местность"]]:
 		var box := VBoxContainer.new()
 		box.add_theme_constant_override("separation", 4)
 		add_child(box)
@@ -155,8 +155,9 @@ func rows(key: String, values: Array) -> void:
 	detail_updates += 1
 
 func present(world: WorldState, cell: Vector2i, person: Dictionary, home: Dictionary, building: Dictionary) -> void:
-	var kind := "person" if not person.is_empty() else ("town" if not home.is_empty() else "terrain")
-	var key := kind + ":" + (str(person.id) if kind == "person" else (str(home.id) if kind == "town" else str(cell)))
+	var site := world.heritage.at(cell)
+	var kind := "person" if not person.is_empty() else ("town" if not home.is_empty() else ("site" if not site.is_empty() else "terrain"))
+	var key := kind + ":" + (str(person.id) if kind == "person" else (str(home.id) if kind == "town" else (str(site.id) if kind == "site" else str(cell))))
 	if identity != key:
 		reset()
 		identity = key
@@ -192,6 +193,15 @@ func present(world: WorldState, cell: Vector2i, person: Dictionary, home: Dictio
 		if person.task.get("kind", "") == "research": activity = "Исследует: " + WorldSociety.TECH[person.task.tech].name
 		put(notice_label, activity)
 		warning = person.health < 60 or person.hunger >= 40
+	elif kind == "site":
+		put(title_label,site.name)
+		var period: Dictionary = site.periods.back()
+		put(subtitle_label,("Опустело · " + world.heritage.date(period.end)) if period.end >= 0 else "Заселено вновь")
+		metric(0,str(site.finds.size()),"находок")
+		metric(1,str(site.visitors.size()),"общин")
+		metric_nodes[2].card.hide()
+		metric_nodes[3].card.hide()
+		put(notice_label,str(site.periods.back().cause).replace("Последняя потеря жителя:","Последняя потеря:") if site.current == -1 else "Место заселено вновь")
 	else:
 		put(title_label, WorldState.TERRAIN_NAMES[world.terrain_at(cell)])
 		put(subtitle_label, "Клетка · %d, %d" % [cell.x, cell.y])
@@ -200,6 +210,7 @@ func present(world: WorldState, cell: Vector2i, person: Dictionary, home: Dictio
 		metric_nodes[2].card.hide()
 		metric_nodes[3].card.hide()
 		put(notice_label, WorldClimate.describe(world, cell))
+	if not site.is_empty(): visible_sections.append("history")
 	if not building.is_empty() and building.kind != "camp": visible_sections.append("building")
 	if notice_warning != warning:
 		notice_warning = warning
@@ -212,6 +223,9 @@ func present(world: WorldState, cell: Vector2i, person: Dictionary, home: Dictio
 func details(key: String, world: WorldState, cell: Vector2i, person: Dictionary, home: Dictionary, building: Dictionary) -> Array:
 	var result: Array = []
 	match key:
+		"history":
+			var site := world.heritage.at(cell)
+			if not site.is_empty(): result = world.heritage.details(site)
 		"development":
 			var society := WorldSociety.get_society(world, home.id)
 			if society.is_empty(): return [["Община формируется", "Развитие начинается с повседневной практики."]]

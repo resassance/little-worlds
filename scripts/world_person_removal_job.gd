@@ -23,6 +23,7 @@ func unit() -> void:
 	if finished: return
 	match phase:
 		0:
+			world.heritage.lost(member.id)
 			WorldTravel.death(world,member.id); WorldMaritime.death(world,member.id)
 			WorldEconomy.lose_cargo(world,member); WorldSocial.cancel_lesson(world,member)
 			for connection in member.links:
@@ -82,6 +83,7 @@ func unit() -> void:
 				if family.members.is_empty():
 					world.metrics.lost_food += family.food; world.household_index.erase(family.id); world.households.erase(family)
 		5:
+			world.heritage.resident_lost(world,member,cause)
 			world.person_index.erase(member.id); world.people.erase(member)
 			world.population.ready = false; world.workforce.plans.clear(); world.workforce.contributions.clear()
 			WorldSociety.invalidate(world); world.population_dirty = true; world.life_dirty = true
