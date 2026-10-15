@@ -1,26 +1,26 @@
-# Тестовая сборка living-landscape-06
+# Тестовая сборка inspector-07
 
-Версия 0.2.6-test.6, Android versionCode 15.
+Версия 0.2.6-test.7, Android versionCode 16.
 
-На карте появляются тропы, хозяйственные дворы, пни, молодые побеги, карьеры и остатки разрушенных зданий. Поля показывают стадии роста, урожай и зимний вид. Изменения следуют за реальной деятельностью жителей.
+Окна поселений, жителей и клеток получили крупные заголовки и карточки показателей. Подробности раскрываются по разделам, летопись находится на вкладке «События». Дефицит еды, жилья и плохое состояние жителя выделяются в сводке.
 
-[Все файлы](https://github.com/resassance/little-worlds/tree/test/living-landscape-06/test-builds).
+[Все файлы](https://github.com/resassance/little-worlds/tree/test/inspector-07/test-builds).
 
-- [Android Preview APK](https://github.com/resassance/little-worlds/raw/refs/heads/test/living-landscape-06/test-builds/little-worlds-android-preview.apk)
-- [Windows](https://github.com/resassance/little-worlds/raw/refs/heads/test/living-landscape-06/test-builds/little-worlds-windows-test.zip)
-- [Linux](https://github.com/resassance/little-worlds/raw/refs/heads/test/living-landscape-06/test-builds/little-worlds-linux-test.zip)
-- [Web](https://github.com/resassance/little-worlds/raw/refs/heads/test/living-landscape-06/test-builds/little-worlds-web-test.zip)
-- [Исходники](https://github.com/resassance/little-worlds/raw/refs/heads/test/living-landscape-06/test-builds/little-worlds-godot-test.zip)
+- [Android Preview APK](https://github.com/resassance/little-worlds/raw/refs/heads/test/inspector-07/test-builds/little-worlds-android-preview.apk)
+- [Windows](https://github.com/resassance/little-worlds/raw/refs/heads/test/inspector-07/test-builds/little-worlds-windows-test.zip)
+- [Linux](https://github.com/resassance/little-worlds/raw/refs/heads/test/inspector-07/test-builds/little-worlds-linux-test.zip)
+- [Web](https://github.com/resassance/little-worlds/raw/refs/heads/test/inspector-07/test-builds/little-worlds-web-test.zip)
+- [Исходники](https://github.com/resassance/little-worlds/raw/refs/heads/test/inspector-07/test-builds/little-worlds-godot-test.zip)
 
 APK обновляет прежнюю «Маленькие миры · тест» с сохранением её миров.
 
 ## Что посмотреть
 
-1. Откройте прежний мир или начните с обычного острова. За несколько игровых месяцев сравните землю возле домов, поля и часто используемые маршруты.
-2. Дайте жителям рубить лес и добывать камень. Появятся пни и выработки; подходящий лес постепенно восстановится.
-3. Уничтожьте готовую постройку пожаром, затем наблюдайте за обломками, восстановлением и новой стройкой.
-4. Сохраните и загрузите мир. Повторите непрерывное рисование суши и воды возле поселения и вдалеке на ×1 и ×5.
+1. Нажмите на поселение. Сверху видны население, жильё, запас еды в месяцах и древесина. Ниже находятся раскрывающиеся разделы.
+2. Откройте «Развитие», «Технологии» или «Хозяйство», прокрутите и дождитесь смены месяца. Список сохраняет положение и обновляет цифры.
+3. Перейдите в «События» и обратно. Затем выберите другое поселение или жителя: новая сводка открывается сверху.
+4. На жителе посмотрите здоровье, силы, голод и еду; семья, навыки и отношения раскрываются отдельно. Закройте окно и продолжите играть и рисовать кистью.
 
-[Пример до](test-builds/landscape-before.png) · [Пример после](test-builds/landscape-after.png) · [Правила](docs/LIVING_LANDSCAPE.md).
+[На телефоне](test-builds/inspector-settlement-phone.png) · [Развитие](test-builds/inspector-development-phone.png) · [На ПК](test-builds/inspector-settlement-desktop.png) · [Устройство панели](docs/INSPECTOR.md).
 
 Если скачивание не начинается, откройте папку сборки, выберите файл и нажмите Download raw file. Для Web распакуйте весь архив и запустите start-windows.exe или start-linux.

@@ -31,7 +31,12 @@ var brush_label: Label
 var brush_slider: HSlider
 var brush_row: VBoxContainer
 var stats_label: Label
-var inspector_label: Label
+var inspector: WorldInspector
+var world_info: VBoxContainer
+var object_tab: Button
+var world_tab: Button
+var info_world := false
+var info_scroll_positions := [0, 0]
 var history_box: VBoxContainer
 var history_scroll: ScrollContainer
 var status_label: Label
@@ -519,9 +524,19 @@ func _build_info_drawer() -> void:
 	hud.add_child(sidebar)
 	var side := VBoxContainer.new()
 	sidebar.add_child(side)
-	_drawer_heading(side, "Атлас мира", _toggle_info)
-
-
+	var tabs := HBoxContainer.new()
+	side.add_child(tabs)
+	object_tab = _button("Выбрано", func(): _set_info_tab(false), Vector2(0, 36))
+	world_tab = _button("События", func(): _set_info_tab(true), Vector2(0, 36))
+	var tab_group := ButtonGroup.new()
+	tab_group.allow_unpress = false
+	for tab in [object_tab, world_tab]:
+		tab.button_group = tab_group
+		tab.toggle_mode = true
+		tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		tabs.add_child(tab)
+	tabs.add_child(_button("×", _toggle_info, Vector2(38, 36)))
+	object_tab.set_pressed_no_signal(true)
 	history_scroll = ScrollContainer.new()
 	history_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	history_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -529,20 +544,38 @@ func _build_info_drawer() -> void:
 	var content := VBoxContainer.new()
 	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	history_scroll.add_child(content)
-	stats_label = _label("", 13, MUTED)
-	content.add_child(stats_label)
-	content.add_child(HSeparator.new())
-	inspector_label = _label("Выберите клетку, чтобы узнать о её ресурсах и поселении.", 12, MUTED)
-	inspector_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	inspector_label.custom_minimum_size.x = 240
-	content.add_child(inspector_label)
-	content.add_child(HSeparator.new())
-	content.add_child(_label("Летопись", 14, ACCENT))
+	inspector = WorldInspector.new()
+	content.add_child(inspector)
+	inspector.setup(touch_ui, _touch_target())
+	inspector.details_changed.connect(func(): inspector_dirty = true)
+	inspector.selection_changed.connect(func():
+		info_scroll_positions[0] = 0
+		history_scroll.set_deferred("scroll_vertical", 0))
+	world_info = VBoxContainer.new()
+	world_info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content.add_child(world_info)
+	stats_label = _label("", 14, AtlasTheme.INK)
+	stats_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	world_info.add_child(stats_label)
+	world_info.add_child(HSeparator.new())
+	world_info.add_child(_label("Летопись", 18, ACCENT))
 	history_box = VBoxContainer.new()
 	history_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	history_box.add_theme_constant_override("separation", 14)
-	content.add_child(history_box)
+	world_info.add_child(history_box)
+	world_info.hide()
 	sidebar.hide()
+
+func _set_info_tab(show_world: bool) -> void:
+	if info_world == show_world: return
+	info_scroll_positions[int(info_world)] = history_scroll.scroll_vertical
+	info_world = show_world
+	inspector.visible = not show_world
+	world_info.visible = show_world
+	object_tab.set_pressed_no_signal(not show_world)
+	world_tab.set_pressed_no_signal(show_world)
+	history_scroll.set_deferred("scroll_vertical", info_scroll_positions[int(show_world)])
+	inspector_dirty = true
 
 func _build_dialogs() -> void:
 	generation_dialog = ConfirmationDialog.new()
@@ -665,7 +698,7 @@ func _responsive() -> void:
 	var bottom := safe_rect.end.y - (_touch_target() if touch_ui else 44.0)
 	var available_height := maxf(80, bottom - top - 12)
 	tool_panel.size = Vector2(minf(324 if touch_ui else 248, safe_rect.size.x), available_height)
-	sidebar.size = Vector2(minf(360 if touch_ui else 296, safe_rect.size.x), available_height)
+	sidebar.size = Vector2(minf(360 if touch_ui else 344, safe_rect.size.x), available_height)
 	tool_panel.position = Vector2(safe_rect.position.x if tools_open else -tool_panel.size.x - 16, top)
 	sidebar.position = Vector2(safe_rect.end.x - sidebar.size.x if info_open else size.x + 16, top)
 	tool_panel.visible = tools_open
@@ -709,6 +742,7 @@ func _toggle_tools() -> void:
 	_set_drawer("tools", not tools_open)
 
 func _toggle_info() -> void:
+	if not info_open and selected_cell == WorldState.NO_CELL: _set_info_tab(true)
 	_set_drawer("info", not info_open)
 
 func _set_drawer(key: String, opened: bool, animated: bool = true) -> void:
@@ -802,7 +836,10 @@ func _set_world(value: WorldState) -> void:
 	selected_cell = WorldState.NO_CELL
 	pending_inspection = WorldState.NO_CELL; pending_inspection_cycles = 0
 	inspected_person_id = -1
-	inspector_label.text = "Выберите клетку, чтобы узнать о её ресурсах и поселении."
+	inspector.reset()
+	object_tab.text = "Выбрано"
+	info_scroll_positions = [0, 0]
+	history_scroll.scroll_vertical = 0
 	accumulator = 0.0
 	autosave_timer = 0.0
 	history_signature = ""
@@ -928,7 +965,8 @@ func _refresh_inspector() -> void:
 	inspector_dirty = false
 	inspector_timer = 0.0
 	inspector_updates += 1
-	if selected_cell != WorldState.NO_CELL: _inspect(selected_cell, false)
+	if selected_cell != WorldState.NO_CELL and not info_world: _inspect(selected_cell, false)
+	if not info_world: return
 	var signature := str(world.history_revision)
 	if signature != history_signature:
 		history_signature = signature
@@ -936,11 +974,15 @@ func _refresh_inspector() -> void:
 			history_box.remove_child(child)
 			child.queue_free()
 		for event in world.history.slice(0, 20):
+			var card := PanelContainer.new()
+			card.add_theme_stylebox_override("panel", inspector.surface(Color("f0e3c7"), Color("baa27b")))
+			history_box.add_child(card)
 			var entry := VBoxContainer.new()
-			entry.add_theme_constant_override("separation", 4)
-			history_box.add_child(entry)
+			entry.add_theme_constant_override("separation", 6)
+			card.add_child(entry)
 			entry.add_child(_label("ГОД %d · МЕСЯЦ %d" % [int(event.tick) / WorldLife.YEAR + 1, (int(event.tick) / WorldEconomy.DAY_TICKS) % WorldEconomy.DAYS_PER_YEAR + 1], 10, ACCENT))
-			var title := _label(event.title, 13)
+			var title := _label(event.title, 15)
+			title.add_theme_font_override("font", BOLD)
 			title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			entry.add_child(title)
 			var description := _label(event.message, 12, MUTED)
@@ -948,6 +990,7 @@ func _refresh_inspector() -> void:
 			entry.add_child(description)
 
 func _request_inspection(cell: Vector2i) -> void:
+	_set_info_tab(false)
 	if not hud_hidden: _set_drawer("info", true)
 	pending_inspection_cycles = pending_inspection_cycles + 1 if pending_inspection == cell else 1
 	pending_inspection = cell
@@ -983,15 +1026,8 @@ func _inspect(cell: Vector2i, reveal: bool = true, open_panel: bool = true, cycl
 		inspector_dirty = true
 		return
 	world.workforce.begin(world, false)
-	var text_value := "%s · %d, %d\nЕда: %d · Древесина: %d" % [WorldState.TERRAIN_NAMES[world.terrain_at(cell)], cell.x, cell.y, world.food_at(cell), world.wood_at(cell)]
-	if not person.is_empty():
-		var activity: String = WorldEconomy.describe(person) if WorldLife.adult(world, person) else ("Под присмотром опекуна" if person.guardian != -1 else "Нуждается в опекуне")
-		if not person.lesson.is_empty(): activity = "Учится: " + WorldSocial.SKILLS[person.lesson.skill]
-		text_value = "%s · %d лет\n%s · %s\n%s\n\nГолод: %d%% · Силы: %d%%\nЗдоровье: %d%% · еда с собой: %d\n\n%s" % [person.name, WorldLife.years(world, person), WorldLife.STAGES[WorldLife.stage(world, person)], WorldEconomy.JOBS[person.job], activity, person.hunger, person.energy, person.health, person.rations, WorldLife.family_description(world, person)]
-		text_value += WorldSocial.describe(world, person)
-		if person.task.get("kind", "") == "research": text_value += "\nИсследует: " + WorldSociety.TECH[person.task.tech].name
-	else:
-		var nearest: Dictionary = {}
+	var nearest: Dictionary = {}
+	if person.is_empty():
 		if not structure.is_empty(): nearest = WorldEconomy.town(world, structure.town)
 		if nearest.is_empty():
 			var distance := 7.0
@@ -1000,23 +1036,11 @@ func _inspect(cell: Vector2i, reveal: bool = true, open_panel: bool = true, cycl
 				if gap < distance:
 					nearest = home
 					distance = gap
-		if not nearest.is_empty():
-			text_value = "%s\n%d жителей · %d мест\nЕда: %d/%d · %.1f мес.\nДревесина: %d/%d\nДома: %d · Поля: %d · Склады: %d\n\n%s" % [nearest.name, WorldEconomy.members(world, nearest).size(), WorldEconomy.housing(world, nearest), nearest.food, WorldEconomy.food_capacity(world, nearest), WorldEconomy.food_days(world, nearest), nearest.wood, WorldEconomy.wood_capacity(world, nearest), WorldEconomy.count(world, nearest, "house"), WorldEconomy.count(world, nearest, "farm"), WorldEconomy.count(world, nearest, "store"), WorldEconomy.status(world, nearest)]
-			text_value += WorldSociety.description(world, nearest)
-			text_value += WorldCivilization.description(world, nearest)
-			text_value += WorldMaritime.description(world, nearest)
-			text_value += "\n\n" + WorldLife.population_summary(world, nearest)
-			text_value += WorldSocial.summary(world, nearest)
-		if not structure.is_empty() and structure.kind != "camp":
-			text_value += "\n\n" + WorldEconomy.NAMES[structure.kind]
-			if structure.kind == "farm" and structure.ready:
-				var grow_steps := 50 if WorldSociety.active(world, WorldEconomy.town(world, structure.town), "rotation") else 60
-				text_value += " · урожай: %d" % structure.stock if structure.stock > 0 else (" · рост: %d%%" % (structure.growth * 100 / grow_steps) if structure.planted else " · ждёт посева")
-	text_value += "\n\n" + WorldClimate.describe(world, cell)
-	text_value += "\n%d, %d" % [cell.x, cell.y]
+	if reveal: _set_info_tab(false)
+	inspector.present(world, cell, person, nearest, structure)
+	object_tab.text = {"town": "Поселение", "person": "Житель", "terrain": "Клетка"}[inspector.selection_kind]
 	world.workforce.end()
 	world.population.active = false
-	if inspector_label.text != text_value: inspector_label.text = text_value
 	inspector_dirty = false
 	inspector_timer = 0.0
 	if reveal and open_panel and not hud_hidden: _set_drawer("info", true)

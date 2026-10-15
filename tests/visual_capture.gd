@@ -25,6 +25,11 @@ func snapshot(name_value: String) -> void:
  var result = root.get_texture().get_image().save_png("res://artifacts/" + name_value + ".png")
  check(result == OK, "screenshot saved: " + name_value)
 
+func inspector_text(open_sections: Array = []) -> String:
+ for key in open_sections: game.inspector.set_expanded(key, true)
+ game._refresh_inspector()
+ return game.inspector.readable_text()
+
 func capture() -> void:
  game = load("res://scenes/main.tscn").instantiate()
  root.add_child(game)
@@ -87,10 +92,10 @@ func capture() -> void:
  game.view.apply_tool(Vector2i(demo.towns[0].x, demo.towns[0].y))
  game.view.flush_tools(0)
  await settle_layout()
- check(game.inspector_label.text.contains(demo.towns[0].name), "inspection displays town details")
+ check(inspector_text().contains(demo.towns[0].name), "inspection displays town details")
  await snapshot("world-info")
  check(game.info_open, "inspection reveals info drawer")
- check(game.inspector_label.text.contains("Дома:") and game.inspector_label.text.contains("мес."), "town inspection shows real buildings and food runway")
+ check(inspector_text(["economy"]).contains("Дом:") and inspector_text().contains("мес."), "town inspection shows real buildings and food runway")
  game.view.go_to_cell(Vector2i(demo.towns[0].x, demo.towns[0].y))
  game.view.zoom_by(3.0 / game.view.zoom)
  await snapshot("world-economy")
@@ -103,7 +108,7 @@ func capture() -> void:
  check(not resident.is_empty(), "demo has an inspectable resident outside camp")
  if not resident.is_empty():
   game._inspect(Vector2i(resident.x, resident.y))
-  check(game.inspector_label.text.contains(resident.name) and game.inspector_label.text.contains(WorldEconomy.JOBS[resident.job]), "resident inspection shows name and actual profession")
+  check(inspector_text().contains(resident.name) and inspector_text().contains(WorldEconomy.JOBS[resident.job]), "resident inspection shows name and actual profession")
   demo.step()
   check(game.selected_cell == Vector2i(resident.x, resident.y) and game.inspected_person_id == resident.id, "inspection follows the selected resident while they work")
   await snapshot("world-resident")
@@ -119,7 +124,7 @@ func capture() -> void:
    game._inspect(Vector2i(child.x, child.y))
    if game.inspected_person_id == child.id: break
   check(game.inspected_person_id == child.id, "clicks select a child among people sharing a tile")
-  check(game.inspector_label.text.contains("Малыш") and game.inspector_label.text.contains("Родители:") and game.inspector_label.text.contains("Опекун:"), "child inspection shows age, parents and caregiver")
+  check(inspector_text().contains("Малыш") and inspector_text(["family"]).contains("Родители:") and inspector_text().contains("Опекун:"), "child inspection shows age, parents and caregiver")
   game.view.go_to_cell(Vector2i(child.x, child.y))
   await snapshot("world-family")
  game._toggle_info()
@@ -245,7 +250,7 @@ func capture() -> void:
  game.view.apply_tool(distant)
  game.view.flush_tools(0)
  await settle_layout()
- check(game.inspector_label.text.contains("-900000"), "inspection supports negative world coordinates")
+ check(inspector_text(["terrain"]).contains("-900000"), "inspection supports negative world coordinates")
  game._toggle_info()
  await snapshot("world-distant")
  game._world_menu_selected(4)
@@ -285,7 +290,7 @@ func capture() -> void:
    game._inspect(Vector2i(apprentice.x, apprentice.y))
    if game.inspected_person_id == apprentice.id: break
   check(game.inspected_person_id == apprentice.id, "repeated inspection selects pupils even at a camp")
-  check(game.inspector_label.text.contains("Навыки") and game.inspector_label.text.contains("учитель") and game.inspector_label.text.contains("Друзья:"), "apprentice card explains skills, teacher and friendships")
+  check(inspector_text(["skills", "relations"]).contains("Навыки") and inspector_text().contains("Учитель") and (inspector_text().contains("Друзья:") or inspector_text().contains("Друг:")), "apprentice card explains skills, teacher and friendships")
   await snapshot("world-learning")
   root.size = Vector2i(844, 480)
   await snapshot("world-mobile-learning")
@@ -299,7 +304,7 @@ func capture() -> void:
  game.selected_cell = WorldState.NO_CELL
  game.view.go_to_cell(Vector2i(home.x, home.y))
  game._inspect(Vector2i(home.x, home.y))
- check(game.inspector_label.text.contains("Строительство и инженерия:") and game.inspector_label.text.contains("Хранение пищи: применяется") and game.inspector_label.text.contains("Архивы: 1"), "town card shows actual society stage, technology use and infrastructure")
+ check(inspector_text(["development", "technology", "economy"]).contains("Строительство и инженерия:") and inspector_text().contains("Хранение пищи: Применяется") and inspector_text().contains("Архив: 1"), "town card shows actual society stage, technology use and infrastructure")
  await snapshot("world-society")
  root.size = Vector2i(844, 480)
  await snapshot("world-mobile-society")
