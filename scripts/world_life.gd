@@ -247,7 +247,7 @@ static func court_member(world, home: Dictionary, a: Dictionary) -> void:
 		a.bond = 0
 		candidate = {}
 		var best_score := -INF
-		for b in world.population.nearby(world, Vector2i(a.x, a.y), 9, home.id):
+		for b in world.population.nearby(world, Vector2i(a.x, a.y), 9, home.id, {"courtship": true, "sex": a.sex}):
 			if WorldTravel.away(world, b.id) or WorldSocial.tension(a,b)>=30 or b.partner != -1 or b.courting != -1 or b.hunger > 40 or not partner_valid(world, a, b): continue
 			if absi(years(world, a) - years(world, b)) > 20: continue
 			if Vector2i(a.x, a.y).distance_squared_to(Vector2i(b.x, b.y)) > 9: continue

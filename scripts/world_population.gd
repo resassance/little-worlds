@@ -92,6 +92,8 @@ func nearby(world, center: Vector2i, radius_squared: int, home: Variant = null, 
 static func accepts(world, member: Dictionary, options: Dictionary) -> bool:
 	if options.is_empty(): return true
 	if member.id == options.get("exclude_id", -1) or member.id <= options.get("after_id", -1): return false
+	if options.get("courtship", false):
+		if member.sex == options.sex or member.partner != -1 or member.courting != -1 or member.hunger > 40 or not WorldLife.adult(world, member): return false
 	return not options.get("local", false) or not WorldTravel.away(world, member.id)
 
 func children(world, guardian: Dictionary) -> Array[Dictionary]:

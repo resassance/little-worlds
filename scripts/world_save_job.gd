@@ -18,6 +18,7 @@ var captured_people: Array[Dictionary] = []
 var region_contents: Array[Dictionary] = []
 var people_contents := PackedStringArray()
 var header := ""
+var header_snapshot: Dictionary = {}
 var header_job: WorldSaveHeaderJob
 var snapshot_ready: bool:
 	get: return phase >= 3 and not finished
@@ -32,6 +33,8 @@ func _init(value: WorldState, destination: String = SaveStore.SAVE_PATH) -> void
 
 func _fail(error: Error) -> void:
 	result = error; finished = true
+	captured_regions.clear()
+	header_snapshot.clear(); header_job = null
 	if file != null: file.close(); file = null
 
 func advance(budget_usec: int = 2500) -> bool:
@@ -68,14 +71,19 @@ func _prepare_unit() -> void:
 			captured_regions.append({"key":key,"packet":packet}); cursor += 1
 		1:
 			if header_job == null:
-				header_job = WorldSaveHeaderJob.new(world,[])
+				header_job = WorldSaveHeaderJob.new(world,[],true)
 				header_job.data.erase("regions")
 			if not header_job.finished: header_job.unit(); return
-			header = header_job.result; header_job = null; _next(2)
+			header_snapshot = header_job.data; header_job = null; _next(2)
 		2:
 			if cursor >= world.people.size(): _next(3); return
 			captured_people.append(world.people[cursor].duplicate(true)); cursor += 1
 		3:
+			if header.is_empty():
+				if header_job == null: header_job = WorldSaveHeaderJob.new(null, [], false, header_snapshot)
+				if not header_job.finished: header_job.unit(); return
+				header = header_job.result; header_job = null; header_snapshot = {}
+				return
 			if cursor >= captured_regions.size(): captured_regions.clear(); _next(4); return
 			var captured := captured_regions[cursor]
 			var key: Vector2i = captured.key

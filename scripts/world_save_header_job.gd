@@ -11,9 +11,16 @@ var stack: Array[Dictionary] = []
 var parts := PackedStringArray()
 var result := ""
 var finished := false
+var capturing := false
+var copies: Array[Dictionary] = []
+var copy_cursor := 0
 
-func _init(value, references: Array[Dictionary]) -> void:
+func _init(value, references: Array[Dictionary], capture_only: bool = false, snapshot: Dictionary = {}) -> void:
 	world = value
+	capturing = capture_only
+	if not snapshot.is_empty():
+		data = snapshot
+		return
 	data = {"version": WorldState.SAVE_VERSION, "chunk_size": WorldState.CHUNK_SIZE, "seed": world.world_seed,
 		"climate": {"settings": world.climate, "overrides": [], "stumps": []},
 		"civilization": {"towns": world.civilization.values(), "metrics": world.industry, "deposits": []},
@@ -30,11 +37,45 @@ func _init(value, references: Array[Dictionary]) -> void:
 		{"source": world.fires, "keys": world.fires.keys(), "target": data.fires, "kind": 2},
 		{"source":world.landscape.paths,"keys":world.landscape.paths.keys(),"target":data.landscape.paths,"kind":3},
 		{"source":world.landscape.scars,"keys":world.landscape.scars.keys(),"target":data.landscape.scars,"kind":4}]
+	if capturing:
+		data.climate.settings = world.climate.duplicate(true)
+		data.civilization.metrics = world.industry.duplicate(true)
+		data.metrics = world.metrics.duplicate()
+		data.weather = world.weather.duplicate(true)
+		for key in ["towns", "buildings", "societies", "households", "ancestry_archive", "history", "journeys"]: _copy_array(data, key)
+		_copy_array(data.civilization, "towns")
+		_copy_array(data.maritime, "voyages")
+		_copy_array(data.maritime, "contacts")
+		var explored: Dictionary = data.maritime.explored
+		data.maritime.explored = {}
+		copies.append({"source": explored, "keys": explored.keys(), "target": data.maritime.explored, "cursor": 0, "dictionary": true})
+
+func _copy_array(container: Dictionary, key: String) -> void:
+	var source: Array = container[key]
+	container[key] = []
+	copies.append({"source": source, "target": container[key], "cursor": 0, "dictionary": false})
+
+func _copy_unit() -> void:
+	if copy_cursor >= copies.size():
+		copies.clear(); maps.clear()
+		finished = true
+		return
+	var item: Dictionary = copies[copy_cursor]
+	if item.cursor >= item.source.size(): copy_cursor += 1; return
+	var key: Variant = item.keys[item.cursor] if item.dictionary else item.cursor
+	var value: Variant = item.source[key]
+	if value is Dictionary or value is Array: value = value.duplicate(true)
+	if item.dictionary: item.target[key] = value
+	else: item.target.append(value)
+	item.cursor += 1
+
 
 func unit() -> void:
 	if finished: return
+	if phase == 2: _copy_unit(); return
 	if phase == 0:
 		if map_cursor >= maps.size():
+			if capturing: phase = 2; return
 			stack.append({"value": data, "cursor": -1, "depth": 0}); phase = 1
 			return
 		var mapping: Dictionary = maps[map_cursor]

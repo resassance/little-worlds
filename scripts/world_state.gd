@@ -451,7 +451,7 @@ func add_person(cell: Vector2i, announce: bool = true) -> bool:
 	people.append(person)
 	person_index[person.id] = person
 	population.ready = false
-	workforce.plans.clear(); workforce.contributions.clear()
+	workforce.plans.clear(); workforce.contributions.clear(); workforce.shipments.clear()
 	life_dirty = true
 	population_dirty = true
 	next_id += 1

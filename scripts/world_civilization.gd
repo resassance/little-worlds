@@ -52,6 +52,7 @@ static func material_in_transit(world, id: int, kind: String) -> int:
 	var amount := 0
 	var value := WorldEconomy.building(world, id)
 	if value.is_empty(): return 0
+	if world.workforce.active: return world.workforce.in_transit(world, WorldEconomy.town(world, value.town), id, kind, true)
 	for member in WorldEconomy.members(world, WorldEconomy.town(world, value.town)):
 		if member.task.get("kind", "") == "supply_goods" and member.task.building == id and member.cargo_kind == kind: amount += int(member.cargo)
 	return amount
@@ -124,6 +125,7 @@ static func execute(world, member: Dictionary, home: Dictionary) -> bool:
 				data.stock[key] -= amount
 				member.cargo = amount
 				member.cargo_kind = key
+				world.workforce.shipments.erase(member.home)
 		else:
 			building.materials[key] += member.cargo
 			member.cargo = 0

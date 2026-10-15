@@ -10,6 +10,11 @@ var failed := false
 var pins: Dictionary = {}
 var job_pins: Dictionary = {}
 var pin_signature: Array = []
+var snapshot_files: Dictionary = {}
+var snapshot_directories: Dictionary = {}
+var obsolete_files: Dictionary = {}
+var waiting_directories: Dictionary = {}
+var cold_reads := 0
 static var retired_directories: Array[String] = []
 static var cleanup_folder: DirAccess
 static var cleanup_path := ""
@@ -48,7 +53,9 @@ func get_region(world, key: Vector2i) -> Dictionary:
 	var chunk := _read_region(key)
 	if chunk.is_empty(): return {}
 	world.chunks[key] = chunk
+	var previous_path: String = cold[key].path
 	cold.erase(key)
+	_retire_file(previous_path)
 	if world.chunks.size() > CACHE_LIMIT * 2: trim(world, key, 1)
 	return chunk
 
@@ -60,13 +67,19 @@ func capture(world, key: Vector2i) -> Dictionary:
 	if world.chunks.has(key):
 		var chunk: Dictionary = world.chunks[key]
 		return {"chunk":{"coord":key,"epoch":chunk.epoch,"tiles":chunk.tiles.duplicate(),"food":chunk.food.duplicate(),"wood":chunk.wood.duplicate()}}
-	return _capture_cold(key) if cold.has(key) else {}
+	return {"snapshot": WorldRegionSnapshot.new(self, cold[key])} if cold.has(key) else {}
 
 func _capture_cold(key: Vector2i) -> Dictionary:
-	var metadata: Dictionary = cold[key]
+	return read_snapshot(cold[key])
+
+func read_snapshot(metadata: Dictionary) -> Dictionary:
+	cold_reads += 1
 	var file := FileAccess.open(metadata.path,FileAccess.READ)
 	if file == null: failed = true; return {}
-	var bytes := file.get_buffer(file.get_length()); file.close()
+	var bytes := file.get_buffer(file.get_length())
+	var error := file.get_error()
+	file.close()
+	if error != OK: failed = true; return {}
 	return {"bytes":bytes,"hash":metadata.hash}
 
 func _read_region(key: Vector2i) -> Dictionary:
@@ -75,6 +88,9 @@ func _read_region(key: Vector2i) -> Dictionary:
 
 func decode_snapshot(key: Vector2i, packet: Dictionary) -> Dictionary:
 	if packet.has("chunk"): return packet.chunk
+	if packet.has("snapshot"):
+		packet = packet.snapshot.read()
+		if packet.is_empty(): return {}
 	var bytes: PackedByteArray = packet.bytes
 	if digest(bytes) != packet.hash:
 		failed = true
@@ -126,8 +142,9 @@ func trim(world, pinned: Vector2i = WorldState.NO_CELL, max_regions: int = 0) ->
 		if max_regions > 0 and trimmed >= max_regions: break
 		trimmed += 1
 		var chunk: Dictionary = world.chunks[key]
-		var path := directory.path_join("%d_%d.bin" % [key.x, key.y])
 		var bytes := var_to_bytes(chunk).compress(FileAccess.COMPRESSION_GZIP)
+		var hash_value := digest(bytes)
+		var path := directory.path_join(hash_value + ".bin")
 		var file := FileAccess.open(path + ".tmp", FileAccess.WRITE)
 		if file == null:
 			failed = true
@@ -150,16 +167,45 @@ func trim(world, pinned: Vector2i = WorldState.NO_CELL, max_regions: int = 0) ->
 			if high.x >= 0: world.region_bounds[key] = Rect2i(key * WorldState.CHUNK_SIZE + low, high - low + Vector2i.ONE)
 			else: world.region_bounds.erase(key)
 			world.bounds_dirty.erase(key)
-		cold[key] = {"path": path, "hash": digest(bytes)}
+		obsolete_files.erase(path)
+		cold[key] = {"path": path, "hash": hash_value}
 		world.chunks.erase(key)
 
 func clear() -> void:
 	cold.clear()
 	access.clear()
 	pins.clear(); job_pins.clear(); pin_signature.clear()
-	if not directory.is_empty(): retire(directory)
+	if not directory.is_empty(): _retire_directory(directory)
 	directory = ""
 	failed = false
 
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_PREDELETE and not directory.is_empty(): retire(directory)
+	if what == NOTIFICATION_PREDELETE and not directory.is_empty():
+		if snapshot_directories.has(directory): waiting_directories[directory] = true
+		else: retire(directory)
+
+func retain_snapshot(path: String) -> void:
+	snapshot_files[path] = int(snapshot_files.get(path, 0)) + 1
+	var folder := path.get_base_dir()
+	snapshot_directories[folder] = int(snapshot_directories.get(folder, 0)) + 1
+
+func release_snapshot(path: String) -> void:
+	var remaining := int(snapshot_files.get(path, 0)) - 1
+	if remaining > 0: snapshot_files[path] = remaining
+	else:
+		snapshot_files.erase(path)
+		if obsolete_files.erase(path): DirAccess.remove_absolute(path)
+	var folder := path.get_base_dir()
+	remaining = int(snapshot_directories.get(folder, 0)) - 1
+	if remaining > 0: snapshot_directories[folder] = remaining
+	else:
+		snapshot_directories.erase(folder)
+		if waiting_directories.erase(folder): retire(folder)
+
+func _retire_file(path: String) -> void:
+	if snapshot_files.has(path): obsolete_files[path] = true
+	else: DirAccess.remove_absolute(path)
+
+func _retire_directory(path: String) -> void:
+	if snapshot_directories.has(path): waiting_directories[path] = true
+	else: retire(path)

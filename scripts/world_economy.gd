@@ -140,6 +140,7 @@ static func in_transit(world, id: int) -> int:
 	var result := 0
 	var value := building(world, id)
 	if value.is_empty(): return 0
+	if world.workforce.active: return world.workforce.in_transit(world, town(world, value.town), id, "wood")
 	for person in members(world, town(world, value.town)):
 		if not person.task.is_empty() and person.task.kind == "supply" and person.task.building == id and person.cargo_kind == "wood": result += person.cargo
 	return result
@@ -206,6 +207,7 @@ static func claim_key(value: Dictionary) -> String:
 	return ""
 
 static func set_task(world, person: Dictionary, value: Dictionary) -> void:
+	if person.task.get("kind", "") in ["supply", "supply_goods"] or value.get("kind", "") in ["supply", "supply_goods"]: world.workforce.shipments.erase(person.home)
 	if person.task.get("kind", "") == "research": WorldSociety.stop(world, person)
 	if person.task.get("kind", "") == "teach" and value.get("kind", "") != "teach":
 		var student := WorldLife.person(world, person.task.get("dependent", -1))
@@ -426,6 +428,7 @@ static func execute(world, person: Dictionary, home: Dictionary) -> void:
 					home.wood -= amount
 					person.cargo_kind = "wood"
 					person.cargo = amount
+					world.workforce.shipments.erase(person.home)
 				else: set_task(world, person, {})
 			else:
 				value.delivered += person.cargo

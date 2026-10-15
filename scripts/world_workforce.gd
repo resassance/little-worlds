@@ -9,10 +9,13 @@ var building_counts: Dictionary = {}
 var contributions: Dictionary = {}
 var plan_builds := 0
 var building_count := -1
+var shipments: Dictionary = {}
+var shipment_scans := 0
 
 func begin(world, refresh_buildings: bool = true) -> void:
 	active = true
-	plans.clear(); contributions.clear()
+	plans.clear(); contributions.clear(); shipments.clear()
+	shipment_scans = 0
 	if not refresh_buildings and building_count == world.buildings.size(): return
 	building_count = world.buildings.size()
 	building_lists.clear(); building_counts.clear()
@@ -78,7 +81,7 @@ static func cold(world, cell: Vector2i) -> bool:
 func context(world, home: Dictionary) -> Dictionary:
 
 	if not active or world.population_dirty:
-		plans.clear(); contributions.clear()
+		plans.clear(); contributions.clear(); shipments.clear()
 	if plans.has(home.id): return plans[home.id]
 	var residents: Array[Dictionary] = WorldEconomy.members(world, home)
 	var result := {"population": 0, "food_workers": 0, "wood_workers": 0, "warm_need": 0.0, "cold_need": 0.0, "teams": {}, "available": {}, "resources": {}}
@@ -117,6 +120,7 @@ func task_changed(world, member: Dictionary) -> void:
 	contributions[member.id] = {"home": int(member.home), "role": role(member)}
 
 func rehomed(world, member: Dictionary, previous: int) -> void:
+	shipments.erase(previous); shipments.erase(member.home)
 	if not active: plans.clear(); contributions.clear(); return
 	var adult: bool = WorldLife.adult(world, member)
 	var field := "cold_need" if cold(world, Vector2i(member.x, member.y)) else "warm_need"
@@ -281,3 +285,19 @@ func group_count(world, home: Dictionary) -> int:
 	var total := 0
 	for team in plan.teams.values(): total += ceili(team.size() / float(GROUP_SIZE))
 	return total
+
+func in_transit(world, home: Dictionary, building: int, kind: String, goods: bool = false) -> int:
+	if world.population_dirty: shipments.clear()
+	if not shipments.has(home.id):
+		var totals := {}
+		for member in WorldEconomy.members(world, home):
+			var task_kind: String = member.task.get("kind", "")
+			if member.cargo <= 0 or task_kind not in ["supply", "supply_goods"]: continue
+			var id: int = int(member.task.building)
+			if not totals.has(id): totals[id] = {"wood": 0, "goods": {}}
+			if task_kind == "supply" and member.cargo_kind == "wood": totals[id].wood += int(member.cargo)
+			elif task_kind == "supply_goods": totals[id].goods[member.cargo_kind] = int(totals[id].goods.get(member.cargo_kind, 0)) + int(member.cargo)
+		shipments[home.id] = totals
+		shipment_scans += 1
+	var delivery: Dictionary = shipments[home.id].get(building, {})
+	return int(delivery.get("goods", {}).get(kind, 0)) if goods else int(delivery.get("wood", 0))
