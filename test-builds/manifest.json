@@ -1,12 +1,47 @@
 {
-  "build": "living-landscape-06",
-  "version": "0.2.6-test.6",
-  "android_version_code": 15,
+  "build": "inspector-07",
+  "version": "0.2.6-test.7",
+  "android_version_code": 16,
   "android_package": "org.littleworlds.sandbox.preview",
   "android_updates_existing_app": false,
   "android_updates_previous_preview": true,
-  "source_commit": "21b9f34621ad61af6a4d0369a0842c2afff0bdc1",
+  "source_commit": "aca04ee7769563a1a05b8359be88e6763050a116",
   "files": [
+    {
+      "name": "inspector-before-desktop.png",
+      "bytes": 133928,
+      "sha256": "868c50f621b2e45adcf413158b15dc0061e3931cb28c115e002634554e4e2569"
+    },
+    {
+      "name": "inspector-before-phone.png",
+      "bytes": 144543,
+      "sha256": "25fa743a73937e3ead7bc84f038e51b4658704c3fb2054b0825a9904da32122a"
+    },
+    {
+      "name": "inspector-development-phone.png",
+      "bytes": 129619,
+      "sha256": "4d2833fb254de1fecf6817de5bc026857a2650e7fa13d5d64ae20e9fcb3dd57e"
+    },
+    {
+      "name": "inspector-events-desktop.png",
+      "bytes": 123525,
+      "sha256": "a336ac8baf58e78c272ac43b6e02fe955edace07dadb4b8e267baa5044831b84"
+    },
+    {
+      "name": "inspector-resident-phone.png",
+      "bytes": 124321,
+      "sha256": "71daaa7c2de0e35a9f34c4fca62bf4f1282fb049be41e06094212a71482c39b0"
+    },
+    {
+      "name": "inspector-settlement-desktop.png",
+      "bytes": 63009,
+      "sha256": "2dc001c33acce54c92854a4bcc1d70d7ee8cd2bee14eb6cf20aca3371635c1a9"
+    },
+    {
+      "name": "inspector-settlement-phone.png",
+      "bytes": 129774,
+      "sha256": "f7e68ef72dcb6e541b7be06ee1eed6552f59dd3bf4d2d675fb3330ae196d7668"
+    },
     {
       "name": "landscape-after.png",
       "bytes": 34393,
@@ -19,33 +54,33 @@
     },
     {
       "name": "little-worlds-android-preview.apk",
-      "bytes": 53573011,
-      "sha256": "56d8ca38f29c7a200c4d9d6bbcbca00c66e1a6232739dcd27309079c7f11bbc6"
+      "bytes": 53585464,
+      "sha256": "5ec8445a81ddae3726b2793468b824115cb6142030198cc9989c29c2a0f2b349"
     },
     {
       "name": "little-worlds-godot-test.zip",
-      "bytes": 1272162,
-      "sha256": "719580d120c2e1535d47c4de0ae0c636f5e0c8878e5ad5bdd7ef7ad2694f1694"
+      "bytes": 1283632,
+      "sha256": "3dc3276d8ac290879d811c62ebcecceaa3a02d57c8ddb1323d0b80649a5069e0"
     },
     {
       "name": "little-worlds-linux-test.zip",
-      "bytes": 29652320,
-      "sha256": "572d69d7dbae9a00aaa9d4be4a90ab8860ff67e36d8d73159ec71b66ccec2322"
+      "bytes": 29666312,
+      "sha256": "c66973de05d319aa2e76dda702451ea4c31ef379b7a080cb34e32f1ae9ea279d"
     },
     {
       "name": "little-worlds-web-test.zip",
-      "bytes": 16440486,
-      "sha256": "464362a7fc7f7508f0d8cbc94c41de2e5858a4592c06e6831028303cc419349d"
+      "bytes": 16454719,
+      "sha256": "9407ad27b7220425e5f4aec28a4f4d1866a463edb49b6e62a2a7572e05a444d6"
     },
     {
       "name": "little-worlds-windows-test.zip",
-      "bytes": 39268355,
-      "sha256": "64fcbd8bca3325a8673e45d905b4cfa857c72246dcf7726bb7072421c30658f8"
+      "bytes": 39282327,
+      "sha256": "7698b2d1eb06da555de92e608b723689ccd179b71524d8a3db00cc2e8382306d"
     },
     {
       "name": "validation.json",
-      "bytes": 557,
-      "sha256": "524608b842746908adf4087ad0b3c829f9cdef106350f68c18fb0c818bba5e79"
+      "bytes": 2729,
+      "sha256": "d61c6f483cdaf3f68df0bce40c2a8fe7b84ffff1ef12e3311876e4ef475d7de7"
     }
   ]
 }

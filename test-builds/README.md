@@ -1,11 +1,13 @@
-# living-landscape-06 · 0.2.6-test.6
+# Окна сведений · 0.2.6-test.7
 
-Жители протаптывают маршруты, обживают дворы и оставляют следы вырубки. Видны молодые побеги, выработанные карьеры и обломки после разрушения. Поля показывают рост, урожай и зиму. История сохраняется вместе с миром.
+Названия, карточки показателей и раскрывающиеся разделы для поселений, жителей и клеток. Общая летопись открывается на вкладке «События».
 
 [Android Preview](little-worlds-android-preview.apk?raw=true) · [Windows](little-worlds-windows-test.zip?raw=true) · [Linux](little-worlds-linux-test.zip?raw=true) · [Web](little-worlds-web-test.zip?raw=true) · [Исходники](little-worlds-godot-test.zip?raw=true)
 
-[Пример до](landscape-before.png) · [Пример после](landscape-after.png) · [Что посмотреть](../TEST_BUILD.md).
+APK обновляет предыдущую «Маленькие миры · тест», сохраняя её миры.
 
-APK обновляет предыдущую «Маленькие миры · тест» с сохранением её миров. Для Web распакуйте весь архив и запустите start-windows.exe или start-linux.
+[Сводка на телефоне](inspector-settlement-phone.png) · [Развитие](inspector-development-phone.png) · [Житель](inspector-resident-phone.png) · [На ПК](inspector-settlement-desktop.png) · [События](inspector-events-desktop.png).
 
-Если ссылка не скачивается, откройте файл выше и нажмите Download raw file.
+[Что посмотреть](../TEST_BUILD.md) · [Устройство панели](../docs/INSPECTOR.md).
+
+Если ссылка не скачивается, откройте файл выше и нажмите Download raw file. Для Web распакуйте весь архив и запустите start-windows.exe или start-linux.

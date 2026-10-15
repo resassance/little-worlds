@@ -1,19 +1,129 @@
 {
-  "version": "0.2.6-test.6",
-  "source_commit": "21b9f34621ad61af6a4d0369a0842c2afff0bdc1",
-  "platform": "Linux",
-  "android_device_tested": false,
-  "save_format": 11,
-  "older_worlds_load": true,
-  "autonomous_history_resumes_after_load": true,
-  "paths_cap": 8192,
-  "scars_cap": 1024,
-  "overlay_textures_cap": 32,
-  "brush_input_p95_ms": 0.09,
-  "brush_script_p95_ms": 9.64,
-  "brush_script_max_ms": 32.57,
-  "brush_visible_samples_missing": 0,
-  "brush_queue_peak": 1,
-  "browser_save_load_passed": true,
-  "android_user_confirmation": "pending"
+  "version": "0.2.6-test.7",
+  "engine": "Godot 4.7.2 stable",
+  "source_commit": "aca04ee7769563a1a05b8359be88e6763050a116",
+  "platform_exports": [
+    "Linux",
+    "Windows",
+    "Android Preview",
+    "Web"
+  ],
+  "android_signature_verified": true,
+  "linux_export_boot": true,
+  "inspector_ui": {
+    "checks": 127,
+    "failures": 0,
+    "expanded_refresh_p95_ms": 0.646,
+    "expanded_refresh_max_ms": 0.692,
+    "host": "Linux, llvmpipe, 1440x900"
+  },
+  "mobile_layout": {
+    "checks": 245,
+    "failures": 0,
+    "physical_viewport_emulations": [
+      [
+        2160,
+        1080
+      ],
+      [
+        1920,
+        1080
+      ],
+      [
+        2340,
+        1080
+      ],
+      [
+        2400,
+        1080
+      ],
+      [
+        1080,
+        2400
+      ],
+      [
+        1180,
+        820
+      ]
+    ],
+    "minimum_button_dp": 48
+  },
+  "touch_input_failures": 0,
+  "visual_input": {
+    "checks": 94,
+    "failures": 0
+  },
+  "web_desktop_save_and_input": true,
+  "web_mobile": {
+    "checks": 12,
+    "failures": 0
+  },
+  "web_inspector_tabs_and_close": true,
+  "physical_android_test": false,
+  "whole_game_ui_benchmark": {
+    "renderer": "llvmpipe (LLVM 19.1.7, 256 bits)",
+    "results": [
+      {
+        "brush_cpu": {
+          "max_ms": 0.003,
+          "p50_ms": 0.003,
+          "p95_ms": 0.003,
+          "p99_ms": 0.003
+        },
+        "brush_radius": 16,
+        "completed_steps_per_second": 0.398032683657753,
+        "data_latency": {},
+        "draw_calls": 101,
+        "draw_cpu": {
+          "max_ms": 1.791,
+          "p50_ms": 0.512,
+          "p95_ms": 0.825,
+          "p99_ms": 1.478
+        },
+        "frame": {
+          "max_ms": 60.006,
+          "p50_ms": 53.307,
+          "p95_ms": 57.77,
+          "p99_ms": 58.746
+        },
+        "frames": 95,
+        "input_cpu": {},
+        "memory_delta_bytes": 5890290,
+        "missing_visible_samples": 0,
+        "name": "population-2000-ui",
+        "people": 2000,
+        "queue_peak": 0,
+        "regions": 80,
+        "samples": 0,
+        "seconds": 5.024713,
+        "tail_ms": 0.007,
+        "timings_usec": {
+          "burn": 255,
+          "climate": 130,
+          "economy": 349354,
+          "life": 39,
+          "maritime": 3771,
+          "other": 130069,
+          "repair": 3041,
+          "weather": 59
+        },
+        "towns": 20,
+        "unfinished_edits": false,
+        "view_cpu": {
+          "max_ms": 6.761,
+          "p50_ms": 1.747,
+          "p95_ms": 2.31,
+          "p99_ms": 4.958
+        },
+        "visible_latency": {}
+      }
+    ],
+    "scene_ready_ms": 2762.233,
+    "version": "0.2.6-test.7",
+    "viewport": [
+      1280,
+      800
+    ]
+  },
+  "release_created": false
 }
