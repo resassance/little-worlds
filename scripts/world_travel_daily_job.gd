@@ -65,6 +65,9 @@ func unit() -> void:
 		residents = WorldEconomy.members(world,home).duplicate()
 		var state: Dictionary = world.networks.state_for(world,home)
 		migrating = state.pressure>=12 or residents.size()>WorldEconomy.housing(world,home)
+		if world.ticks>=state.next_migration and WorldLandworks.expanding(world,home):
+			colony_job = WorldColonySearchJob.new(world,home,grid); searches += 1; phase = 5
+			return
 		bucket_cursor = int(state.neighbor_cursor); state.neighbor_cursor = (bucket_cursor+17)%81
 		phase = 1; cursor = 0
 		return
@@ -79,7 +82,7 @@ func unit() -> void:
 	if phase == 2:
 		if candidate_cursor >= candidates.size():
 			var state: Dictionary = world.networks.state_for(world,home)
-			if migrating and state.pressure>=24 and world.ticks>=state.next_migration and WorldEconomy.food_days(world,home)>=4:
+			if world.ticks>=state.next_migration and ((migrating and state.pressure>=24 and WorldEconomy.food_days(world,home)>=4) or WorldLandworks.expanding(world,home)):
 				colony_job = WorldColonySearchJob.new(world,home,grid); searches += 1; phase = 5
 			else: _next_home()
 			return
@@ -121,5 +124,5 @@ func unit() -> void:
 		return
 	if member_cursor >= residents.size(): _next_home(); return
 	var group := group_for(home,true)
-	if group.size()<3: return
+	if group.size()<3 or (WorldLandworks.expanding(world,home) and residents.size()-group.size()<4): return
 	if WorldTravel.launch(world,home,target,group,"colony",path_job.result): _next_home()

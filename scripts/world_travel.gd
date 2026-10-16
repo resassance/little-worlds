@@ -45,6 +45,7 @@ static func launch(world, home: Dictionary, target: Dictionary, group: Array, pu
 		world.networks.take(world,home,journey.cargo_kind,journey.cargo)
 	elif purpose=="colony":
 		journey.cargo_kind = "wood"; journey.cargo = mini(6,int(home.wood)); home.wood -= journey.cargo
+	if purpose=="colony": world.networks.state_for(world,home).next_migration = world.ticks+WorldLife.YEAR
 	world.next_id += 1; home.food -= food
 	world.journeys.append(journey); world.journey_index[journey.id] = journey
 	for id in group:

@@ -8,7 +8,7 @@ signal changed
 enum Terrain { WATER, SAND, GRASS, FOREST, MOUNTAIN }
 const MAP_SIZE := 128
 const MAX_PEOPLE := 2000
-const SAVE_VERSION := 13
+const SAVE_VERSION := 14
 const MAX_BUILDINGS := 2048
 const CHUNK_SIZE := 32
 const MAX_CHUNKS := 2048
@@ -698,7 +698,7 @@ static func _migrate(data: Dictionary) -> Dictionary:
 
 static func from_dict(source: Dictionary, region_files: Dictionary = {}) -> WorldState:
 	var data := _migrate(source) if source.get("version") == 1 else source
-	if not _integer(data.get("version")) or int(data.version) not in [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, SAVE_VERSION] or data.get("chunk_size") != CHUNK_SIZE: return null
+	if not _integer(data.get("version")) or int(data.version) not in [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, SAVE_VERSION] or data.get("chunk_size") != CHUNK_SIZE: return null
 	for key in ["chunks", "people", "towns", "history", "fires"]:
 		if not data.get(key) is Array: return null
 	if data.chunks.size() > MAX_CHUNKS or data.people.size() > MAX_PEOPLE or data.towns.size() > MAX_PEOPLE or data.history.size() > 60: return null

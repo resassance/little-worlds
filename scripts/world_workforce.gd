@@ -67,7 +67,7 @@ static func role(member: Dictionary) -> String:
 	if kind in ["gather_food", "fish"] or (kind == "deliver" and member.cargo_kind == "food"): return "food"
 	if kind in ["plant", "harvest"]: return "farm"
 	if kind == "gather_wood" or (kind == "deliver" and member.cargo_kind == "wood"): return "wood"
-	if kind in ["build", "supply", "supply_goods"]: return "build"
+	if kind in ["build", "supply", "supply_goods", "terraform"]: return "build"
 	if kind in ["quarry", "manufacture"]: return "industry"
 	return ""
 

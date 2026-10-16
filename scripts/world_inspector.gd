@@ -55,7 +55,7 @@ func setup(mobile: bool, target: float) -> void:
 	add_child(notice)
 	notice_label = label("", 14, AtlasTheme.INK)
 	notice.add_child(notice_label)
-	for item in [["history", "История места"], ["development", "Развитие"], ["technology", "Технологии"], ["economy", "Хозяйство"], ["population", "Жители"], ["civic","Город и общие стройки"], ["network","Связи и переселение"], ["sea", "Морские экспедиции"], ["family", "Семья"], ["skills", "Навыки и характер"], ["relations", "Отношения"], ["building", "Постройка"], ["terrain", "Местность"]]:
+	for item in [["history", "История места"], ["development", "Развитие"], ["technology", "Технологии"], ["economy", "Хозяйство"], ["population", "Жители"], ["landworks","Освоение земли"], ["civic","Город и общие стройки"], ["network","Связи и переселение"], ["sea", "Морские экспедиции"], ["family", "Семья"], ["skills", "Навыки и характер"], ["relations", "Отношения"], ["building", "Постройка"], ["terrain", "Местность"]]:
 		var box := VBoxContainer.new()
 		box.add_theme_constant_override("separation", 4)
 		add_child(box)
@@ -168,7 +168,7 @@ func present(world: WorldState, cell: Vector2i, person: Dictionary, home: Dictio
 	var visible_sections: Array = ["terrain"]
 	var warning := false
 	if kind == "town":
-		visible_sections.append_array(["development","technology","economy","population","civic","network","sea"])
+		visible_sections.append_array(["development","technology","economy","population","landworks","civic","network","sea"])
 		put(title_label, home.name)
 		put(subtitle_label, "Поселение · %d, %d" % [home.x, home.y])
 		var residents := WorldEconomy.members(world, home).size()
@@ -276,6 +276,16 @@ func details(key: String, world: WorldState, cell: Vector2i, person: Dictionary,
 			for skill in crafts: result.append([WorldSocial.SKILLS[skill], "Опытных: %d · учеников: %d" % crafts[skill]])
 			var leader := int(world.civilization.get(home.id, {}).get("leader", -1))
 			if leader != -1: result.append(["Старейшина", WorldLife.label(world, leader)])
+		"landworks":
+			var state: Dictionary = home.get("landworks",{})
+			var project: Dictionary = state.get("project",{})
+			if not project.is_empty():
+				var spec: Dictionary = WorldLandworks.SPEC[project.mode]
+				result.append([spec.name,"Участок (%d, %d) · работа %d/%d\nМатериалы: %d · %s" % [project.x,project.y,project.work,int(spec.work),int(spec.cost),"семена и органика" if spec.material=="food" else WorldCivilization.GOODS[spec.material]]])
+			else: result.append(["Подбирают подходящий участок","Работы зависят от местности, запасов и освоенных технологий."])
+			for mode in WorldLandworks.SPEC:
+				var count := int(state.get("completed",{}).get(mode,0))
+				if count>0: result.append([WorldLandworks.SPEC[mode].name,"Изменено клеток: %d" % count])
 		"civic":
 			var state: Dictionary = world.networks.town_index.get(home.id,{})
 			result.append([WorldNetworks.STAGES[int(state.get("stage",0))],"Жильё: %d мест · жителей: %d" % [WorldEconomy.housing(world,home),WorldEconomy.members(world,home).size()]])
@@ -290,7 +300,7 @@ func details(key: String, world: WorldState, cell: Vector2i, person: Dictionary,
 		"network":
 			var state: Dictionary = world.networks.town_index.get(home.id,{})
 			var pressure: int = int(state.get("pressure",0))
-			result.append(["Переселение","Ищут место с едой и жильём" if pressure>=24 else ("Нужны еда или свободное жильё" if pressure>=12 else "Община устроена на месте")])
+			result.append(["Переселение","Ищут место с едой и жильём" if pressure>=24 else ("Нужны еда или свободное жильё" if pressure>=12 else ("Готовят освоение новых земель" if WorldLandworks.expanding(world,home) else "Община устроена на месте"))])
 			for journey in world.journeys:
 				if journey.home!=home.id and journey.target!=home.id: continue
 				var titles := {"trade":"Торговый караван","aid":"Помощь соседям","migrate":"Переселение семьи","colony":"Новая община"}

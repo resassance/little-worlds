@@ -36,7 +36,10 @@ static func prepare(world, home: Dictionary) -> void:
 	var state: Dictionary = home.survey
 	if state.pending_radius > state.radius:
 		state.radius = state.pending_radius
-		world.navigation.erase(home.id)
+		if world.navigation.has(home.id):
+			var retired := {home.id:world.navigation[home.id]}
+			world.navigation.erase(home.id)
+			world.navigation_cleanup.append(WorldNavigationCleanupJob.new(retired))
 	if state.dirty:
 		state.dirty = false
 		state.exhausted = false
@@ -56,6 +59,8 @@ static func assign(world, member: Dictionary, home: Dictionary) -> bool:
 		reason = "food"
 	elif home.wood < 24 and not world.workforce.has_resource(world, home, "wood"):
 		reason = "wood"
+	if reason.is_empty() and WorldEconomy.members(world,home).size()>=8 and WorldEconomy.food_days(world,home)>=8 and home.wood>=8:
+		reason = "territory"
 	if reason.is_empty(): return false
 	if reason == "wood" and WorldEconomy.food_days(world, home) < 2: return false
 	var state := state_for(world, home)
@@ -96,7 +101,7 @@ static func assign(world, member: Dictionary, home: Dictionary) -> bool:
 	state.reason = reason
 	WorldEconomy.set_task(world, member, task)
 	member.job = "scout"
-	world.log_event("Разведка окрестностей", "%s: %s ищет %s за пределами привычных мест." % [home.name, member.name, "еду" if reason == "food" else "лес"])
+	world.log_event("Разведка окрестностей", "%s: %s ищет %s за пределами привычных мест." % [home.name, member.name, {"food":"еду","wood":"лес","territory":"земли для новых поселений"}[reason]])
 	return true
 
 static func assign_ruins(world, member: Dictionary, home: Dictionary) -> bool:
@@ -157,6 +162,9 @@ static func report(world, home: Dictionary) -> void:
 	state.report = false
 	var found := false
 	var nav: Dictionary = world.navigation[home.id]
+	if state.reason=="territory":
+		world.log_event("Новые земли обследованы","%s: разведчики изучили окрестности в радиусе %d клеток." % [home.name,state.radius])
+		return
 	for cell in nav[state.reason]:
 		if world.fires.has(cell) or world.occupied.has(cell): continue
 		if (world.food_at(cell) if state.reason == "food" else world.wood_at(cell)) > 0:
@@ -166,7 +174,7 @@ static func report(world, home: Dictionary) -> void:
 
 static func describe(world, home: Dictionary) -> String:
 	if world.claims.has("explore:%d" % home.id):
-		return "Разведчик ищет " + ("еду" if home.get("survey", {}).get("reason", "wood") == "food" else "лес")
+		return "Разведчик ищет " + {"food":"еду","wood":"лес","territory":"новые земли","ruins":"старые поселения"}.get(home.get("survey",{}).get("reason","wood"),"новые земли")
 	if not home.has("survey"): return ""
 	var state: Dictionary = home.survey
 	if state.reason == "wood" and not world.workforce.has_resource(world, home, "wood"):
@@ -188,6 +196,6 @@ static func restore(world) -> bool:
 		if (state.pending_radius - WorldEconomy.RANGE) % RANGE_STEP != 0: return false
 		if state.next_tick < 0 or state.next_tick > world.ticks + WorldEconomy.DAY_TICKS * RETRY_DAYS: return false
 		if state.trips < 0 or state.trips > 1000000 or not state.get("exhausted") is bool or not state.get("report") is bool or not state.get("dirty") is bool: return false
-		if state.get("reason") not in ["", "food", "wood"] or (state.report and state.reason.is_empty()): return false
+		if state.get("reason") not in ["", "food", "wood", "territory"] or (state.report and state.reason.is_empty()): return false
 		register(world, home)
 	return true

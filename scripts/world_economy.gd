@@ -13,7 +13,7 @@ const WORK := {"camp": 0, "house": 16, "farm": 12, "store": 24, "workshop": 28, 
 const SIZE := {"camp": 1, "house": 2, "farm": 3, "store": 3, "workshop": 2, "archive": 2, "kiln": 2, "loom": 2, "forge": 2, "market": 2, "school": 2, "council": 2, "dock": 2, "port": 3, "boat": 1, "sailboat": 2, "bridge": 1, "irrigation": 2, "roadworks": 1, "plaza": 3, "embankment": 2, "townhouse": 2, "mill": 2, "factory": 3, "power": 3, "apartment": 3, "tower": 3}
 const NAMES := {"camp": "Лагерь", "house": "Дом", "farm": "Поле", "store": "Склад", "workshop": "Мастерская", "archive": "Архив", "kiln": "Гончарная печь", "loom": "Ткацкая", "forge": "Кузница", "market": "Рынок", "school": "Школа", "council": "Совет", "dock": "Причал", "port": "Порт", "boat": "Лодка", "sailboat": "Парусник", "bridge": "Мост", "irrigation": "Орошение", "roadworks": "Дорожная артель", "plaza": "Площадь", "embankment": "Укреплённый берег", "townhouse": "Каменный дом", "mill": "Мельница", "factory": "Фабрика", "power": "Электростанция", "apartment": "Многоквартирный дом", "tower": "Высотный дом"}
 const JOBS := {"settler": "Поселенец", "forager": "Собиратель", "logger": "Лесоруб", "builder": "Строитель", "farmer": "Земледелец", "child": "Ребёнок", "teen": "Подросток", "carer": "Опекун", "teacher": "Наставник", "researcher": "Исследователь", "miner": "Каменотёс", "artisan": "Ремесленник", "fisher": "Рыбак", "sailor": "Мореплаватель", "merchant": "Торговец", "scout": "Разведчик"}
-const TASKS := {"gather_food": "Собирает еду", "gather_wood": "Заготавливает древесину", "deliver": "Несёт груз в лагерь", "supply": "Доставляет материалы", "build": "Строит", "plant": "Засевает поле", "harvest": "Собирает урожай", "eat": "Идёт за едой", "rest": "Отдыхает", "care": "Заботится о ребёнке", "visit": "Идёт общаться", "teach": "Обучает ремеслу", "research": "Осваивает технологию", "quarry": "Добывает камень и руду", "manufacture": "Работает в мастерской", "supply_goods": "Доставляет материалы", "fish": "Ловит рыбу", "travel": "Путешествует", "explore": "Разведывает окрестности"}
+const TASKS := {"gather_food": "Собирает еду", "gather_wood": "Заготавливает древесину", "deliver": "Несёт груз в лагерь", "supply": "Доставляет материалы", "build": "Строит", "plant": "Засевает поле", "harvest": "Собирает урожай", "eat": "Идёт за едой", "rest": "Отдыхает", "care": "Заботится о ребёнке", "visit": "Идёт общаться", "teach": "Обучает ремеслу", "research": "Осваивает технологию", "quarry": "Добывает камень и руду", "manufacture": "Работает в мастерской", "supply_goods": "Доставляет материалы", "fish": "Ловит рыбу", "travel": "Путешествует", "explore": "Разведывает окрестности", "terraform": "Обустраивает землю"}
 const DWELLINGS := {"house":4,"townhouse":8,"apartment":16,"tower":32}
 const METRICS := ["spawn_food", "harvested_food", "harvested_wood", "delivered_food", "delivered_wood", "eaten_food", "seed_food", "crop_food", "spoiled_food", "built_wood", "growth_food", "growth_wood", "lost_food", "lost_wood", "births", "deaths", "helped_food", "lessons", "research_work", "discoveries", "processed_food", "processed_wood"]
 
@@ -201,6 +201,7 @@ static func plan(world, home: Dictionary) -> void:
 	while not job.finished: job.unit()
 
 static func claim_key(value: Dictionary) -> String:
+	if value.kind == "terraform": return "terraform:%d" % value.building
 	if value.kind == "explore": return "explore:%d" % value.building
 	if value.kind == "fish": return "fish:%d:%d" % [value.x, value.y]
 	if value.kind == "quarry": return "quarry:%d:%d" % [value.x, value.y]
@@ -327,6 +328,7 @@ static func assign(world, person: Dictionary, home: Dictionary) -> void:
 				person.job = "builder"
 				set_task(world, person, task("build", cell, value.id))
 				return
+	if WorldLandworks.assign(world, person, home): return
 	if WorldExploration.assign(world, person, home): return
 	if WorldExploration.assign_ruins(world, person, home): return
 	if WorldSociety.research_assign(world, person, home): return
@@ -354,6 +356,9 @@ static func execute(world, person: Dictionary, home: Dictionary) -> void:
 	if person.task.is_empty(): assign(world, person, home)
 	if person.task.is_empty(): return
 	var active: Dictionary = person.task
+	if active.kind == "terraform":
+		WorldLandworks.execute(world,person,home)
+		return
 	if active.kind == "explore":
 		WorldExploration.execute(world, person, home)
 		return
@@ -644,6 +649,10 @@ static func status(world, home: Dictionary) -> String:
 	for value in world.buildings:
 		if value.town == home.id and not value.ready:
 			return "%s: материалы %d/%d · работа %d/%d" % [NAMES[value.kind], value.delivered, COST[value.kind], value.work, WORK[value.kind]]
+	var project: Dictionary = home.get("landworks",{}).get("project",{})
+	if not project.is_empty():
+		var spec: Dictionary = WorldLandworks.SPEC[project.mode]
+		return "%s · работа %d/%d" % [spec.name,project.work,int(spec.work)]
 	var forest_left := false
 	for cell in navigation(world, home).wood:
 		if world.wood_at(cell) > 0:
@@ -653,7 +662,7 @@ static func status(world, home: Dictionary) -> String:
 	return "Запасы и хозяйство развиваются"
 
 static func restore(world, data: Dictionary) -> bool:
-	if not WorldExploration.restore(world): return false
+	if not WorldExploration.restore(world) or not WorldLandworks.restore(world): return false
 	if not data.get("buildings") is Array or data.buildings.size() > WorldState.MAX_BUILDINGS or not data.get("metrics") is Dictionary: return false
 	for key in METRICS:
 		if data.version < 4 and key in ["births", "deaths"]: continue
@@ -706,8 +715,18 @@ static func restore(world, data: Dictionary) -> bool:
 			if not WorldState._integer(person.task.get(key)): return false
 			person.task[key] = int(person.task[key])
 		if person.task.work < 0 or (not world.walkable(Vector2i(person.task.x, person.task.y)) and not WorldMaritime.saved_onboard(data, person.id)): return false
+		if person.task.kind == "terraform":
+			if person.task.get("phase") not in ["fetch","work"] or not WorldState._integer(person.task.get("serial")): return false
+			var home := town(world,person.home)
+			if home.is_empty() or not home.has("landworks") or person.task.building!=home.id or person.task.serial!=home.landworks.serial or home.landworks.project.is_empty(): return false
+			var project: Dictionary = home.landworks.project
+			var expected := Vector2i(home.x,home.y) if person.task.phase=="fetch" else Vector2i(project.stand_x,project.stand_y)
+			if Vector2i(person.task.x,person.task.y)!=expected or person.task.work!=0 or project.ready: return false
+			var spec: Dictionary = WorldLandworks.SPEC[project.mode]
+			if person.task.phase=="work" and (person.cargo_kind!=spec.material or person.cargo!=int(spec.cost)): return false
+			if person.task.phase=="fetch" and person.cargo>0: return false
 		if person.task.kind == "explore":
-			if not person.task.get("phase") in ["outbound", "returning"] or not person.task.get("surveyed") is bool or person.task.get("reason") not in ["food", "wood", "ruins"]: return false
+			if not person.task.get("phase") in ["outbound", "returning"] or not person.task.get("surveyed") is bool or person.task.get("reason") not in ["food", "wood", "ruins", "territory"]: return false
 			if not WorldState._integer(person.task.get("radius")) or person.task.radius < RANGE or person.task.radius > WorldExploration.MAX_RANGE or (person.task.radius == WorldExploration.MAX_RANGE and person.task.reason != "ruins") or (int(person.task.radius) - RANGE) % WorldExploration.RANGE_STEP != 0: return false
 			person.task.radius = int(person.task.radius)
 			var home := town(world, person.home)

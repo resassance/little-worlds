@@ -115,7 +115,7 @@ func _ready() -> void:
 	var initial := SaveStore.load_world()
 	if initial == null:
 		initial = WorldState.new()
-		initial.generate(42817)
+		initial.generate(preferences.initial_seed())
 		initial.populate_demo()
 	_set_world(initial)
 	_select_tool("inspect")
@@ -596,7 +596,7 @@ func _build_dialogs() -> void:
 	seed_hint.custom_minimum_size.x = 520
 	generation_content.add_child(seed_hint)
 	seed_input = LineEdit.new()
-	seed_input.text = "42817"
+	seed_input.placeholder_text = "Сид мира"
 	seed_input.max_length = 10
 	seed_input.custom_minimum_size = Vector2(180, 42)
 	generation_content.add_child(seed_input)

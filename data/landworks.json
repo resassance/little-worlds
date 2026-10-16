@@ -1,0 +1,6 @@
+{
+  "forest": {"name": "Посадка леса", "from": 2, "to": 3, "material": "food", "cost": 2, "work": 24, "skill": "wood", "expert": 20, "methods": ["carpentry"]},
+  "cultivate": {"name": "Улучшение почвы", "from": 1, "to": 2, "material": "food", "cost": 2, "work": 20, "skill": "farm", "expert": 20, "methods": ["rotation"]},
+  "pass": {"name": "Горный проход", "from": 4, "to": 1, "material": "tools", "cost": 1, "work": 48, "skill": "build", "expert": 80, "methods": ["stonework", "masonry"]},
+  "reclaim": {"name": "Отсыпка берега", "from": 0, "to": 1, "material": "stone", "cost": 6, "work": 40, "skill": "build", "expert": 80, "methods": ["waterworks", "masonry"]}
+}

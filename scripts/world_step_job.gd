@@ -1,7 +1,7 @@
 class_name WorldStepJob
 extends RefCounted
 
-enum Phase { CLIMATE, WEATHER, REPAIR, HOMES, NAVIGATION, WORKFORCE, SOCIAL_TICK, CLAIMS, FARMS, CIVICS, PLANS, SPOIL, PEOPLE, TRAVEL, LIFE_REPAIR, FOUND, LIFE_BEGIN, COURT, BIRTHS, SOCIAL, SOCIETY, CIVILIZATION, DAILY_TRAVEL, LANDSCAPE, FINISH }
+enum Phase { CLIMATE, WEATHER, REPAIR, HOMES, NAVIGATION, LANDWORKS, WORKFORCE, SOCIAL_TICK, CLAIMS, FARMS, CIVICS, PLANS, SPOIL, PEOPLE, TRAVEL, LIFE_REPAIR, FOUND, LIFE_BEGIN, COURT, BIRTHS, SOCIAL, SOCIETY, CIVILIZATION, DAILY_TRAVEL, LANDSCAPE, FINISH }
 var world
 var phase := Phase.CLIMATE
 var cursor := 0
@@ -32,6 +32,7 @@ var removal_context: WorldRemovalContext
 var bridge_repair: WorldTerrainRepairJob
 var networks_job: WorldNetworksJob
 var landscape_job: WorldLandscapeJob
+var landworks_job: WorldLandworksJob
 
 func _init(value) -> void:
 	world = value
@@ -60,6 +61,7 @@ func advance(budget_usec: int = 4000) -> bool:
 func _label() -> String:
 	if phase == Phase.CLIMATE: return "climate"
 	if phase == Phase.WEATHER: return "weather"
+	if phase == Phase.LANDWORKS: return "landworks"
 	if phase == Phase.REPAIR: return "repair"
 	if phase == Phase.HOMES: return "burn"
 	if phase >= Phase.WORKFORCE and phase <= Phase.PEOPLE: return "economy"
@@ -160,6 +162,10 @@ func _unit() -> void:
 				WorldExploration.prepare(world, home)
 				navigation_job = WorldNavigationJob.new(world, home); cursor += 1
 			else: navigation_job = null; _next()
+		Phase.LANDWORKS:
+			if landworks_job == null: landworks_job = WorldLandworksJob.new(world)
+			if not landworks_job.finished: landworks_job.unit(); return
+			_next()
 		Phase.WORKFORCE:
 			world.workforce.begin(world, false)
 			_next()

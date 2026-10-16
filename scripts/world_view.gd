@@ -734,6 +734,7 @@ func _draw() -> void:
 			var secondary: String = style.get("secondary", "mixed")
 			if secondary != "mixed": draw_rect(Rect2(pos + Vector2(7, -4 + flutter), Vector2(8, 2)), WorldAppearanceJob.COLORS[secondary])
 	if zoom >= 0.15:
+		_draw_landworks()
 		for value in world.buildings: _draw_building(value)
 	if people_multimesh.visible_instance_count > 0: draw_multimesh(people_multimesh, people_atlas)
 	if ornaments_multimesh.visible_instance_count > 0: draw_multimesh(ornaments_multimesh, null)
@@ -759,6 +760,22 @@ func _draw() -> void:
 		_draw_labels()
 		_draw_minimap()
 	draw_usec = Time.get_ticks_usec() - started
+
+func _draw_landworks() -> void:
+	if zoom<0.5: return
+	for home in world.towns:
+		var project: Dictionary = home.get("landworks",{}).get("project",{})
+		if project.is_empty(): continue
+		var cell := Vector2i(project.x,project.y)
+		if not Rect2(Vector2.ZERO,size).grow(20).has_point(cell_to_local(cell)): continue
+		var pos := Vector2(cell-camera_origin)*TILE
+		for x in [0,7]:
+			for y in [0,7]:
+				draw_rect(Rect2(pos+Vector2(x,y-2),Vector2(1,4)),Color("76513a"))
+		draw_line(pos+Vector2(0,-1),pos+Vector2(7,-1),Color("dbb974"),1)
+		draw_rect(Rect2(pos+Vector2(0,9),Vector2(8,2)),Color("4b4336"))
+		var progress := float(project.work)/float(WorldLandworks.SPEC[project.mode].work)
+		draw_rect(Rect2(pos+Vector2(0,9),Vector2(8*progress,2)),Color("deb979"))
 
 func _draw_building(value: Dictionary) -> void:
 	var cell := Vector2i(value.x, value.y)

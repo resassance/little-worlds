@@ -50,7 +50,7 @@ with sync_playwright() as playwright:
         assert not errors, errors
         page.wait_for_timeout(500)
     assert isinstance(saved, dict) and saved['regions'] == len(world['chunks']), (saved, errors)
-    assert saved['people'] == len(world['people']) and saved['ticks'] == world['ticks'] and saved['version'] == 13, saved
+    assert saved['people'] == len(world['people']) and saved['ticks'] == world['ticks'] and saved['version'] == 14, saved
     assert saved['networks'] == world['networks'], 'City stages, founding origin and relations survive Web storage'
     assert saved['buildings'] == world['buildings'], 'Public works and modern housing survive Web storage'
     assert not errors, errors
