@@ -59,12 +59,12 @@ with sync_playwright() as playwright:
     page.on('console', lambda message: errors.append(message.text) if message.type == 'error' else None)
     boot(page)
     first = save(page)
-    assert first['version'] == 14 and 0 < first['seed'] <= 2147483647
+    assert first['version'] == 15 and 0 < first['seed'] <= 2147483647
     boot(page)
     again = save(page)
     assert again['seed'] == first['seed'], 'Reload must preserve the initial world'
     old, saved = import_world(page, 'living-civilizations-world.json')
-    assert saved['version'] == 14 and saved['networks'] == old['networks'] and saved['buildings'] == old['buildings']
+    assert saved['version'] == 15 and saved['networks'] == old['networks'] and saved['buildings'] == old['buildings']
     active, saved = import_world(page, 'territory-world.json')
     assert saved['towns'] == active['towns'] and saved['people'] == active['people'], 'Land project, progress and carried supplies must survive Web storage'
     assert saved['towns'][0]['landworks']['project']['work'] > 0

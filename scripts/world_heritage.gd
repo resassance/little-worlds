@@ -308,7 +308,7 @@ func details(site: Dictionary) -> Array:
 	if site.visitors.is_empty(): result.append(["Пока не исследовано","Общины узнают о месте после посещения."])
 	return result
 
-func restore(world, data: Variant) -> bool:
+func restore(world, data: Variant, legacy: bool = false) -> bool:
 	initialize(world.world_seed)
 	if data == null: return true
 	if not data is Dictionary or not data.get("sites") is Array or data.sites.size() > LIMIT or not data.get("origins") is Array or data.origins.size() > WorldState.MAX_PEOPLE or not data.get("couriers") is Array or data.couriers.size() > WorldState.MAX_PEOPLE: return false
@@ -325,9 +325,8 @@ func restore(world, data: Variant) -> bool:
 		for field in ["periods","remains","visitors","finds","ideas"]:
 			if not item.get(field) is Array: return false
 		if item.periods.is_empty() or item.periods.size() > PERIODS or item.remains.size() > FOOTPRINTS or item.visitors.size() > VISITORS or item.finds.size() > 8 or item.ideas.size() > 3: return false
-		if not item.get("stock") is Dictionary or item.stock.size() != WorldCivilization.GOODS.size(): return false
-		for key in WorldCivilization.GOODS:
-			if not WorldState._integer(item.stock.get(key)) or item.stock[key] < 0 or item.stock[key] > 6: return false
+		if not WorldCivilization.valid_stock(item.get("stock"),6,legacy): return false
+		if legacy and not item.stock.has("wool"): item.stock.wool = 0
 		var period_ids := {}
 		var last_end := -1
 		for period in item.periods:

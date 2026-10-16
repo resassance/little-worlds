@@ -472,6 +472,33 @@
         "urbanism",
         "electricity"
       ]
+    },
+    "husbandry": {
+      "name": "Скотоводство",
+      "domain": "food",
+      "skill": "farm",
+      "work": 80,
+      "practice": {
+        "food": 20,
+        "farm": 6
+      },
+      "experts": {
+        "food": 20,
+        "farm": 6
+      },
+      "sites": [
+        "camp",
+        "farm"
+      ],
+      "inputs": {
+        "food": 2
+      },
+      "weights": {
+        "livestock": 2.4,
+        "grassland": 1.2,
+        "food_pressure": 1.0
+      },
+      "requires": []
     }
   },
   "construction": {
@@ -542,6 +569,9 @@
     },
     "tower": {
       "build": 160
+    },
+    "pasture": {
+      "farm": 20
     }
   }
 }

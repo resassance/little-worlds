@@ -88,7 +88,7 @@ static func contact(world, a: Dictionary, b: Dictionary, amount: int = 1) -> voi
 
 static func practice(world, member: Dictionary, skill: String) -> void:
 	var before: int = level(member, skill)
-	var amount := 1 + (1 if member.traits.diligence == 2 and (world.ticks + int(member.id)) % 4 == 0 else 0)
+	var amount := 1 + WorldCulture.practice(world,member,skill) + (1 if member.traits.diligence == 2 and (world.ticks + int(member.id)) % 4 == 0 else 0)
 	member.skills[skill] = mini(MAX_XP, int(member.skills[skill]) + amount)
 	world.workforce.skill_changed(world, member, skill)
 	WorldSociety.practice(world, member, skill)
@@ -242,9 +242,10 @@ static func teach(world, mentor: Dictionary, home: Dictionary) -> void:
 	var skill: String = lesson.skill
 	var limit := 120 if WorldLife.adult(world, student) else (80 if WorldLife.years(world, student) >= 13 else 30)
 	var first_lesson: bool = student.trained_by.get(skill, -1) != mentor.id
-	student.skills[skill] = mini(limit, mini(int(mentor.skills[skill]) - 10, int(student.skills[skill]) + 4 + int(student.traits.curiosity)))
+	student.skills[skill] = mini(limit, mini(int(mentor.skills[skill]) - 10, int(student.skills[skill]) + 4 + int(student.traits.curiosity) + WorldCulture.lesson_bonus(home,skill)))
 	world.workforce.skill_changed(world, student, skill)
 	student.trained_by[skill] = int(mentor.id)
+	WorldCulture.record(world,home,"scholarly",8)
 	world.metrics.lessons += 1
 	WorldVocation.milestone(mentor, "teach")
 	WorldSociety.taught(world, mentor, student)

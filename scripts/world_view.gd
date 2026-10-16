@@ -135,6 +135,15 @@ var appearance_builds := 0
 var weather_strikes := {}
 const JOB_SKILLS := WorldAppearanceJob.JOB_SKILLS
 
+var fauna_layer: MultiMeshInstance2D
+var fauna_mesh: MultiMesh
+var fauna_texture: ImageTexture
+var fauna_material: ShaderMaterial
+var fauna_job: WorldFaunaMeshJob
+var fauna_signature: Array = []
+var fauna_pending_signature: Array = []
+var tradition_marks: Dictionary = {}
+
 func _ready() -> void:
 	season_material = ShaderMaterial.new()
 	season_material.shader = preload("res://assets/terrain_seasons.gdshader")
@@ -147,7 +156,7 @@ func _ready() -> void:
 	store_texture = PixelArt.sprite_texture(PixelArt.STORE)
 	workshop_texture = PixelArt.sprite_texture(PixelArt.WORKSHOP)
 	archive_texture = PixelArt.sprite_texture(PixelArt.ARCHIVE)
-	for kind in ["kiln","loom","forge","market","school","council","dock","port","boat","sailboat","townhouse","apartment","tower","factory","power","mill","bridge","irrigation","roadworks","plaza","embankment"]: industry_textures[kind]=PixelArt.building_texture(kind)
+	for kind in ["kiln","loom","forge","market","school","council","dock","port","boat","sailboat","townhouse","apartment","tower","factory","power","mill","bridge","irrigation","roadworks","plaza","embankment","pasture"]: industry_textures[kind]=PixelArt.building_texture(kind)
 	for kind in ["townhouse","apartment","tower","factory","power"]: city_lit[kind] = PixelArt.city_texture(kind,true)
 	vessel_textures = {"boat": PixelArt.vessel_texture(false), "sailboat": PixelArt.vessel_texture(true)}
 	for job in PixelArt.JOB_COLORS:
@@ -164,6 +173,15 @@ func _ready() -> void:
 	for kind in ["forge", "kiln"]: idle_furnaces[kind] = PixelArt.idle_furnace(kind)
 	_prepare_people_meshes()
 	_prepare_fire_mesh()
+	fauna_texture = PixelArt.fauna_atlas()
+	fauna_mesh = _multimesh(Vector2(16,16),WorldFaunaMeshJob.CAPACITY,true)
+	fauna_mesh.visible_instance_count = 0
+	fauna_material = ShaderMaterial.new(); fauna_material.shader = preload("res://scripts/fauna.gdshader")
+	fauna_layer = MultiMeshInstance2D.new(); fauna_layer.material = fauna_material
+	fauna_layer.multimesh = fauna_mesh; fauna_layer.texture = fauna_texture; add_child(fauna_layer)
+	for mode in WorldCulture.SPEC:
+		tradition_marks[mode] = PixelArt.tradition_mark(mode)
+		for form in 3: house_variants["tradition:"+mode+":"+str(form)] = PixelArt.tradition_house(mode,form)
 	rain_texture = PixelArt.icon("rain")
 	label_font = preload("res://assets/fonts/DejaVuSans.ttf")
 	resized.connect(_on_resize)
@@ -175,6 +193,8 @@ func set_world(value: WorldState) -> void:
 		world.terrain_changed.disconnect(_invalidate_texture)
 	if world != null and world.changed.is_connected(_invalidate_population_view): world.changed.disconnect(_invalidate_population_view)
 	world = value
+	fauna_job = null; fauna_signature.clear()
+	if fauna_mesh!=null: fauna_mesh.visible_instance_count = 0
 	world.terrain_changed.connect(_invalidate_texture)
 	world.changed.connect(_invalidate_population_view)
 	if fire_multimesh != null: fire_multimesh.visible_instance_count = 0
@@ -487,6 +507,7 @@ func _process(delta: float) -> void:
 	_advance_appearance()
 	_refresh_weather_effects()
 	_advance_fire_mesh()
+	_advance_fauna_mesh()
 	season_material.set_shader_parameter("fire_time",visual_time)
 	queue_redraw()
 	process_usec = Time.get_ticks_usec() - started
@@ -731,6 +752,8 @@ func _draw() -> void:
 		draw_rect(Rect2(pos + Vector2(7, -10 + flutter), Vector2(8, 6)), WorldAppearanceJob.COLORS[focus].darkened(0.3))
 		if zoom >= 0.8:
 			draw_texture_rect(settlement_marks[focus], Rect2(pos + Vector2(8, -10 + flutter), Vector2(6, 6)), false)
+			var tradition: String = style.get("tradition","")
+			if not tradition.is_empty(): draw_texture_rect(tradition_marks[tradition],Rect2(pos+Vector2(8,-10+flutter),Vector2(6,6)),false)
 			var secondary: String = style.get("secondary", "mixed")
 			if secondary != "mixed": draw_rect(Rect2(pos + Vector2(7, -4 + flutter), Vector2(8, 2)), WorldAppearanceJob.COLORS[secondary])
 	if zoom >= 0.15:
@@ -791,6 +814,9 @@ func _draw_building(value: Dictionary) -> void:
 		draw_rect(Rect2(pos + Vector2(0, extent.y + 2), Vector2(extent.x, 2)), Color("46574a"))
 		draw_rect(Rect2(pos + Vector2(0, extent.y + 2), Vector2(extent.x * progress, 2)), Color("edcc8b"))
 		return
+	if value.kind=="pasture":
+		draw_texture_rect(industry_textures.pasture,Rect2(pos,extent),false)
+		return
 	if value.kind == "farm":
 		draw_texture_rect(_farm_texture(value,style),Rect2(pos,extent),false)
 		if value.stock >= 6 and zoom >= 0.8:
@@ -803,7 +829,7 @@ func _draw_building(value: Dictionary) -> void:
 	elif value.kind == "archive": sprite = archive_texture
 	elif industry_textures.has(value.kind): sprite = industry_textures[value.kind]
 	if city_lit.has(value.kind) and int(world.networks.town_index.get(value.town,{}).get("power_until",0))>world.ticks: sprite = city_lit[value.kind]
-	if value.kind == "house": sprite = house_variants[style.get("focus", "mixed") + ":" + str(style.get("form", 0))]
+	if value.kind == "house": sprite = house_variants[("tradition:"+str(style.tradition) if not str(style.get("tradition","")).is_empty() else str(style.get("focus","mixed")))+":"+str(style.get("form",0))]
 	if idle_furnaces.has(value.kind) and not working_buildings.has(value.id): sprite = idle_furnaces[value.kind]
 	draw_rect(Rect2(pos + Vector2(-2, 1), extent + Vector2(4, 3)), Color("bdad84"))
 	var sprite_size := Vector2(sprite.get_width(), sprite.get_height())
@@ -1200,3 +1226,24 @@ func _draw_historical_marks() -> void:
 			var scale := 1.0/zoom
 			var mark := PackedVector2Array([pos+Vector2(0,-4)*scale,pos+Vector2(4,0)*scale,pos+Vector2(0,4)*scale,pos+Vector2(-4,0)*scale,pos+Vector2(0,-4)*scale])
 			draw_polyline(mark,Color("e0c38e"),scale)
+
+func _advance_fauna_mesh() -> void:
+	fauna_layer.transform = Transform2D(0,Vector2.ONE*zoom,0,offset)
+	if zoom<0.4:
+		fauna_job = null; fauna_signature.clear()
+		fauna_mesh.visible_instance_count = 0
+		return
+	var first := local_to_cell(Vector2.ZERO)-Vector2i.ONE*3
+	var last := local_to_cell(size)+Vector2i.ONE*3
+	var signature := [world.fauna.revision,camera_origin,first,last]
+	if fauna_job!=null and (fauna_job.origin!=camera_origin or fauna_job.low!=first or fauna_job.high!=last):
+		if fauna_job.origin!=camera_origin: fauna_mesh.visible_instance_count = 0
+		fauna_job = null
+	if fauna_job==null:
+		if fauna_signature==signature: return
+		fauna_pending_signature = signature
+		fauna_job = WorldFaunaMeshJob.new(world,camera_origin,first,last)
+	if not fauna_job.advance(200): return
+	fauna_mesh.visible_instance_count = fauna_job.count
+	if fauna_job.count>0: fauna_mesh.buffer = fauna_job.buffer
+	fauna_signature = fauna_pending_signature; fauna_job = null

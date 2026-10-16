@@ -8,7 +8,7 @@ signal changed
 enum Terrain { WATER, SAND, GRASS, FOREST, MOUNTAIN }
 const MAP_SIZE := 128
 const MAX_PEOPLE := 2000
-const SAVE_VERSION := 14
+const SAVE_VERSION := 15
 const MAX_BUILDINGS := 2048
 const CHUNK_SIZE := 32
 const MAX_CHUNKS := 2048
@@ -109,6 +109,7 @@ var timings: Dictionary = {}
 var landscape := WorldLandscape.new()
 var heritage := WorldHeritage.new()
 var networks := WorldNetworks.new()
+var fauna := WorldFauna.new()
 var bridge_repair_needed := false
 
 func _init() -> void:
@@ -117,6 +118,7 @@ func _init() -> void:
 		industry[category] = WorldCivilization.empty_stock()
 
 func generate(seed_value: int) -> void:
+	fauna = WorldFauna.new(); fauna.initialize(seed_value)
 	landscape = WorldLandscape.new()
 	heritage = WorldHeritage.new()
 	networks = WorldNetworks.new()
@@ -658,7 +660,7 @@ func to_dict(include_regions: bool = true, include_residents: bool = true) -> Di
 		"ticks": ticks, "next_id": next_id, "chunks": saved_regions, "regrowth": regrowth,
 		"people": people.duplicate(true) if include_residents else [], "towns": towns.duplicate(true), "buildings": buildings.duplicate(true), "metrics": metrics.duplicate(), "fires": saved_fires,
 		"societies": societies.duplicate(true), "households": households.duplicate(true), "ancestry_archive": ancestry_archive.duplicate(true),
-		"history": history.duplicate(true), "rng_state": str(rng.state), "landscape":landscape.save(), "heritage":heritage.save(), "networks":networks.save(),
+		"history": history.duplicate(true), "rng_state": str(rng.state), "landscape":landscape.save(), "heritage":heritage.save(), "networks":networks.save(), "fauna":fauna.save(),
 		"wet_until": wet_until, "drought_until": drought_until, "weather": weather.duplicate(true)}
 
 static func _integer(value: Variant) -> bool:
@@ -698,7 +700,7 @@ static func _migrate(data: Dictionary) -> Dictionary:
 
 static func from_dict(source: Dictionary, region_files: Dictionary = {}) -> WorldState:
 	var data := _migrate(source) if source.get("version") == 1 else source
-	if not _integer(data.get("version")) or int(data.version) not in [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, SAVE_VERSION] or data.get("chunk_size") != CHUNK_SIZE: return null
+	if not _integer(data.get("version")) or int(data.version) not in [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, SAVE_VERSION] or data.get("chunk_size") != CHUNK_SIZE: return null
 	for key in ["chunks", "people", "towns", "history", "fires"]:
 		if not data.get(key) is Array: return null
 	if data.chunks.size() > MAX_CHUNKS or data.people.size() > MAX_PEOPLE or data.towns.size() > MAX_PEOPLE or data.history.size() > 60: return null
@@ -820,14 +822,16 @@ static func from_dict(source: Dictionary, region_files: Dictionary = {}) -> Worl
 	if data.version < 7:
 		for value in world.buildings: WorldCivilization.material_defaults(value)
 		for home in world.towns: WorldCivilization.ensure(world, home)
-	elif not WorldClimate.restore(world, data.get("climate")) or not WorldCivilization.restore(world, data.get("civilization")) or not WorldMaritime.restore(world, data.get("maritime")) or not WorldTravel.restore(world, data.get("journeys")): return null
+	elif not WorldClimate.restore(world, data.get("climate")) or not WorldCivilization.restore(world, data.get("civilization"), data.version<15) or not WorldMaritime.restore(world, data.get("maritime")) or not WorldTravel.restore(world, data.get("journeys")): return null
 	if not WorldWeather.restore(world, data.get("weather")): return null
 	if data.version >= 11 and not data.has("landscape"): return null
 	if not world.landscape.restore(world,data.get("landscape")): return null
 	if data.version >= 12 and not data.get("heritage") is Dictionary: return null
-	if not world.heritage.restore(world,data.get("heritage")): return null
+	if not world.heritage.restore(world,data.get("heritage"),data.version<15): return null
 	if data.version>=13 and not data.get("networks") is Dictionary: return null
 	if not world.networks.restore(world,data.get("networks")): return null
+	if data.version>=15 and not data.get("fauna") is Dictionary: return null
+	if not world.fauna.restore(world,data.get("fauna")) or not WorldCulture.restore(world): return null
 	return world
 
 func _profile_stage(label: String, before: int) -> int:

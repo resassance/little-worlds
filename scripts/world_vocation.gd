@@ -64,12 +64,12 @@ static func review(world, member: Dictionary, home: Dictionary) -> void:
 	if world.ticks < int(value.review) or not WorldLife.adult(world, member): return
 	if progress(member) >= int(value.target): value.completed = mini(1000000, int(value.completed) + 1)
 	var nav := WorldEconomy.navigation(world, home)
-	var available := {"food": not nav.food.is_empty() or not nav.coasts.is_empty(), "wood": not nav.wood.is_empty(), "build": true, "farm": WorldEconomy.count(world, home, "farm", false) > 0}
+	var available := {"food": not nav.food.is_empty() or not nav.coasts.is_empty(), "wood": not nav.wood.is_empty(), "build": true, "farm": WorldEconomy.count(world, home, "farm", false) > 0 or world.fauna.owned(home)>0}
 	var chosen: String = value.skill
 	var strongest := -1
 	for skill in SKILLS:
 		if not available[skill]: continue
-		var strength := int(member.skills[skill]) + (16 if skill == value.skill else 0)
+		var strength := int(member.skills[skill]) + (16 if skill == value.skill else 0) + WorldCulture.lesson_bonus(home,skill)*12
 		if strength > strongest: strongest = strength; chosen = skill
 	if chosen != value.skill: value.skill = chosen; value.since = world.ticks
 	choose(world, member)

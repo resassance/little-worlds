@@ -1,0 +1,5 @@
+{
+  "deer": {"name":"Олени","domestic":false,"meat":3,"sprite":0,"biomes":[0,2,3]},
+  "goat": {"name":"Козы","domestic":true,"meat":2,"sprite":1,"biomes":[0,1,2,3]},
+  "sheep": {"name":"Овцы","domestic":true,"meat":2,"sprite":2,"biomes":[0,3,4]}
+}

@@ -1,7 +1,7 @@
 class_name WorldStepJob
 extends RefCounted
 
-enum Phase { CLIMATE, WEATHER, REPAIR, HOMES, NAVIGATION, LANDWORKS, WORKFORCE, SOCIAL_TICK, CLAIMS, FARMS, CIVICS, PLANS, SPOIL, PEOPLE, TRAVEL, LIFE_REPAIR, FOUND, LIFE_BEGIN, COURT, BIRTHS, SOCIAL, SOCIETY, CIVILIZATION, DAILY_TRAVEL, LANDSCAPE, FINISH }
+enum Phase { CLIMATE, WEATHER, REPAIR, HOMES, NAVIGATION, FAUNA, LANDWORKS, WORKFORCE, SOCIAL_TICK, CLAIMS, FARMS, CIVICS, PLANS, SPOIL, PEOPLE, TRAVEL, LIFE_REPAIR, FOUND, LIFE_BEGIN, COURT, BIRTHS, SOCIAL, SOCIETY, CIVILIZATION, DAILY_TRAVEL, LANDSCAPE, FINISH }
 var world
 var phase := Phase.CLIMATE
 var cursor := 0
@@ -33,6 +33,7 @@ var bridge_repair: WorldTerrainRepairJob
 var networks_job: WorldNetworksJob
 var landscape_job: WorldLandscapeJob
 var landworks_job: WorldLandworksJob
+var fauna_job: WorldFaunaJob
 
 func _init(value) -> void:
 	world = value
@@ -61,6 +62,7 @@ func advance(budget_usec: int = 4000) -> bool:
 func _label() -> String:
 	if phase == Phase.CLIMATE: return "climate"
 	if phase == Phase.WEATHER: return "weather"
+	if phase == Phase.FAUNA: return "fauna"
 	if phase == Phase.LANDWORKS: return "landworks"
 	if phase == Phase.REPAIR: return "repair"
 	if phase == Phase.HOMES: return "burn"
@@ -162,6 +164,10 @@ func _unit() -> void:
 				WorldExploration.prepare(world, home)
 				navigation_job = WorldNavigationJob.new(world, home); cursor += 1
 			else: navigation_job = null; _next()
+		Phase.FAUNA:
+			if fauna_job==null: fauna_job = WorldFaunaJob.new(world)
+			if not fauna_job.finished: fauna_job.unit(); return
+			_next()
 		Phase.LANDWORKS:
 			if landworks_job == null: landworks_job = WorldLandworksJob.new(world)
 			if not landworks_job.finished: landworks_job.unit(); return
@@ -261,7 +267,7 @@ func _unit() -> void:
 			else: _next_town()
 		Phase.SOCIETY:
 			if cursor < world.towns.size():
-				WorldSociety.daily_town(world, world.towns[cursor]); cursor += 1
+				WorldCulture.monthly(world,world.towns[cursor]); WorldSociety.daily_town(world, world.towns[cursor]); cursor += 1
 			else: _next()
 		Phase.CIVILIZATION:
 			if cursor < world.towns.size():

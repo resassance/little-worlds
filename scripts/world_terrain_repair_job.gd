@@ -18,6 +18,7 @@ var orphan: Dictionary = {}
 var doomed_towns: Dictionary = {}
 var finished := false
 var workforce_was_active := false
+var faunagroups: Array = []
 
 static func needed(value: WorldState, touched: Dictionary) -> bool:
 	for home in value.towns:
@@ -106,7 +107,10 @@ func unit() -> void:
 		3:
 			if repair == null: repair = WorldBuildingRepairJob.new(world)
 			if not repair.finished: repair.unit()
-			else: world.population_dirty = true; phase = 4; cursor = 0
+			else: world.population_dirty = true; faunagroups = world.fauna.herds.duplicate(); phase = 12; cursor = 0
+		12:
+			if cursor<faunagroups.size(): world.fauna.repair(world,faunagroups[cursor]); cursor += 1
+			else: phase = 4; cursor = 0
 		4:
 			if navigation != null:
 				if not navigation.finished: navigation.unit()
@@ -129,6 +133,7 @@ func unit() -> void:
 				if member.task.kind in ["supply", "build", "plant", "harvest"] and WorldEconomy.building(world, member.task.building).is_empty(): invalid = true
 				if member.task.kind in ["gather_food", "gather_wood"] and not world.building_at(target).is_empty(): invalid = true
 				if member.task.kind == "gather_wood" and world.wood_at(target) == 0: invalid = true
+				if member.task.kind=="herd" and not world.fauna.index.has(int(member.task.herd)): invalid = true
 				if invalid: WorldEconomy.set_task(world, member, {})
 			else: life = WorldLifeReconcileJob.new(world); phase = 6
 		6:

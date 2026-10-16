@@ -93,7 +93,7 @@ static func context(world, home: Dictionary) -> Dictionary:
 	var contacts := 0
 	for value in world.contacts:
 		if home.id in [value.a, value.b]: contacts += 1
-	return {"coast": clampf(float(nav.coasts.size()) / 64.0, 0, 1), "forest": clampf(float(nav.wood.size()) / 80.0, 0, 1), "minerals": clampf(float(nav.quarries.size()) / 12.0, 0, 1), "farms": clampf(float(WorldEconomy.count(world, home, "farm")) / 2.0, 0, 1), "food_pressure": clampf(1.0 - WorldEconomy.food_days(world, home) / 30.0, 0, 1), "wood_pressure": clampf(1.0 - float(home.wood) / 32.0, 0, 1), "teachers": clampf(float(teachers) / 3.0, 0, 1), "contacts": clampf(float(contacts) / 3.0, 0, 1), "population": clampf(float(residents.size()) / 24.0, 0, 1), "curiosity": curiosity / maxi(1, residents.size()), "cold": float(WorldClimate.biome(world, Vector2i(home.x, home.y)) >= 4 or (world.climate.seasons and WorldClimate.season(world) == 3))}
+	return {"livestock":clampf(float(world.fauna.owned(home))/6.0,0,1), "grassland":clampf(float(nav.food.size())/160.0,0,1), "coast": clampf(float(nav.coasts.size()) / 64.0, 0, 1), "forest": clampf(float(nav.wood.size()) / 80.0, 0, 1), "minerals": clampf(float(nav.quarries.size()) / 12.0, 0, 1), "farms": clampf(float(WorldEconomy.count(world, home, "farm")) / 2.0, 0, 1), "food_pressure": clampf(1.0 - WorldEconomy.food_days(world, home) / 30.0, 0, 1), "wood_pressure": clampf(1.0 - float(home.wood) / 32.0, 0, 1), "teachers": clampf(float(teachers) / 3.0, 0, 1), "contacts": clampf(float(contacts) / 3.0, 0, 1), "population": clampf(float(residents.size()) / 24.0, 0, 1), "curiosity": curiosity / maxi(1, residents.size()), "cold": float(WorldClimate.biome(world, Vector2i(home.x, home.y)) >= 4 or (world.climate.seasons and WorldClimate.season(world) == 3))}
 
 static func candidates(world, home: Dictionary) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
@@ -113,7 +113,7 @@ static func candidates(world, home: Dictionary) -> Array[Dictionary]:
 			utility += contribution
 			if contribution > strongest:
 				strongest = contribution
-				cause = {"coast": "доступен берег для морского дела", "forest": "местные леса дают работу плотникам", "minerals": "доступны местные залежи", "farms": "поля дают опыт земледелия", "food_pressure": "нужно надёжнее снабжать жителей едой", "wood_pressure": "нужно экономнее расходовать древесину", "teachers": "есть мастера для передачи знаний", "contacts": "контакты открывают новые задачи", "population": "растущей общине нужна организация", "cold": "холод требует тёплой одежды"}[feature]
+				cause = {"livestock":"приручённое стадо даёт практику ухода за животными", "grassland":"доступны пастбища", "coast": "доступен берег для морского дела", "forest": "местные леса дают работу плотникам", "minerals": "доступны местные залежи", "farms": "поля дают опыт земледелия", "food_pressure": "нужно надёжнее снабжать жителей едой", "wood_pressure": "нужно экономнее расходовать древесину", "teachers": "есть мастера для передачи знаний", "contacts": "контакты открывают новые задачи", "population": "растущей общине нужна организация", "cold": "холод требует тёплой одежды"}[feature]
 		utility += 0.2 * clampf(float(society.domain_practice[spec.domain]) / 200.0, 0, 1)
 		utility -= mini(3, int(state.attempts)) * 0.2
 		result.append({"key": key, "weight": exp(clampf(utility / 0.85, -6, 6)), "reason": cause})

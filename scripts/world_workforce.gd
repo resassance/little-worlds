@@ -65,7 +65,8 @@ func count(home: Dictionary, kind: String, ready_only: bool) -> int:
 static func role(member: Dictionary) -> String:
 	var kind: String = member.task.get("kind", "")
 	if kind in ["gather_food", "fish"] or (kind == "deliver" and member.cargo_kind == "food"): return "food"
-	if kind in ["plant", "harvest"]: return "farm"
+	if kind in ["plant", "harvest"] or (kind=="herd" and member.task.get("action","")!="hunt"): return "farm"
+	if kind=="herd": return "food"
 	if kind == "gather_wood" or (kind == "deliver" and member.cargo_kind == "wood"): return "wood"
 	if kind in ["build", "supply", "supply_goods", "terraform"]: return "build"
 	if kind in ["quarry", "manufacture"]: return "industry"

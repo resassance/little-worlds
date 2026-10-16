@@ -63,6 +63,7 @@ func capacity(world, home: Dictionary, kind: String) -> int:
 	return WorldCivilization.CAPACITY
 
 func stock_goal(world, home: Dictionary, kind: String) -> int:
+	if kind=="wool": return 12 if WorldEconomy.count(world,home,"loom")>0 else 0
 	var advanced := WorldSociety.mastered(world,home,"urbanism")
 	if kind == "stone": return 56 if WorldSociety.mastered(world,home,"highrise") else (36 if advanced else 24)
 	if kind == "metal": return 32 if advanced else 12
@@ -129,6 +130,8 @@ func exchange(world, shipment: Dictionary, source: Dictionary,target: Dictionary
 	var price: int = shipment.get("return_amount",0)
 	if capacity(world,target,kind)-amount(world,target,kind)<count: return false
 	if not payment.is_empty() and (not permitted(source.id,target.id,world.ticks) or amount(world,target,payment)<price): return false
+	WorldCulture.record(world,source,"mercantile",24)
+	WorldCulture.record(world,target,"mercantile",12)
 	put(world,target,kind,count)
 	if price > 0: take(world,target,payment,price)
 	shipment.cargo = price; shipment.cargo_kind = payment if price > 0 else ""
@@ -163,6 +166,7 @@ func housing_kind(world, home: Dictionary) -> String:
 	return "house"
 
 func construction_ready(world, home: Dictionary, kind: String) -> bool:
+	if kind=="pasture": return WorldSociety.mastered(world,home,"husbandry") and world.fauna.owned(home)>0
 	if BUILD_TECH.has(kind) and not WorldSociety.mastered(world,home,BUILD_TECH[kind]): return false
 	if kind == "tower" and not powered(world,home): return false
 	if kind in ["factory","power","apartment","tower"] and WorldEconomy.members(world,home).size() < 12: return false
@@ -211,6 +215,7 @@ func pave(world, cell: Vector2i) -> bool:
 	return roads.has(cell) and world.building_index.has(roads[cell])
 
 func ancestry(world, child: Dictionary, parent: Dictionary, mode: String = "land") -> void:
+	WorldCulture.inherit(world,child,parent)
 	var state := state_for(world,child)
 	state.parent = int(parent.id); state.parent_name = str(parent.name)
 	link_towns(world,parent,child,mode)

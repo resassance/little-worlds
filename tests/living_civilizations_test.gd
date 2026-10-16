@@ -273,7 +273,7 @@ func test_maritime_and_failures() -> void:
 
 func test_sliced_continuation() -> void:
 	var world := WorldState.from_dict(JSON.parse_string(FileAccess.get_file_as_string("res://tests/fixtures/advanced-46-world.json")))
-	check(world!=null and WorldSociety.TECH.size()==18,"legacy world migrates to the extended technology catalog")
+	check(world!=null and WorldSociety.TECH.has("highrise") and WorldSociety.TECH.has("husbandry"),"legacy world migrates to the extended technology catalog")
 	if world==null: return
 	for society in world.societies:
 		for key in ["masonry","waterworks","mechanization","steam","electricity","urbanism","highrise"]:

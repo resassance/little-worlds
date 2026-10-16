@@ -55,7 +55,7 @@ func setup(mobile: bool, target: float) -> void:
 	add_child(notice)
 	notice_label = label("", 14, AtlasTheme.INK)
 	notice.add_child(notice_label)
-	for item in [["history", "История места"], ["development", "Развитие"], ["technology", "Технологии"], ["economy", "Хозяйство"], ["population", "Жители"], ["landworks","Освоение земли"], ["civic","Город и общие стройки"], ["network","Связи и переселение"], ["sea", "Морские экспедиции"], ["family", "Семья"], ["skills", "Навыки и характер"], ["relations", "Отношения"], ["building", "Постройка"], ["terrain", "Местность"]]:
+	for item in [["history", "История места"], ["development", "Развитие"], ["technology", "Технологии"], ["economy", "Хозяйство"], ["population", "Жители"], ["culture","Традиции"], ["fauna","Животные"], ["landworks","Освоение земли"], ["civic","Город и общие стройки"], ["network","Связи и переселение"], ["sea", "Морские экспедиции"], ["family", "Семья"], ["skills", "Навыки и характер"], ["relations", "Отношения"], ["building", "Постройка"], ["terrain", "Местность"]]:
 		var box := VBoxContainer.new()
 		box.add_theme_constant_override("separation", 4)
 		add_child(box)
@@ -156,8 +156,9 @@ func rows(key: String, values: Array) -> void:
 
 func present(world: WorldState, cell: Vector2i, person: Dictionary, home: Dictionary, building: Dictionary) -> void:
 	var site := world.heritage.at(cell)
-	var kind := "person" if not person.is_empty() else ("town" if not home.is_empty() else ("site" if not site.is_empty() else "terrain"))
-	var key := kind + ":" + (str(person.id) if kind == "person" else (str(home.id) if kind == "town" else (str(site.id) if kind == "site" else str(cell))))
+	var herd := world.fauna.at(cell)
+	var kind := "person" if not person.is_empty() else ("town" if not home.is_empty() else ("site" if not site.is_empty() else ("herd" if not herd.is_empty() else "terrain")))
+	var key := kind + ":" + (str(person.id) if kind == "person" else (str(home.id) if kind == "town" else (str(site.id) if kind == "site" else (str(herd.id) if kind=="herd" else str(cell)))))
 	if identity != key:
 		reset()
 		identity = key
@@ -168,7 +169,7 @@ func present(world: WorldState, cell: Vector2i, person: Dictionary, home: Dictio
 	var visible_sections: Array = ["terrain"]
 	var warning := false
 	if kind == "town":
-		visible_sections.append_array(["development","technology","economy","population","landworks","civic","network","sea"])
+		visible_sections.append_array(["development","technology","economy","population","culture","fauna","landworks","civic","network","sea"])
 		put(title_label, home.name)
 		put(subtitle_label, "Поселение · %d, %d" % [home.x, home.y])
 		var residents := WorldEconomy.members(world, home).size()
@@ -193,6 +194,15 @@ func present(world: WorldState, cell: Vector2i, person: Dictionary, home: Dictio
 		if person.task.get("kind", "") == "research": activity = "Исследует: " + WorldSociety.TECH[person.task.tech].name
 		put(notice_label, activity)
 		warning = person.health < 60 or person.hunger >= 40
+	elif kind=="herd":
+		put(title_label,WorldFauna.SPEC[herd.species].name)
+		put(subtitle_label,"Стадо · %d, %d" % [herd.x,herd.y])
+		metric(0,str(herd.count),"животных")
+		metric(1,"Не хватает" if herd.hunger>0 else "Достаточно","корм",herd.hunger>0)
+		metric_nodes[2].card.hide(); metric_nodes[3].card.hide()
+		var owner := WorldEconomy.town(world,herd.home)
+		put(notice_label,"Дикие животные" if owner.is_empty() else "Принадлежат поселению «%s»" % owner.name)
+		warning = herd.hunger>0
 	elif kind == "site":
 		put(title_label,site.name)
 		var period: Dictionary = site.periods.back()
@@ -276,6 +286,24 @@ func details(key: String, world: WorldState, cell: Vector2i, person: Dictionary,
 			for skill in crafts: result.append([WorldSocial.SKILLS[skill], "Опытных: %d · учеников: %d" % crafts[skill]])
 			var leader := int(world.civilization.get(home.id, {}).get("leader", -1))
 			if leader != -1: result.append(["Старейшина", WorldLife.label(world, leader)])
+		"culture":
+			var state: Dictionary = home.get("culture",{})
+			var focus: String = state.get("focus","")
+			if focus.is_empty(): result.append(["Традиции складываются","Повторяющиеся занятия жителей постепенно формируют характер общины."])
+			else:
+				var spec: Dictionary = WorldCulture.SPEC[focus]
+				result.append([spec.name,"Устойчивость: %d/100\n%s" % [int(state.get("strength",0)),spec.description]])
+				result.append(["Передача опыта","Дополнительная практика в привычном деле" if int(state.get("strength",0))>=40 else "Традиция ослабевает: нужна повседневная практика"])
+		"fauna":
+			var visible := 0
+			for id in world.fauna.nearby(world,home):
+				var herd: Dictionary = world.fauna.index[id]
+				if visible>=6: break
+				visible += 1
+				var owner := "Приручены" if herd.home==home.id else ("Дикое стадо" if herd.home==-1 else "Стадо соседей")
+				result.append(["%s · %d" % [WorldFauna.SPEC[herd.species].name,herd.count],"%s · %s" % [owner,"не хватает корма" if herd.hunger>0 else "пасутся"]])
+			if visible==0: result.append(["Поблизости стад не замечено","Жители обнаруживают животных при освоении окрестностей."])
+			result.append(["Хозяйство","Приручено животных: %d · загонов: %d\nШерсть на складе: %d" % [world.fauna.owned(home),WorldEconomy.count(world,home,"pasture"),int(world.civilization.get(home.id,{}).get("stock",{}).get("wool",0))]])
 		"landworks":
 			var state: Dictionary = home.get("landworks",{})
 			var project: Dictionary = state.get("project",{})

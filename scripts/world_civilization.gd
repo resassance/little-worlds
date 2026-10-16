@@ -1,7 +1,7 @@
 class_name WorldCivilization
 extends RefCounted
 
-const GOODS := {"stone": "Камень", "ore": "Руда", "pottery": "Керамика", "cloth": "Ткань", "metal": "Металл", "tools": "Инструменты"}
+const GOODS := {"wool":"Шерсть","stone": "Камень", "ore": "Руда", "pottery": "Керамика", "cloth": "Ткань", "metal": "Металл", "tools": "Инструменты"}
 const CAPACITY := 96
 const EXTRA := {"kiln": {"stone": 4}, "loom": {"stone": 2}, "forge": {"stone": 6}, "market": {"stone": 4}, "school": {"stone": 6}, "council": {"stone": 8}, "port": {"stone": 6, "cloth": 4}, "bridge": {"stone": 4}, "irrigation": {"stone": 6, "pottery": 2}, "roadworks": {"stone": 8}, "plaza": {"stone": 12}, "embankment": {"stone": 14}, "townhouse": {"stone": 8}, "mill": {"stone": 6, "tools": 2}, "factory": {"stone": 20, "metal": 8, "tools": 4}, "power": {"stone": 20, "metal": 12, "tools": 4}, "apartment": {"stone": 24, "metal": 8, "tools": 4}, "tower": {"stone": 40, "metal": 24, "tools": 8}}
 const RECIPES := {
@@ -85,12 +85,14 @@ static func assign(world, member: Dictionary, home: Dictionary) -> bool:
 			return true
 	for key in RECIPES:
 		var recipe: Dictionary = RECIPES[key]
-		if data.stock[key] >= world.networks.stock_goal(world,home,key) or not WorldSociety.active(world, home, recipe.tech) or not inputs_available(world, home, recipe.inputs): continue
+		var inputs: Dictionary = {"wool":1} if key=="cloth" and data.stock.wool>0 else recipe.inputs
+		if data.stock[key] >= world.networks.stock_goal(world,home,key) or not WorldSociety.active(world, home, recipe.tech) or not inputs_available(world, home, inputs): continue
 		for building in world.workforce.buildings(world, home):
 			if building.town != home.id or not building.ready or building.kind != recipe.building: continue
 			if world.claims.has("manufacture:%d" % building.id): continue
 			WorldEconomy.set_task(world, member, WorldEconomy.task("manufacture", Vector2i(building.x, building.y), building.id))
 			member.task.resource = key
+			if key=="cloth": member.task.fiber = "wool" if data.stock.wool>0 else "plants"
 			member.task.started = false
 			member.job = "artisan"
 			return true
@@ -153,14 +155,15 @@ static func execute(world, member: Dictionary, home: Dictionary) -> bool:
 		WorldEconomy.set_task(world, member, {})
 		return true
 	var recipe: Dictionary = RECIPES[task.resource]
+	var inputs: Dictionary = {"wool":1} if task.resource=="cloth" and task.get("fiber","")=="wool" else recipe.inputs
 	if not WorldSociety.active(world, home, recipe.tech):
 		WorldEconomy.set_task(world, member, {})
 		return true
 	if not task.started:
-		if not inputs_available(world, home, recipe.inputs):
+		if not inputs_available(world, home, inputs):
 			WorldEconomy.set_task(world, member, {})
 			return true
-		consume(world, home, recipe.inputs)
+		consume(world, home, inputs)
 		task.started = true
 	var powered: bool = WorldEconomy.count(world,home,"factory")>0 and world.networks.powered(world,home)
 	task.work += WorldSocial.work_credit(world,member,"build")+(1 if powered else 0)
@@ -230,18 +233,18 @@ static func save(world) -> Dictionary:
 	for cell in world.mineral_deposits: deposits.append([cell.x, cell.y, world.mineral_deposits[cell]])
 	return {"towns": world.civilization.values().duplicate(true), "metrics": world.industry.duplicate(true), "deposits": deposits}
 
-static func restore(world, data: Variant) -> bool:
+static func restore(world, data: Variant, legacy: bool = false) -> bool:
 	if not data is Dictionary or not data.get("towns") is Array or data.towns.size() != world.towns.size() or not data.get("metrics") is Dictionary: return false
 	for category in ["produced", "consumed", "lost"]:
-		if not valid_stock(data.metrics.get(category), 100000000): return false
+		if not valid_stock(data.metrics.get(category), 100000000,legacy): return false
 		world.industry[category] = data.metrics[category].duplicate()
-		for key in GOODS: world.industry[category][key] = int(world.industry[category][key])
+		for key in GOODS: world.industry[category][key] = int(world.industry[category].get(key,0))
 	for item in data.towns:
 		if not item is Dictionary or not WorldState._integer(item.get("town")) or WorldEconomy.town(world, item.town).is_empty() or world.civilization.has(int(item.town)): return false
-		if not valid_stock(item.get("stock"), CAPACITY) or not WorldState._integer(item.get("leader")) or not WorldState._integer(item.get("tool_wear")) or item.tool_wear < 0 or item.tool_wear >= 40: return false
+		if not valid_stock(item.get("stock"), CAPACITY,legacy) or not WorldState._integer(item.get("leader")) or not WorldState._integer(item.get("tool_wear")) or item.tool_wear < 0 or item.tool_wear >= 40: return false
 		var value: Dictionary = item.duplicate(true)
 		for key in ["town", "leader", "tool_wear"]: value[key] = int(value[key])
-		for key in GOODS: value.stock[key] = int(value.stock[key])
+		for key in GOODS: value.stock[key] = int(value.stock.get(key,0))
 		world.civilization[value.town] = value
 	if not data.get("deposits") is Array or data.deposits.size() > 65536: return false
 	for item in data.deposits:
@@ -268,6 +271,7 @@ static func restore(world, data: Variant) -> bool:
 			var rock := Vector2i(task.rock_x, task.rock_y)
 			if rock.distance_to(Vector2i(task.x, task.y)) != 1 or world.terrain_at(rock) != WorldState.Terrain.MOUNTAIN: return false
 		elif task.kind == "manufacture":
+			if task.has("fiber") and (task.resource!="cloth" or task.fiber not in ["wool","plants"]): return false
 			var building := WorldEconomy.building(world, task.building)
 			if not RECIPES.has(task.resource) or not task.get("started") is bool or building.is_empty() or not building.ready or building.kind != RECIPES[task.resource].building or building.town != member.home: return false
 		else:
@@ -275,8 +279,9 @@ static func restore(world, data: Variant) -> bool:
 			if building.is_empty() or building.ready or building.town != member.home or not EXTRA.get(building.kind, {}).has(task.resource) or (member.cargo > 0 and member.cargo_kind != task.resource): return false
 	return true
 
-static func valid_stock(value: Variant, limit: int) -> bool:
-	if not value is Dictionary or value.size() != GOODS.size(): return false
+static func valid_stock(value: Variant, limit: int, legacy: bool = false) -> bool:
+	if not value is Dictionary or value.size() != GOODS.size()-(1 if legacy and not value.has("wool") else 0): return false
 	for key in GOODS:
+		if key=="wool" and legacy and not value.has(key): continue
 		if not WorldState._integer(value.get(key)) or value[key] < 0 or value[key] > limit: return false
 	return true

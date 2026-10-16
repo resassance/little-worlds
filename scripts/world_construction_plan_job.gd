@@ -18,7 +18,7 @@ func _init(value, settlement: Dictionary, industrial: bool = false) -> void:
 
 func _industry() -> void:
 	industry = true
-	options = ["dock", "kiln", "loom", "forge", "market", "school", "council", "port"]
+	options = ["pasture", "dock", "kiln", "loom", "forge", "market", "school", "council", "port"]
 	var ship_kind := "sailboat" if WorldSociety.mastered(world, home, "sailing") else "boat"
 	if (WorldSociety.mastered(world, home, "navigation") or WorldSociety.mastered(world, home, "sailing")) and WorldEconomy.count(world, home, ship_kind, false) == 0: options.push_front(ship_kind)
 	phase = 4
@@ -26,6 +26,7 @@ func _industry() -> void:
 func _later_kind() -> void:
 	if WorldEconomy.count(world, home, "store", false) == 0: kind = "store"
 	elif WorldLife.needs_home(world, home): kind = world.networks.housing_kind(world,home)
+	elif WorldDevelopment.construction_ready(world,home,"pasture") and WorldEconomy.count(world,home,"pasture",false)==0: kind = "pasture"
 	elif WorldDevelopment.construction_ready(world, home, "workshop") and WorldEconomy.count(world, home, "workshop", false) == 0: kind = "workshop"
 	elif WorldDevelopment.construction_ready(world, home, "archive") and WorldEconomy.count(world, home, "archive", false) == 0: kind = "archive"
 	else:

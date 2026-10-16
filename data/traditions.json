@@ -1,0 +1,8 @@
+{
+  "agrarian": {"name":"Земледельческая община","skill":"farm","domain":"food","color":"b5ad70","description":"Опыт выращивания и уборки урожая передаётся новым поколениям."},
+  "pastoral": {"name":"Община скотоводов","skill":"farm","domain":"food","color":"c5af91","description":"Уход за стадами и работа с шерстью становятся привычным ремеслом."},
+  "maritime": {"name":"Рыбацкое поселение","skill":"food","domain":"maritime","color":"8bbfc7","description":"Рыбалка и жизнь у воды помогают осваивать морские промыслы."},
+  "crafts": {"name":"Поселение мастеров","skill":"build","domain":"materials","color":"cd9278","description":"Мастерство строительства и обработки материалов передают через практику."},
+  "scholarly": {"name":"Община учёных","skill":"build","domain":"education","color":"b4a6c7","description":"Исследования и занятия с наставниками закрепляют привычку учиться."},
+  "mercantile": {"name":"Торговое поселение","skill":"food","domain":"trade","color":"d1b573","description":"Регулярные поставки и встречи с соседями формируют торговые традиции."}
+}

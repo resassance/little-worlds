@@ -46,7 +46,7 @@ const PERSON := [
 	"..oooo..", ".obbbbo.", ".osssso.", "..osso..", ".occcco.", ".occcco.",
 	".occcco.", "..oaao..", "..oooo..", "..o..o..", ".oo..oo.", ".kkkkkk."
 ]
-const JOB_COLORS := {"settler": ["b9d2be", "719a8e"], "forager": ["b8c58a", "827c54"], "logger": ["caa16f", "806049"], "builder": ["b4a5bd", "797186"], "farmer": ["a2bd86", "697f53"], "child": ["dcc4a3", "a88d72"], "teen": ["bac6a2", "829472"], "carer": ["d0afbb", "957d8b"], "teacher": ["d3bf8d", "95805a"], "researcher": ["a7b9c8", "718697"], "miner": ["a8b0a6", "697970"], "artisan": ["c8a08a", "92745c"], "fisher": ["8eb5b7", "5c848d"], "sailor": ["d4c9a2", "758c9e"], "merchant": ["c5adbd", "91788d"], "scout": ["b3bd8e", "778267"]}
+const JOB_COLORS := {"herder":["b5a08b","7f6d59"], "hunter":["9eaa83","697758"],"settler": ["b9d2be", "719a8e"], "forager": ["b8c58a", "827c54"], "logger": ["caa16f", "806049"], "builder": ["b4a5bd", "797186"], "farmer": ["a2bd86", "697f53"], "child": ["dcc4a3", "a88d72"], "teen": ["bac6a2", "829472"], "carer": ["d0afbb", "957d8b"], "teacher": ["d3bf8d", "95805a"], "researcher": ["a7b9c8", "718697"], "miner": ["a8b0a6", "697970"], "artisan": ["c8a08a", "92745c"], "fisher": ["8eb5b7", "5c848d"], "sailor": ["d4c9a2", "758c9e"], "merchant": ["c5adbd", "91788d"], "scout": ["b3bd8e", "778267"]}
 const SKIN_TONES := [Color("efcf9b"), Color("d1a076"), Color("a77552"), Color("745039")]
 const CLOTH_TONES := [Color.TRANSPARENT, Color("b78570"), Color("899fb4"), Color("cbb791"), Color("aa8397"), Color("929f98")]
 const PEOPLE_PALETTES := 24
@@ -172,6 +172,7 @@ static func vessel_texture(sails: bool) -> ImageTexture:
 	return sprite_texture([".......b........", ".......bw.......", ".......bww......", ".......bwww.....", ".......bwwww....", ".......bwwwww...", ".......bwwwwww..", ".......bwwwwwww.", ".......boooooooo", ".......b........", "..oooooooooooo..", "...obbbbbbbbo...", "....obbbbbbo....", ".....oooooo.....", "...vvvuuuvvvv..."] if sails else ["................", "................", "................", "......oo........", ".....osso.......", ".....occo.......", ".....occo.......", "......bb........", "..oooooooooooo..", "...obbbbbbbbo...", "....obbbbbbo....", ".....oooooo.....", "...vvvuuuvvvv..."])
 
 static func building_texture(kind: String) -> ImageTexture:
+	if kind=="pasture": return pasture_texture()
 	var patterns := {
 		"kiln": [".....mmm........",".....mfm........",".....mfm........","....oooooo......","...onnnnnmo.....","..onnnnnnmmo....",".onnnooonmmmo...",".onnnofonmmmo...",".onnnfffnmmmo...",".oooooooooooo...","...kkkkkkkk....."],
 		"forge": ["............oo..","............mo..","..oooooooo..mo..",".ottttttrroo mo..".replace(" ",""),"oooooooooooooo..",".obsssoooossbo..",".obsssffyossbo..",".obsssssssmmbo..",".obbbsssmmmmbo..",".ooooooooooooo..","...kkkkkkkkkk..."],
@@ -284,4 +285,57 @@ static func city_texture(kind: String, lit: bool = false) -> ImageTexture:
 	else:
 		image.fill_rect(Rect2i(3,18,18,4),shadow)
 		for x in [4,9,14]: image.fill_rect(Rect2i(x,16,4,3),stone)
+	return ImageTexture.create_from_image(image)
+
+static func fauna_atlas() -> ImageTexture:
+	var atlas := Image.create(48,16,false,Image.FORMAT_RGBA8)
+	for species in 3:
+		var image := Image.create(16,16,false,Image.FORMAT_RGBA8)
+		var coat := Color("ae815b") if species==0 else (Color("c4ad8b") if species==1 else Color("e5ddc9"))
+		image.fill_rect(Rect2i(3,7,9,4),PALETTE.o)
+		image.fill_rect(Rect2i(4,6,7,4),coat)
+		image.fill_rect(Rect2i(10,4,3,5),coat.darkened(0.12))
+		image.fill_rect(Rect2i(11,5,3,2),coat)
+		image.fill_rect(Rect2i(4,10,1,3),PALETTE.o)
+		image.fill_rect(Rect2i(9,10,1,3),PALETTE.o)
+		image.fill_rect(Rect2i(2,13,10,1),Color(0.12,0.18,0.14,0.25))
+		if species==0:
+			image.fill_rect(Rect2i(10,1,1,4),PALETTE.b)
+			image.fill_rect(Rect2i(8,2,3,1),PALETTE.b)
+		elif species==1:
+			image.fill_rect(Rect2i(10,2,1,3),PALETTE.m)
+			image.fill_rect(Rect2i(12,2,1,2),PALETTE.m)
+			image.fill_rect(Rect2i(12,8,1,2),PALETTE.s)
+		else:
+			image.fill_rect(Rect2i(3,5,8,4),coat)
+			image.fill_rect(Rect2i(5,4,4,2),coat.lightened(0.1))
+		atlas.blit_rect(image,Rect2i(0,0,16,16),Vector2i(species*16,0))
+	return ImageTexture.create_from_image(atlas)
+
+static func pasture_texture() -> ImageTexture:
+	var image := Image.create(24,24,false,Image.FORMAT_RGBA8)
+	var wood := Color("96704c")
+	for y in [2,20]: image.fill_rect(Rect2i(1,y,22,1),wood)
+	for x in [1,21]: image.fill_rect(Rect2i(x,2,1,20),wood)
+	for x in [1,7,14,21]:
+		for y in [0,18]: image.fill_rect(Rect2i(x,y,2,5),wood.darkened(0.2))
+	image.fill_rect(Rect2i(10,20,5,3),Color.TRANSPARENT)
+	image.fill_rect(Rect2i(3,4,6,4),Color("cdbb7a"))
+	image.fill_rect(Rect2i(14,4,5,3),Color("6e9d9c"))
+	return ImageTexture.create_from_image(image)
+
+static func tradition_mark(mode: String) -> ImageTexture:
+	if mode!="pastoral": return settlement_mark(WorldCulture.SPEC[mode].domain)
+	var image := Image.create(6,6,false,Image.FORMAT_RGBA8)
+	image.fill_rect(Rect2i(1,2,4,2),Color("f2e5c8"))
+	image.fill_rect(Rect2i(4,1,2,2),Color("e0d0b3"))
+	for x in [1,3]: image.fill_rect(Rect2i(x,4,1,2),Color("614b38"))
+	return ImageTexture.create_from_image(image)
+
+static func tradition_house(mode: String, form: int) -> ImageTexture:
+	var domain: String = WorldCulture.SPEC[mode].domain
+	var image := house_variant(domain,form).get_image()
+	var tint := Color(WorldCulture.SPEC[mode].color)
+	image.fill_rect(Rect2i(2,7,12,1),tint)
+	image.fill_rect(Rect2i(12,7,2,7),tint.darkened(0.25))
 	return ImageTexture.create_from_image(image)
