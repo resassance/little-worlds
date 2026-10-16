@@ -42,6 +42,7 @@ func unit() -> void:
 			for key in stock: world.industry.lost[key] += int(stock[key])
 			world.civilization.erase(home.id)
 			WorldExploration.forget(world,home)
+			world.networks.forget_home(home.id)
 			world.towns.erase(home)
 			var society: Dictionary = world.society_index.get(home.id,{})
 			world.societies.erase(society); world.society_index.erase(home.id)

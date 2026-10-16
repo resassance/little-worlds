@@ -87,7 +87,7 @@ static func dwelling_cell(world, value: Dictionary) -> Vector2i:
 	if building.is_empty():
 		var home := WorldEconomy.town(world, value.get("town", -1))
 		return Vector2i(home.x, home.y) if not home.is_empty() else WorldState.NO_CELL
-	return Vector2i(building.x, building.y) + (Vector2i.ONE if building.kind == "house" else Vector2i.ZERO)
+	return Vector2i(building.x, building.y) + (Vector2i.ONE if WorldEconomy.DWELLINGS.has(building.kind) else Vector2i.ZERO)
 
 static func occupied_places(world, dwelling: int) -> int:
 	if world.population.settling: return int(world.population.shelter_load.get(dwelling, 0))
@@ -100,27 +100,26 @@ static func settle(world, value: Dictionary) -> void:
 	var home := WorldEconomy.town(world, value.town)
 	var current := WorldEconomy.building(world, value.dwelling)
 	if home.is_empty():
-		world.population.dwelling_changed(value, -1)
+		world.population.dwelling_changed(value,-1)
 		return
-	if not current.is_empty() and current.ready and current.town == home.id and current.kind == "house" and occupied_places(world, current.id) == value.members.size() and value.members.size() <= 4: return
-	var previous: int = value.dwelling
-	world.population.dwelling_changed(value, -1)
-
-	for kind in ["house", "camp"]:
-		for building in world.workforce.buildings(world, home):
-			if building.town != home.id or building.kind != kind or not building.ready: continue
-			if kind == "house" and occupied_places(world, building.id) > 0: continue
-			if occupied_places(world, building.id) + value.members.size() > 4: continue
-			if not WorldEconomy.navigation(world, home).parents.has(Vector2i(building.x, building.y)): continue
-			world.population.dwelling_changed(value, int(building.id))
+	if not current.is_empty() and current.ready and current.town==home.id and WorldEconomy.DWELLINGS.has(current.kind) and occupied_places(world,current.id)<=int(WorldEconomy.DWELLINGS[current.kind]): return
+	world.population.dwelling_changed(value,-1)
+	for kind in ["tower","apartment","townhouse","house","camp"]:
+		for building in world.workforce.buildings(world,home):
+			if building.town!=home.id or building.kind!=kind or not building.ready: continue
+			var limit: int = WorldEconomy.DWELLINGS.get(kind,4)
+			var occupied := occupied_places(world,building.id)
+			if kind=="house" and occupied>0: continue
+			if occupied+value.members.size()>limit: continue
+			if not WorldEconomy.navigation(world,home).parents.has(Vector2i(building.x,building.y)): continue
+			world.population.dwelling_changed(value,int(building.id))
 			return
-	if not current.is_empty() and current.ready and current.town == home.id and occupied_places(world, previous) + value.members.size() <= 4: world.population.dwelling_changed(value, previous)
 
 static func needs_home(world, home: Dictionary) -> bool:
 	for value in world.households:
 		if value.town != home.id or value.members.size() > 4: continue
 		var shelter := WorldEconomy.building(world, value.dwelling)
-		if not shelter.is_empty() and shelter.kind == "house": continue
+		if not shelter.is_empty() and WorldEconomy.DWELLINGS.has(shelter.kind): continue
 		for member in household_members(world, value):
 			if member.sex == "female" and member.partner != -1 and years(world, member) < 45: return true
 	return false
@@ -284,9 +283,9 @@ static func birth_conditions(world, mother: Dictionary, starting: bool) -> bool:
 	var family := household(world, mother.household)
 	if family.is_empty() or father.household != family.id: return false
 	var shelter := WorldEconomy.building(world, family.dwelling)
-	if shelter.is_empty() or not shelter.ready or shelter.kind != "house": return false
+	if shelter.is_empty() or not shelter.ready or not WorldEconomy.DWELLINGS.has(shelter.kind): return false
 	var occupied: int = occupied_places(world, shelter.id)
-	if occupied + pending(world, shelter.id) + (1 if starting else 0) > 4: return false
+	if occupied + pending(world, shelter.id) + (1 if starting else 0) > int(WorldEconomy.DWELLINGS[shelter.kind]): return false
 	if world.people.size() + (pending(world) if starting else 0) >= WorldState.MAX_PEOPLE: return false
 	var home := WorldEconomy.town(world, mother.home)
 	if home.is_empty() or WorldEconomy.food_days(world, home) < 8: return false
@@ -552,9 +551,9 @@ static func restore(world, data: Dictionary) -> bool:
 			membership[id] = value.id
 		if value.dwelling != -1:
 			var shelter := WorldEconomy.building(world, value.dwelling)
-			if shelter.is_empty() or not shelter.ready or shelter.kind not in ["camp", "house"] or shelter.town != value.town: return false
+			if shelter.is_empty() or not shelter.ready or shelter.kind!="camp" and not WorldEconomy.DWELLINGS.has(shelter.kind) or shelter.town != value.town: return false
 			slots[value.dwelling] = int(slots.get(value.dwelling, 0)) + value.members.size()
-			if slots[value.dwelling] > 4: return false
+			if slots[value.dwelling] > int(WorldEconomy.DWELLINGS.get(shelter.kind,4)): return false
 		ids[value.id] = true
 		world.households.append(value)
 		world.household_index[value.id] = value

@@ -126,6 +126,7 @@ var town_appearances := {}
 var working_buildings := {}
 var appearance_candidates := {}
 var house_variants := {}
+var city_lit := {}
 var settlement_marks := {}
 var supplies_textures := {}
 var idle_furnaces := {}
@@ -146,7 +147,8 @@ func _ready() -> void:
 	store_texture = PixelArt.sprite_texture(PixelArt.STORE)
 	workshop_texture = PixelArt.sprite_texture(PixelArt.WORKSHOP)
 	archive_texture = PixelArt.sprite_texture(PixelArt.ARCHIVE)
-	for kind in ["kiln","loom","forge","market","school","council","dock","port","boat","sailboat"]: industry_textures[kind]=PixelArt.building_texture(kind)
+	for kind in ["kiln","loom","forge","market","school","council","dock","port","boat","sailboat","townhouse","apartment","tower","factory","power","mill","bridge","irrigation","roadworks","plaza","embankment"]: industry_textures[kind]=PixelArt.building_texture(kind)
+	for kind in ["townhouse","apartment","tower","factory","power"]: city_lit[kind] = PixelArt.city_texture(kind,true)
 	vessel_textures = {"boat": PixelArt.vessel_texture(false), "sailboat": PixelArt.vessel_texture(true)}
 	for job in PixelArt.JOB_COLORS:
 		for cold in [false, true]:
@@ -380,7 +382,7 @@ func _draw_regions() -> void:
 func _draw_landscape() -> void:
 	if zoom*get_window().content_scale_factor < 0.15: return
 	for key in visible_regions:
-		var living := world.landscape.path_regions.has(key) or world.landscape.site_regions.has(key) or world.landscape.grounds.has(key) or world.landscape.scar_regions.has(key) or world.heritage.draw_regions.has(key)
+		var living := world.landscape.path_regions.has(key) or world.landscape.site_regions.has(key) or world.landscape.grounds.has(key) or world.landscape.scar_regions.has(key) or world.heritage.draw_regions.has(key) or world.networks.infrastructure_regions.has(key)
 		if not living:
 			landscape_textures.erase(key)
 			continue
@@ -760,7 +762,7 @@ func _draw() -> void:
 
 func _draw_building(value: Dictionary) -> void:
 	var cell := Vector2i(value.x, value.y)
-	if not Rect2(Vector2.ZERO, size).grow(64).has_point(cell_to_local(cell)): return
+	if not Rect2(Vector2.ZERO,size).grow(160).has_point(cell_to_local(cell)): return
 	var pos := Vector2(cell - camera_origin) * TILE
 	var extent := Vector2.ONE * int(WorldEconomy.SIZE[value.kind]) * TILE
 	var style: Dictionary = town_appearances.get(value.town, {})
@@ -783,6 +785,7 @@ func _draw_building(value: Dictionary) -> void:
 	elif value.kind == "workshop": sprite = workshop_texture
 	elif value.kind == "archive": sprite = archive_texture
 	elif industry_textures.has(value.kind): sprite = industry_textures[value.kind]
+	if city_lit.has(value.kind) and int(world.networks.town_index.get(value.town,{}).get("power_until",0))>world.ticks: sprite = city_lit[value.kind]
 	if value.kind == "house": sprite = house_variants[style.get("focus", "mixed") + ":" + str(style.get("form", 0))]
 	if idle_furnaces.has(value.kind) and not working_buildings.has(value.id): sprite = idle_furnaces[value.kind]
 	draw_rect(Rect2(pos + Vector2(-2, 1), extent + Vector2(4, 3)), Color("bdad84"))
@@ -881,6 +884,8 @@ func _draw_labels() -> void:
 	for town in world.towns:
 		var pos := offset + (Vector2(Vector2i(town.x, town.y) - camera_origin) * TILE + Vector2(4, -22)) * zoom
 		var text_value: String = town.name
+		var stage: int = int(world.networks.town_index.get(town.id,{}).get("stage",0))
+		if zoom>=0.8 and stage>=3: text_value += " · "+WorldNetworks.STAGES[stage]
 		var label_size := label_font.get_string_size(text_value, HORIZONTAL_ALIGNMENT_LEFT, -1, 11)
 		var rect := Rect2(pos - Vector2(label_size.x * 0.5 + 7, 15), label_size + Vector2(14, 6))
 		if not Rect2(Vector2.ZERO, size).encloses(rect):

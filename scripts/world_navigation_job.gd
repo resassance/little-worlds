@@ -46,7 +46,7 @@ func unit() -> void:
 		if ground == WorldState.Terrain.MOUNTAIN: result.quarries.append({"land":cell,"rock":other})
 		if ground == WorldState.Terrain.WATER: result.coasts.append({"land":cell,"water":other})
 		if result.parents.has(other) or absi(other.x-origin.x)+absi(other.y-origin.y)>reach: continue
-		if ground in [WorldState.Terrain.WATER,WorldState.Terrain.MOUNTAIN] or not world.inside(other): continue
+		if not world.inside(other) or ground == WorldState.Terrain.MOUNTAIN or (ground == WorldState.Terrain.WATER and not world.networks.bridge_open(world,other)): continue
 		result.parents[other] = cell
 		result.distances[other] = int(result.distances[cell]) + 1
 		result.order[other] = result.cells.size()

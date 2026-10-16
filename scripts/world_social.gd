@@ -118,7 +118,11 @@ static func preferred(world, member: Dictionary, home: Dictionary, skill: String
 	return member.id == best_id
 
 static func visit_target(world, member: Dictionary, home: Dictionary) -> Vector2i:
-	var target := Vector2i(home.x, home.y)
+	var target := Vector2i(home.x,home.y)
+	for building in world.workforce.buildings(world,home):
+		if building.kind=="plaza" and building.ready:
+			var point := Vector2i(building.x+1,building.y+1)
+			if WorldEconomy.navigation(world,home).parents.has(point) and not world.fires.has(point): target = point; break
 	var strongest := 0
 	for link in member.links:
 		var friend := WorldLife.person(world, link.id)

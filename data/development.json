@@ -269,6 +269,209 @@
         "contacts": 1.0
       },
       "coastal": true
+    },
+    "masonry": {
+      "name": "Каменная застройка",
+      "domain": "engineering",
+      "skill": "build",
+      "work": 150,
+      "practice": {
+        "build": 260
+      },
+      "experts": {
+        "build": 80
+      },
+      "sites": [
+        "workshop"
+      ],
+      "inputs": {
+        "stone": 2,
+        "wood": 1
+      },
+      "weights": {
+        "population": 1.4,
+        "minerals": 1.4
+      },
+      "requires": [
+        "stonework"
+      ]
+    },
+    "waterworks": {
+      "name": "Гидротехника",
+      "domain": "ecology",
+      "skill": "farm",
+      "work": 160,
+      "practice": {
+        "farm": 120,
+        "build": 160
+      },
+      "experts": {
+        "farm": 40,
+        "build": 80
+      },
+      "sites": [
+        "workshop"
+      ],
+      "inputs": {
+        "stone": 2,
+        "pottery": 1
+      },
+      "weights": {
+        "food_pressure": 1.8,
+        "coast": 1.5
+      },
+      "requires": [
+        "stonework",
+        "ceramics"
+      ]
+    },
+    "mechanization": {
+      "name": "Механизация",
+      "domain": "energy",
+      "skill": "build",
+      "work": 180,
+      "practice": {
+        "wood": 180,
+        "build": 280
+      },
+      "experts": {
+        "build": 100,
+        "wood": 80
+      },
+      "sites": [
+        "workshop"
+      ],
+      "inputs": {
+        "tools": 2,
+        "wood": 2
+      },
+      "weights": {
+        "population": 1.2,
+        "forest": 1.0,
+        "farms": 1.4
+      },
+      "requires": [
+        "carpentry",
+        "metallurgy"
+      ]
+    },
+    "steam": {
+      "name": "Паровые машины",
+      "domain": "energy",
+      "skill": "build",
+      "work": 240,
+      "practice": {
+        "build": 420
+      },
+      "experts": {
+        "build": 140
+      },
+      "sites": [
+        "mill",
+        "workshop"
+      ],
+      "inputs": {
+        "metal": 3,
+        "wood": 3,
+        "tools": 1
+      },
+      "weights": {
+        "minerals": 1.5,
+        "population": 1.8,
+        "forest": 1.2
+      },
+      "requires": [
+        "mechanization",
+        "metallurgy"
+      ]
+    },
+    "electricity": {
+      "name": "Электричество",
+      "domain": "energy",
+      "skill": "build",
+      "work": 300,
+      "practice": {
+        "build": 650
+      },
+      "experts": {
+        "build": 180
+      },
+      "sites": [
+        "factory",
+        "school"
+      ],
+      "inputs": {
+        "metal": 4,
+        "tools": 2
+      },
+      "weights": {
+        "teachers": 1.8,
+        "population": 1.5,
+        "contacts": 1.2
+      },
+      "requires": [
+        "steam",
+        "records"
+      ]
+    },
+    "urbanism": {
+      "name": "Городское хозяйство",
+      "domain": "organization",
+      "skill": "food",
+      "work": 220,
+      "practice": {
+        "food": 420,
+        "build": 300
+      },
+      "experts": {
+        "food": 100,
+        "build": 100
+      },
+      "sites": [
+        "council",
+        "school"
+      ],
+      "inputs": {
+        "stone": 2,
+        "tools": 1
+      },
+      "weights": {
+        "population": 2.1,
+        "contacts": 1.4
+      },
+      "requires": [
+        "governance",
+        "masonry"
+      ]
+    },
+    "highrise": {
+      "name": "Высотное строительство",
+      "domain": "engineering",
+      "skill": "build",
+      "work": 360,
+      "practice": {
+        "build": 900
+      },
+      "experts": {
+        "build": 220
+      },
+      "sites": [
+        "school",
+        "factory"
+      ],
+      "inputs": {
+        "metal": 5,
+        "tools": 3,
+        "stone": 4
+      },
+      "weights": {
+        "population": 2.4,
+        "teachers": 1.8
+      },
+      "requires": [
+        "urbanism",
+        "electricity"
+      ]
     }
   },
   "construction": {
@@ -306,6 +509,39 @@
     "port": {
       "wood": 80,
       "build": 40
+    },
+    "bridge": {
+      "build": 80
+    },
+    "irrigation": {
+      "build": 80
+    },
+    "roadworks": {
+      "build": 40
+    },
+    "plaza": {
+      "build": 40
+    },
+    "embankment": {
+      "build": 40
+    },
+    "townhouse": {
+      "build": 80
+    },
+    "mill": {
+      "build": 80
+    },
+    "factory": {
+      "build": 160
+    },
+    "power": {
+      "build": 160
+    },
+    "apartment": {
+      "build": 160
+    },
+    "tower": {
+      "build": 160
     }
   }
 }

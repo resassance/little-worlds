@@ -3,7 +3,7 @@ extends RefCounted
 
 const JOB_DOMAINS := {"farmer": "food", "forager": "food", "fisher": "maritime", "sailor": "maritime", "logger": "engineering", "builder": "engineering", "miner": "materials", "artisan": "materials", "teacher": "education", "researcher": "education", "merchant": "trade"}
 const JOB_SKILLS := {"forager": "food", "logger": "wood", "builder": "build", "farmer": "farm", "miner": "build", "artisan": "build", "fisher": "food"}
-const BUILDING_DOMAINS := {"farm": "food", "dock": "maritime", "port": "maritime", "boat": "maritime", "sailboat": "maritime", "workshop": "engineering", "kiln": "materials", "loom": "materials", "forge": "materials", "school": "education", "archive": "education", "market": "trade"}
+const BUILDING_DOMAINS := {"farm": "food", "dock": "maritime", "port": "maritime", "boat": "maritime", "sailboat": "maritime", "workshop": "engineering", "kiln": "materials", "loom": "materials", "forge": "materials", "school": "education", "archive": "education", "market":"trade","mill":"engineering","factory":"materials","power":"engineering","irrigation":"food","roadworks":"trade","plaza":"education","embankment":"maritime"}
 const COLORS := {"food": Color("a4bb75"), "maritime": Color("8bbfc7"), "engineering": Color("c8ad83"), "materials": Color("cd9278"), "education": Color("b4a6c7"), "trade": Color("d1b573"), "mixed": Color("dbc39a")}
 var world: WorldState
 var people_index := 0

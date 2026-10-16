@@ -8,12 +8,13 @@ const HUNGER_PER_STEP := 0.5
 const NUTRITION := 20.0
 const LOAD := 6
 const RANGE := 24
-const COST := {"camp": 0, "house": 6, "farm": 4, "store": 12, "workshop": 12, "archive": 16, "kiln": 8, "loom": 8, "forge": 12, "market": 10, "school": 16, "council": 16, "dock": 10, "port": 20, "boat": 8, "sailboat": 24}
-const WORK := {"camp": 0, "house": 16, "farm": 12, "store": 24, "workshop": 28, "archive": 32, "kiln": 24, "loom": 24, "forge": 32, "market": 28, "school": 36, "council": 36, "dock": 24, "port": 40, "boat": 24, "sailboat": 48}
-const SIZE := {"camp": 1, "house": 2, "farm": 3, "store": 3, "workshop": 2, "archive": 2, "kiln": 2, "loom": 2, "forge": 2, "market": 2, "school": 2, "council": 2, "dock": 2, "port": 3, "boat": 1, "sailboat": 2}
-const NAMES := {"camp": "Лагерь", "house": "Дом", "farm": "Поле", "store": "Склад", "workshop": "Мастерская", "archive": "Архив", "kiln": "Гончарная печь", "loom": "Ткацкая", "forge": "Кузница", "market": "Рынок", "school": "Школа", "council": "Совет", "dock": "Причал", "port": "Порт", "boat": "Лодка", "sailboat": "Парусник"}
+const COST := {"camp": 0, "house": 6, "farm": 4, "store": 12, "workshop": 12, "archive": 16, "kiln": 8, "loom": 8, "forge": 12, "market": 10, "school": 16, "council": 16, "dock": 10, "port": 20, "boat": 8, "sailboat": 24, "bridge": 12, "irrigation": 10, "roadworks": 8, "plaza": 12, "embankment": 14, "townhouse": 10, "mill": 14, "factory": 28, "power": 30, "apartment": 24, "tower": 40}
+const WORK := {"camp": 0, "house": 16, "farm": 12, "store": 24, "workshop": 28, "archive": 32, "kiln": 24, "loom": 24, "forge": 32, "market": 28, "school": 36, "council": 36, "dock": 24, "port": 40, "boat": 24, "sailboat": 48, "bridge": 32, "irrigation": 30, "roadworks": 24, "plaza": 32, "embankment": 36, "townhouse": 32, "mill": 40, "factory": 80, "power": 90, "apartment": 80, "tower": 140}
+const SIZE := {"camp": 1, "house": 2, "farm": 3, "store": 3, "workshop": 2, "archive": 2, "kiln": 2, "loom": 2, "forge": 2, "market": 2, "school": 2, "council": 2, "dock": 2, "port": 3, "boat": 1, "sailboat": 2, "bridge": 1, "irrigation": 2, "roadworks": 1, "plaza": 3, "embankment": 2, "townhouse": 2, "mill": 2, "factory": 3, "power": 3, "apartment": 3, "tower": 3}
+const NAMES := {"camp": "Лагерь", "house": "Дом", "farm": "Поле", "store": "Склад", "workshop": "Мастерская", "archive": "Архив", "kiln": "Гончарная печь", "loom": "Ткацкая", "forge": "Кузница", "market": "Рынок", "school": "Школа", "council": "Совет", "dock": "Причал", "port": "Порт", "boat": "Лодка", "sailboat": "Парусник", "bridge": "Мост", "irrigation": "Орошение", "roadworks": "Дорожная артель", "plaza": "Площадь", "embankment": "Укреплённый берег", "townhouse": "Каменный дом", "mill": "Мельница", "factory": "Фабрика", "power": "Электростанция", "apartment": "Многоквартирный дом", "tower": "Высотный дом"}
 const JOBS := {"settler": "Поселенец", "forager": "Собиратель", "logger": "Лесоруб", "builder": "Строитель", "farmer": "Земледелец", "child": "Ребёнок", "teen": "Подросток", "carer": "Опекун", "teacher": "Наставник", "researcher": "Исследователь", "miner": "Каменотёс", "artisan": "Ремесленник", "fisher": "Рыбак", "sailor": "Мореплаватель", "merchant": "Торговец", "scout": "Разведчик"}
 const TASKS := {"gather_food": "Собирает еду", "gather_wood": "Заготавливает древесину", "deliver": "Несёт груз в лагерь", "supply": "Доставляет материалы", "build": "Строит", "plant": "Засевает поле", "harvest": "Собирает урожай", "eat": "Идёт за едой", "rest": "Отдыхает", "care": "Заботится о ребёнке", "visit": "Идёт общаться", "teach": "Обучает ремеслу", "research": "Осваивает технологию", "quarry": "Добывает камень и руду", "manufacture": "Работает в мастерской", "supply_goods": "Доставляет материалы", "fish": "Ловит рыбу", "travel": "Путешествует", "explore": "Разведывает окрестности"}
+const DWELLINGS := {"house":4,"townhouse":8,"apartment":16,"tower":32}
 const METRICS := ["spawn_food", "harvested_food", "harvested_wood", "delivered_food", "delivered_wood", "eaten_food", "seed_food", "crop_food", "spoiled_food", "built_wood", "growth_food", "growth_wood", "lost_food", "lost_wood", "births", "deaths", "helped_food", "lessons", "research_work", "discoveries", "processed_food", "processed_wood"]
 
 static func person_defaults(world, person: Dictionary) -> void:
@@ -39,7 +40,7 @@ static func footprint(value: Dictionary) -> Rect2i:
 	return Rect2i(Vector2i(value.x, value.y), Vector2i.ONE * int(SIZE[value.kind]))
 
 static func at(world, cell: Vector2i) -> Dictionary:
-	return world.occupied.get(cell, {})
+	return world.occupied.get(cell,world.networks.bridges.get(cell,{}))
 
 static func navigation(world, home: Dictionary) -> Dictionary:
 	if world.navigation.has(home.id): return world.navigation[home.id]
@@ -67,7 +68,7 @@ static func move(world, person: Dictionary, target: Vector2i, home: Dictionary) 
 	person.x = next.x
 	person.y = next.y
 	world.track_person_move(person, current)
-	person.energy = maxf(0, person.energy - 0.25)
+	person.energy = maxf(0, person.energy - (0.125 if world.networks.pave(world,next) else 0.25))
 	return next == target
 
 static func members(world, home: Dictionary) -> Array[Dictionary]:
@@ -118,7 +119,7 @@ static func wood_capacity(world, home: Dictionary) -> int:
 	return 48 + count(world, home, "store") * 80
 
 static func housing(world, home: Dictionary) -> int:
-	return 4 + count(world, home, "house") * 4
+	return 4 + count(world, home, "house") * 4 + count(world,home,"townhouse")*8 + count(world,home,"apartment")*16 + count(world,home,"tower")*32
 
 static func food_days(world, home: Dictionary) -> float:
 	if world.workforce.active: return world.workforce.food_days(world, home)
@@ -152,11 +153,12 @@ static func available_wood(world, home: Dictionary) -> int:
 			reserved += maxi(0, int(COST[value.kind]) - int(value.delivered) - in_transit(world, value.id))
 	return maxi(0, int(home.wood) - reserved)
 
-static func add_building(world, home: Dictionary, kind: String, cell: Vector2i, ready: bool = false) -> Dictionary:
+static func add_building(world, home: Dictionary, kind: String, cell: Vector2i, ready: bool = false, project_cells: Array = []) -> Dictionary:
 	if world.buildings.size() >= WorldState.MAX_BUILDINGS: return {}
 	WorldSociety.ensure_town(world, home)
 	var value := {"id": world.next_id, "town": home.id, "kind": kind, "x": cell.x, "y": cell.y,
 		"ready": ready, "delivered": int(COST[kind]) if ready else 0, "work": int(WORK[kind]) if ready else 0, "growth": 0, "stock": 0, "planted": false, "integrity": 12}
+	if kind in ["bridge","roadworks"]: value.project_cells = project_cells.duplicate(true)
 	world.next_id += 1
 	world.buildings.append(value)
 	world.workforce.building_added(value)
@@ -168,6 +170,7 @@ static func add_building(world, home: Dictionary, kind: String, cell: Vector2i, 
 		for x in rect.size.x: world.occupied[rect.position + Vector2i(x, y)] = value
 	world.touch_terrain(cell, int(SIZE[kind]))
 	world.landscape.building(world,value)
+	if ready: world.networks.completed(world,value)
 	return value
 
 static func site(world, home: Dictionary, kind: String) -> Vector2i:
@@ -262,7 +265,7 @@ static func assign(world, person: Dictionary, home: Dictionary) -> void:
 		if own_shelter != WorldState.NO_CELL: resting = own_shelter
 		for value in world.workforce.buildings(world, home):
 			if own_shelter != WorldState.NO_CELL: break
-			if value.town == home.id and value.kind == "house" and value.ready:
+			if value.town == home.id and DWELLINGS.has(value.kind) and value.ready:
 				resting = Vector2i(value.x + 1, value.y + 1)
 				break
 		set_task(world, person, task("rest", resting))
@@ -341,7 +344,7 @@ static func assign(world, person: Dictionary, home: Dictionary) -> void:
 	if own_shelter != WorldState.NO_CELL: resting = own_shelter
 	for value in world.workforce.buildings(world, home):
 		if own_shelter != WorldState.NO_CELL: break
-		if value.town == home.id and value.kind == "house" and value.ready:
+		if value.town == home.id and DWELLINGS.has(value.kind) and value.ready:
 			resting = Vector2i(value.x + 1, value.y + 1)
 			break
 	set_task(world, person, task("rest", resting))
@@ -445,6 +448,7 @@ static func execute(world, person: Dictionary, home: Dictionary) -> void:
 			if value.work >= int(WORK[value.kind]):
 				world.workforce.building_ready(value)
 				value.ready = true
+				world.networks.completed(world,value)
 				world.heritage.restored(world,value)
 				world.landscape.building(world,value)
 				WorldSociety.invalidate(world)
@@ -518,11 +522,15 @@ static func step_claim(world, person: Dictionary) -> void:
 
 static func step_farm(world, value: Dictionary) -> void:
 	if not value.ready or value.kind != "farm" or not value.planted: return
-	if world.ticks < world.drought_until or world.fires.has(Vector2i(value.x, value.y)): return
-	if not WorldWeather.farm_work(world, Vector2i(value.x, value.y)): return
+	var irrigation: bool = count(world,town(world,value.town),"irrigation")>0 and not navigation(world,town(world,value.town)).coasts.is_empty()
+	if (world.ticks < world.drought_until and not irrigation) or world.fires.has(Vector2i(value.x, value.y)): return
+	var point := Vector2i(value.x,value.y)
+	if not WorldWeather.farm_work(world,point) and (not irrigation or WorldWeather.at(world,point,"frost")): return
 	var home := town(world, value.town)
 	var advanced := WorldSociety.active(world, home, "rotation")
-	value.growth += 1
+	var mechanized := count(world,home,"mill")>0 and WorldSociety.active(world,home,"mechanization")
+	value.growth += 2 if mechanized else 1
+	if mechanized: WorldSociety.use(world,home,"mechanization")
 	if value.growth >= (50 if advanced else 60):
 		value.stock = clampi(roundi((24 if advanced else 18) * WorldClimate.yield_factor(world, Vector2i(value.x, value.y))), 1, 36)
 		if advanced: WorldSociety.use(world, home, "rotation")

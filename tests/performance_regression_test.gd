@@ -33,7 +33,7 @@ func _initialize() -> void:
 		header_max = maxi(header_max, Time.get_ticks_usec() - start)
 	var expected := world.to_dict(false, false)
 	expected.erase("chunks"); expected.erase("people"); expected.regions = []
-	check(JSON.parse_string(header.result) == JSON.parse_string(JSON.stringify(expected)), "incremental header includes every existing save field")
+	check(JSON.parse_string(header.result) == JSON.parse_string(JSON.stringify(expected,"",true,true)), "incremental header includes every existing save field")
 	check(header_max < 16000, "save header has no whole-world serialization unit")
 	var empty := WorldState.new()
 	for i in WorldState.MAX_CHUNKS: empty._set_terrain(Vector2i(i * WorldState.CHUNK_SIZE, 0), WorldState.Terrain.GRASS)

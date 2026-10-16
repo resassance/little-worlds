@@ -12,6 +12,7 @@ var buildings: Array
 var paths: Array
 var sites: Array
 var ruins: Array
+var infrastructure: Array
 var scars: Array
 var phase := 0
 var cursor := 0
@@ -23,6 +24,7 @@ func _init(value: WorldState, key: Vector2i) -> void:
 	image = Image.create(WorldState.CHUNK_SIZE*TILE,WorldState.CHUNK_SIZE*TILE,false,Image.FORMAT_RGBA8); image.fill(Color.TRANSPARENT)
 	var chunk := world.regions.snapshot(world,key)
 	if not chunk.is_empty(): tiles = chunk.tiles
+	infrastructure = world.networks.infrastructure_regions.get(key,{}).keys()
 	ruins = world.heritage.draw_regions.get(key,[]).duplicate()
 	buildings = world.landscape.grounds.get(key,{}).values()
 	paths = world.landscape.path_regions.get(key,{}).keys()
@@ -37,10 +39,10 @@ func advance(budget_usec: int = 400) -> bool:
 	return finished
 
 func _unit() -> void:
-	var items: Array = [buildings,scars,ruins,paths,sites][phase]
+	var items: Array = [buildings,scars,ruins,paths,sites,infrastructure][phase]
 	if cursor >= items.size():
 		phase += 1; cursor = 0
-		if phase == 5: finished = true
+		if phase == 6: finished = true
 		return
 	var value: Variant = items[cursor]; cursor += 1
 	match phase:
@@ -49,6 +51,7 @@ func _unit() -> void:
 		2: _ruin(value)
 		3: _path(value)
 		4: _site(value)
+		5: _infrastructure(value)
 
 func _terrain(cell: Vector2i) -> int:
 	if tiles.is_empty() or WorldState.chunk_of(cell) != coord: return WorldState.Terrain.WATER
@@ -67,8 +70,8 @@ func _ground(value: Dictionary) -> void:
 	var margin: int = int(WorldLandscape.GROUNDS[value.kind])
 	var area := footprint.grow(margin).intersection(Rect2i(coord*WorldState.CHUNK_SIZE,Vector2i.ONE*WorldState.CHUNK_SIZE))
 	var soil := Color("aa9574")
-	if value.kind in ["forge","kiln","workshop"]: soil = Color("8e8676")
-	elif value.kind in ["market","council","school","archive"]: soil = Color("c0ae8a")
+	if value.kind in ["forge","kiln","workshop","factory","power"]: soil = Color("8e8676")
+	elif value.kind in ["market","council","school","archive","townhouse","apartment","tower","plaza"]: soil = Color("c0ae8a")
 	elif value.kind == "farm": soil = Color("9b8561")
 	for y in range(area.position.y,area.end.y):
 		for x in range(area.position.x,area.end.x):
@@ -181,3 +184,20 @@ func _ruin(value: Dictionary) -> void:
 				_rect(pos+Vector2i(3,0),Vector2i(1,6),Color("725b44"))
 				_rect(pos+Vector2i(4,0),Vector2i(3,2),Color("be9361"))
 			if age > 0.25 and (x == 0 or y == size-1): _rect(pos+Vector2i(0,5),Vector2i(3,2),Color("718953"))
+
+func _infrastructure(cell: Vector2i) -> void:
+	var value: Dictionary = world.networks.infrastructure_regions.get(coord,{}).get(cell,{})
+	if value.is_empty() or not world.building_index.has(value.id): return
+	var pos := _pos(cell)
+	if value.kind=="bridge":
+		if not world.networks.bridge_open(world,cell): return
+		_rect(pos,Vector2i(8,8),Color("665849"))
+		var horizontal: bool = value.project_cells[0][0]!=value.x
+		for step in [1,3,5]:
+			_rect(pos+Vector2i(step,1) if horizontal else pos+Vector2i(1,step),Vector2i(1,6) if horizontal else Vector2i(6,1),Color("c0a276"))
+		_rect(pos,Vector2i(8,1) if horizontal else Vector2i(1,8),Color("e0bd86"))
+		_rect(pos+Vector2i(0,7) if horizontal else pos+Vector2i(7,0),Vector2i(8,1) if horizontal else Vector2i(1,8),Color("78664e"))
+	elif _terrain(cell) in [WorldState.Terrain.GRASS,WorldState.Terrain.SAND,WorldState.Terrain.FOREST]:
+		_rect(pos+Vector2i(1,1),Vector2i(6,6),Color("a5a294"))
+		for y in [1,4]:
+			for x in [1,4]: _rect(pos+Vector2i(x,y),Vector2i(2,2),Color("d2c8ae"))

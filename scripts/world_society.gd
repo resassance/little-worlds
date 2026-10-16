@@ -57,6 +57,8 @@ static func experts(world, home: Dictionary) -> Dictionary:
 
 static func reason(world, home: Dictionary, key: String, applying: bool = false) -> String:
 	var spec: Dictionary = TECH[key]
+	for prerequisite in spec.get("requires",[]):
+		if not mastered(world,home,prerequisite): return "нужен метод: " + TECH[prerequisite].name
 	if spec.get("coastal", false) and WorldEconomy.navigation(world, home).coasts.is_empty(): return "нужен доступный берег"
 	var equipped := false
 	for kind in spec.sites:
@@ -225,11 +227,16 @@ static func restore(world, data: Dictionary) -> bool:
 		if source.id <= 0 or source.id >= world.next_id or ids.has(int(source.id)) or world.society_index.has(int(source.town)) or WorldEconomy.town(world, source.town).is_empty(): return false
 		if source.era < 0 or source.era >= ERAS.size() or source.era_days < 0 or source.era_days >= 3 or source.taught < 0 or source.taught > LIMIT: return false
 		if not source.get("practice") is Dictionary or source.practice.size() != WorldSocial.SKILLS.size() or not source.get("tech") is Dictionary: return false
-		if data.version >= 7 and source.tech.size() != TECH.size(): return false
+		if data.version>=13 and source.tech.size()!=TECH.size(): return false
+		if data.version>=7 and data.version<13 and (source.tech.size()<11 or source.tech.size()>TECH.size()): return false
+		for key in source.tech:
+			if not TECH.has(key): return false
 		var society: Dictionary = source.duplicate(true)
-		if data.version < 7:
+		if data.version < 13:
 			for key in TECH:
-				if not society.tech.has(key): society.tech[key] = {"known": false, "mastered": false, "progress": 0, "used": 0, "discovered_tick": -1, "operating": false}
+				if not society.tech.has(key):
+					society.tech[key] = {"known": false, "mastered": false, "progress": 0, "used": 0, "discovered_tick": -1, "operating": false}
+					WorldDevelopment.initialize_method(world,society,key)
 		for key in ["id", "town", "era", "era_days", "worker", "taught"]: society[key] = int(society[key])
 		for skill in WorldSocial.SKILLS:
 			if not WorldState._integer(society.practice.get(skill)) or society.practice[skill] < 0 or society.practice[skill] > LIMIT: return false

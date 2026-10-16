@@ -28,7 +28,7 @@ persisted_world = """async (expected) => {
         const index = keys.findIndex(key => key.endsWith('/world.json'));
         if (index < 0 || !values[index].contents) return false;
         const data = JSON.parse(new TextDecoder().decode(values[index].contents));
-        if (!data.regions || data.version !== 12 || !data.households || !data.ancestry_archive || !data.societies) return false;
+        if (!data.regions || data.version !== 13 || !data.households || !data.ancestry_archive || !data.societies) return false;
         if (expected && !data.regions.some(r => r.x === expected[0] && r.y === expected[1])) return false;
         const directory = keys[index] + '.regions/';
         if (!data.regions.every(r => keys.includes(directory + r.file))) return false;
@@ -85,7 +85,7 @@ with sync_playwright() as p:
                and person['vocation']['goal'] in {'master', 'learn', 'connect', 'explore', 'research', 'teach'}
                for person in first_save['people']), 'Web save includes skills, personality, friendships and lessons'
     assert {society['town'] for society in first_save['societies']} == {town['id'] for town in first_save['towns']}, 'Every Web settlement has its own society'
-    assert all(set(society['tech']) == {'preservation','carpentry','rotation','records','stonework','ceramics','weaving','metallurgy','governance','navigation','sailing'}
+    assert all(set(society['tech']) == {'preservation','carpentry','rotation','records','stonework','ceramics','weaving','metallurgy','governance','navigation','sailing','masonry','waterworks','mechanization','steam','electricity','urbanism','highrise'}
                and set(society['practice']) == {'food', 'wood', 'build', 'farm'}
                and isinstance(society['choice_rng'], int) and len(society['domain_practice']) == 12
                and all(isinstance(state['threshold'], (int, float)) and isinstance(state['spent'], bool)
@@ -144,5 +144,5 @@ with sync_playwright() as p:
     dimensions = page.locator('canvas').evaluate('(c) => ({width:c.width, height:c.height})')
     assert dimensions == {'width':844, 'height':480}, dimensions
     assert not errors, json.dumps(errors, ensure_ascii=False)
-    print('Web: Chromium launch, drawers, camera, resize, v12 save/load with local societies and technologies, distant painting without canceling work or resetting knowledge, complete IndexedDB commit and land persistence across page reload; no console errors.')
+    print('Web: Chromium launch, drawers, camera, resize, v13 save/load with local societies and technologies, distant painting without canceling work or resetting knowledge, complete IndexedDB commit and land persistence across page reload; no console errors.')
     browser.close()

@@ -26,7 +26,7 @@ func _init(value, references: Array[Dictionary], capture_only: bool = false, sna
 		"civilization": {"towns": world.civilization.values(), "metrics": world.industry, "deposits": []},
 		"maritime": {"voyages": world.voyages, "contacts": world.contacts, "explored": world.explored_coasts, "fishing": []},
 		"journeys": world.journeys, "ticks": world.ticks, "next_id": world.next_id, "regions": references, "regrowth": world.regrowth,
-		"towns": world.towns, "buildings": world.buildings, "metrics": world.metrics, "fires": [],
+		"networks":{"towns":world.networks.towns,"links":world.networks.links}, "towns": world.towns, "buildings": world.buildings, "metrics": world.metrics, "fires": [],
 		"societies": world.societies, "households": world.households, "ancestry_archive": world.ancestry_archive,
 		"history": world.history, "rng_state": str(world.rng.state), "wet_until": world.wet_until, "drought_until": world.drought_until, "weather": world.weather,"landscape":{"paths":[],"scars":[]},"heritage":{"sites":world.heritage.sites,"origins":world.heritage.origins,"couriers":world.heritage.couriers,"archived":world.heritage.archived,"rng":str(world.heritage.random.state)}}
 	maps = [
@@ -43,6 +43,7 @@ func _init(value, references: Array[Dictionary], capture_only: bool = false, sna
 		data.metrics = world.metrics.duplicate()
 		data.weather = world.weather.duplicate(true)
 		for key in ["towns", "buildings", "societies", "households", "ancestry_archive", "history", "journeys"]: _copy_array(data, key)
+		for key in ["towns","links"]: _copy_array(data.networks,key)
 		for key in ["sites","origins","couriers"]: _copy_array(data.heritage,key)
 		_copy_array(data.civilization, "towns")
 		_copy_array(data.maritime, "voyages")

@@ -10,6 +10,7 @@ var cursor := 0
 var site_job: WorldSiteJob
 var finished := false
 var industry := false
+var public_job: WorldPublicPlanJob
 
 func _init(value, settlement: Dictionary, industrial: bool = false) -> void:
 	world = value; home = settlement; industry = industrial
@@ -24,10 +25,13 @@ func _industry() -> void:
 
 func _later_kind() -> void:
 	if WorldEconomy.count(world, home, "store", false) == 0: kind = "store"
-	elif WorldLife.needs_home(world, home): kind = "house"
+	elif WorldLife.needs_home(world, home): kind = world.networks.housing_kind(world,home)
 	elif WorldDevelopment.construction_ready(world, home, "workshop") and WorldEconomy.count(world, home, "workshop", false) == 0: kind = "workshop"
 	elif WorldDevelopment.construction_ready(world, home, "archive") and WorldEconomy.count(world, home, "archive", false) == 0: kind = "archive"
-	else: _industry(); return
+	else:
+		var modern: String = world.networks.housing_kind(world,home)
+		if modern!="house" and WorldEconomy.count(world,home,modern,false)==0 and WorldDevelopment.construction_ready(world,home,modern): kind = modern
+		else: _industry(); return
 	phase = 2
 
 func _build() -> void:
@@ -52,7 +56,7 @@ func unit() -> void:
 				if value.town == home.id and not value.ready and (not expand_storage or value.kind == "store"): finished = true; return
 			if WorldEconomy.food_days(world, home) < 2 and not expand_storage: finished = true; return
 			if expand_storage: kind = "store"; phase = 2
-			elif WorldEconomy.housing(world, home) < residents.size() + 1: kind = "house"; phase = 2
+			elif WorldEconomy.housing(world, home) < residents.size() + 1: kind = world.networks.housing_kind(world,home); phase = 2
 			elif WorldEconomy.count(world, home, "farm", false) < maxi(1, ceili(residents.size() / 12.0)):
 				site_job = WorldSiteJob.new(world, home, "farm"); phase = 1
 			else: _later_kind()
@@ -68,7 +72,11 @@ func unit() -> void:
 			if not site_job.finished: site_job.unit(); return
 			_build()
 		4:
-			if cursor >= options.size(): finished = true; return
+			if cursor >= options.size():
+				if public_job == null: public_job = WorldPublicPlanJob.new(world,home)
+				if not public_job.finished: public_job.unit()
+				else: finished = true
+				return
 			kind = options[cursor]
 			if not WorldDevelopment.construction_ready(world, home, kind) or WorldEconomy.count(world, home, kind, false) > 0: cursor += 1; return
 			if not WorldCivilization.inputs_available(world, home, WorldCivilization.EXTRA.get(kind, {})) or WorldEconomy.available_wood(world, home) < int(WorldEconomy.COST[kind]): cursor += 1; return

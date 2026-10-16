@@ -182,6 +182,7 @@ static func building_texture(kind: String) -> ImageTexture:
 		"school": ["......oooo......",".....ottttro....","....otttttrro...","...oooooooooo...","...ossswwssbo...","...ossswwssbo...","...osssssssbo...","..oooooooooooo..","..bb..wwww..bb..","..bbbbbbbbbbbb..","..bb........bb..","...kkkkkkkkkk..."],
 		"port": ["............b...",".......bbbbbb...",".......b....b...","...oooooo...n...","..ottttrro..n...",".oooooooooo.....",".obssswwwbo.....",".obssswwwbo.....",".obsssooobo.....",".obsssbbbbo.....",".oooooooooo.....","bbbbbbbbbbbbbbbb","btbtbtbtbtbtbtbb","bbbbbbbbbbbbbbbb",".bb..bb..bb..bb."]
 	}
+	if kind in ["townhouse","apartment","tower","factory","power","mill","bridge","irrigation","roadworks","plaza","embankment"]: return city_texture(kind)
 	if patterns.has(kind): return sprite_texture(patterns[kind])
 	if kind=="boat" or kind=="sailboat": return vessel_texture(kind=="sailboat")
 	return sprite_texture(WORKSHOP,{"t":Color("bda4c8"),"r":Color("876e9b"),"s":Color("e0d1b5")})
@@ -217,3 +218,70 @@ static func icon(key: String) -> ImageTexture:
 		"fit": ["cccc..cccc", "c........c", "c........c", "c........c", "..........", "..........", "c........c", "c........c", "cccc..cccc"]
 	}
 	return sprite_texture(patterns.get(key, patterns.leaf), {"c": Color("c3a871"), "a": Color("8c7754")})
+
+static func city_texture(kind: String, lit: bool = false) -> ImageTexture:
+	var height := 64 if kind=="tower" else (36 if kind=="apartment" else 24)
+	var image := Image.create(24,height,false,Image.FORMAT_RGBA8)
+	image.fill(Color.TRANSPARENT)
+	var ink := Color("494d50")
+	var stone := Color("d3c4a6")
+	var shadow := Color("998d7d")
+	var roof := Color("8a5a4c")
+	var glass := Color("eec67e") if lit else Color("8aa7af")
+	if kind in ["townhouse","apartment","tower"]:
+		var top := 6 if kind=="tower" else 4
+		image.fill_rect(Rect2i(2,top,20,height-top-2),ink)
+		image.fill_rect(Rect2i(3,top+1,17,height-top-4),stone)
+		image.fill_rect(Rect2i(19,top+1,2,height-top-3),shadow)
+		image.fill_rect(Rect2i(1,top-2,22,3),roof if kind=="townhouse" else shadow)
+		for y in range(top+3,height-7,6):
+			for x in [5,10,15]:
+				image.fill_rect(Rect2i(x,y,3,4),ink)
+				image.fill_rect(Rect2i(x,y,2,3),glass)
+			image.fill_rect(Rect2i(3,y+4,16,1),shadow)
+		image.fill_rect(Rect2i(9,height-7,5,5),ink)
+		image.fill_rect(Rect2i(10,height-6,2,4),Color("9d7650"))
+		if kind=="tower":
+			image.fill_rect(Rect2i(9,1,6,3),ink)
+			image.fill_rect(Rect2i(12,0,1,3),Color("bd8865"))
+	elif kind in ["factory","power","mill"]:
+		image.fill_rect(Rect2i(2,11,20,11),ink)
+		image.fill_rect(Rect2i(3,12,17,9),Color("b17f61") if kind=="factory" else stone)
+		image.fill_rect(Rect2i(1,9,22,3),roof)
+		for x in [4,10,16]: image.fill_rect(Rect2i(x,14,3,4),glass)
+		if kind=="mill":
+			image.fill_rect(Rect2i(10,3,3,17),Color("c9b58d"))
+			image.fill_rect(Rect2i(3,7,17,2),Color("e0cd9f"))
+			image.fill_rect(Rect2i(11,0,2,18),Color("e0cd9f"))
+		else:
+			for x in [4,16]:
+				image.fill_rect(Rect2i(x,2,4,11),ink)
+				image.fill_rect(Rect2i(x,3,3,8),shadow)
+				image.fill_rect(Rect2i(x-1,1,6,2),roof)
+			if kind=="power":
+				image.fill_rect(Rect2i(10,3,1,14),Color("cdad69"))
+				image.fill_rect(Rect2i(7,5,8,1),ink)
+				image.fill_rect(Rect2i(9,17,5,3),glass)
+	elif kind=="irrigation":
+		image.fill_rect(Rect2i(1,13,22,8),shadow)
+		for y in [14,18]: image.fill_rect(Rect2i(2,y,20,2),Color("65a1b2"))
+		for x in [5,11,17]: image.fill_rect(Rect2i(x,14,1,6),Color("809b64"))
+	elif kind=="plaza":
+		image.fill_rect(Rect2i(0,5,24,19),shadow)
+		for y in range(6,23,4):
+			for x in range(1,23,4): image.fill_rect(Rect2i(x,y,3,3),stone)
+		image.fill_rect(Rect2i(8,9,8,9),ink)
+		image.fill_rect(Rect2i(9,10,6,6),Color("6a9daa"))
+		image.fill_rect(Rect2i(11,6,2,8),stone)
+	elif kind=="embankment":
+		for y in range(9,23,4):
+			image.fill_rect(Rect2i(1,y,22,3),shadow)
+			for x in range(2+(y%2),22,5): image.fill_rect(Rect2i(x,y,4,2),stone)
+		image.fill_rect(Rect2i(0,7,24,2),stone)
+	elif kind=="bridge":
+		image.fill_rect(Rect2i(2,16,20,4),shadow)
+		for x in [3,8,13,18]: image.fill_rect(Rect2i(x,15,3,4),Color("c0a276"))
+	else:
+		image.fill_rect(Rect2i(3,18,18,4),shadow)
+		for x in [4,9,14]: image.fill_rect(Rect2i(x,16,4,3),stone)
+	return ImageTexture.create_from_image(image)

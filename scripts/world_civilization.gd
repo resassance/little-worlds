@@ -3,7 +3,7 @@ extends RefCounted
 
 const GOODS := {"stone": "Камень", "ore": "Руда", "pottery": "Керамика", "cloth": "Ткань", "metal": "Металл", "tools": "Инструменты"}
 const CAPACITY := 96
-const EXTRA := {"kiln": {"stone": 4}, "loom": {"stone": 2}, "forge": {"stone": 6}, "market": {"stone": 4}, "school": {"stone": 6}, "council": {"stone": 8}, "port": {"stone": 6, "cloth": 4}}
+const EXTRA := {"kiln": {"stone": 4}, "loom": {"stone": 2}, "forge": {"stone": 6}, "market": {"stone": 4}, "school": {"stone": 6}, "council": {"stone": 8}, "port": {"stone": 6, "cloth": 4}, "bridge": {"stone": 4}, "irrigation": {"stone": 6, "pottery": 2}, "roadworks": {"stone": 8}, "plaza": {"stone": 12}, "embankment": {"stone": 14}, "townhouse": {"stone": 8}, "mill": {"stone": 6, "tools": 2}, "factory": {"stone": 20, "metal": 8, "tools": 4}, "power": {"stone": 20, "metal": 12, "tools": 4}, "apartment": {"stone": 24, "metal": 8, "tools": 4}, "tower": {"stone": 40, "metal": 24, "tools": 8}}
 const RECIPES := {
 	"pottery": {"building": "kiln", "tech": "ceramics", "inputs": {"stone": 2, "wood": 1}, "yield": 2, "work": 8},
 	"cloth": {"building": "loom", "tech": "weaving", "inputs": {"food": 1}, "yield": 2, "work": 8},
@@ -72,8 +72,8 @@ static func assign(world, member: Dictionary, home: Dictionary) -> bool:
 	if WorldEconomy.food_days(world, home) < 6 or member.energy < 35: return false
 	var data := ensure(world, home)
 	if member.skills.build < 10: return false
-	var need_ore: bool = data.stock.ore < 12 and WorldEconomy.count(world, home, "forge", false) > 0
-	if data.stock.stone < 24 or need_ore:
+	var need_ore: bool = data.stock.ore < world.networks.stock_goal(world,home,"ore") and WorldEconomy.count(world, home, "forge", false) > 0
+	if data.stock.stone < world.networks.stock_goal(world,home,"stone") or need_ore:
 		for deposit in WorldEconomy.navigation(world,home).quarries:
 			var point: Vector2i=deposit.land
 			var rock: Vector2i=deposit.rock
@@ -85,7 +85,7 @@ static func assign(world, member: Dictionary, home: Dictionary) -> bool:
 			return true
 	for key in RECIPES:
 		var recipe: Dictionary = RECIPES[key]
-		if data.stock[key] >= (8 if key == "tools" else 12) or not WorldSociety.active(world, home, recipe.tech) or not inputs_available(world, home, recipe.inputs): continue
+		if data.stock[key] >= world.networks.stock_goal(world,home,key) or not WorldSociety.active(world, home, recipe.tech) or not inputs_available(world, home, recipe.inputs): continue
 		for building in world.workforce.buildings(world, home):
 			if building.town != home.id or not building.ready or building.kind != recipe.building: continue
 			if world.claims.has("manufacture:%d" % building.id): continue
@@ -138,7 +138,9 @@ static func execute(world, member: Dictionary, home: Dictionary) -> bool:
 		if world.terrain_at(rock) != WorldState.Terrain.MOUNTAIN or world.mineral_deposits.get(rock, 36) <= 0:
 			WorldEconomy.set_task(world, member, {})
 			return true
-		task.work += WorldSocial.work_credit(world, member, "build")
+		var powered: bool = WorldEconomy.count(world,home,"factory")>0 and world.networks.powered(world,home)
+		task.work += WorldSocial.work_credit(world,member,"build")+(1 if powered else 0)
+		if powered: WorldSociety.use(world,home,"steam")
 		WorldSocial.practice(world, member, "build")
 		if task.work < 6: return true
 		var amount: int = mini(3, world.mineral_deposits.get(rock, 36))
@@ -160,7 +162,9 @@ static func execute(world, member: Dictionary, home: Dictionary) -> bool:
 			return true
 		consume(world, home, recipe.inputs)
 		task.started = true
-	task.work += WorldSocial.work_credit(world, member, "build")
+	var powered: bool = WorldEconomy.count(world,home,"factory")>0 and world.networks.powered(world,home)
+	task.work += WorldSocial.work_credit(world,member,"build")+(1 if powered else 0)
+	if powered: WorldSociety.use(world,home,"steam")
 	member.energy = maxf(0, member.energy - 0.5)
 	WorldSocial.practice(world, member, "build")
 	if task.work < int(recipe.work): return true

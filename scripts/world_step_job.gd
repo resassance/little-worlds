@@ -1,7 +1,7 @@
 class_name WorldStepJob
 extends RefCounted
 
-enum Phase { CLIMATE, WEATHER, REPAIR, HOMES, NAVIGATION, WORKFORCE, SOCIAL_TICK, CLAIMS, FARMS, PLANS, SPOIL, PEOPLE, TRAVEL, LIFE_REPAIR, FOUND, LIFE_BEGIN, COURT, BIRTHS, SOCIAL, SOCIETY, CIVILIZATION, DAILY_TRAVEL, LANDSCAPE, FINISH }
+enum Phase { CLIMATE, WEATHER, REPAIR, HOMES, NAVIGATION, WORKFORCE, SOCIAL_TICK, CLAIMS, FARMS, CIVICS, PLANS, SPOIL, PEOPLE, TRAVEL, LIFE_REPAIR, FOUND, LIFE_BEGIN, COURT, BIRTHS, SOCIAL, SOCIETY, CIVILIZATION, DAILY_TRAVEL, LANDSCAPE, FINISH }
 var world
 var phase := Phase.CLIMATE
 var cursor := 0
@@ -13,6 +13,7 @@ var terrain_dirty := false
 var finished := false
 var units := 0
 var navigation_job: WorldNavigationJob
+var network_navigation_job: WorldNavigationJob
 var travel_job: WorldTravelDailyJob
 var max_unit_usec := 0
 var peak_phase := ""
@@ -28,6 +29,8 @@ var fire_job: WorldFireStepJob
 var journeys: Array = []
 var construction_job: WorldConstructionPlanJob
 var removal_context: WorldRemovalContext
+var bridge_repair: WorldTerrainRepairJob
+var networks_job: WorldNetworksJob
 var landscape_job: WorldLandscapeJob
 
 func _init(value) -> void:
@@ -95,6 +98,13 @@ func _unit() -> void:
 		if job.finished: world.removal_ids.erase(job.member.id); world.person_removals.pop_front()
 		return
 	removal_context = null
+	if network_navigation_job!=null:
+		if not network_navigation_job.finished: network_navigation_job.unit(); return
+		network_navigation_job = null
+	if not world.networks.navigation_queue.is_empty():
+		var home := WorldEconomy.town(world,world.networks.navigation_queue.pop_front())
+		if not home.is_empty(): network_navigation_job = WorldNavigationJob.new(world,home)
+		return
 	match phase:
 		Phase.CLIMATE:
 			if cursor == 0:
@@ -121,6 +131,10 @@ func _unit() -> void:
 			terrain_dirty = fire_job.dirty
 			if repair_job == null: repair_job = WorldBuildingRepairJob.new(world)
 			if not repair_job.finished: repair_job.unit(); return
+			if world.bridge_repair_needed:
+				if bridge_repair==null: bridge_repair = WorldTerrainRepairJob.new(world)
+				if not bridge_repair.finished: bridge_repair.unit(); return
+				world.bridge_repair_needed = false
 			_next()
 		Phase.HOMES:
 			if cursor < world.towns.size():
@@ -163,6 +177,10 @@ func _unit() -> void:
 			if cursor < world.buildings.size():
 				WorldEconomy.step_farm(world, world.buildings[cursor]); cursor += 1
 			else: _next()
+		Phase.CIVICS:
+			if networks_job == null: networks_job = WorldNetworksJob.new(world)
+			if not networks_job.finished: networks_job.unit(); return
+			_next()
 		Phase.PLANS:
 			if world.ticks % WorldEconomy.DAY_TICKS == 0 and cursor < world.towns.size():
 				if construction_job == null: construction_job = WorldConstructionPlanJob.new(world, world.towns[cursor])

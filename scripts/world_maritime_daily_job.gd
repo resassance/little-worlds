@@ -6,6 +6,7 @@ var world
 var phase := 0
 var cursor := 0
 var home_cursor := 0
+var searches := 0
 var homes: Array
 var home: Dictionary = {}
 var vessel: Dictionary = {}
@@ -25,6 +26,9 @@ func _init(value) -> void:
 	world = value
 	fishing = world.fishing.keys()
 	homes = world.towns.duplicate()
+	if not homes.is_empty():
+		var offset: int = (world.ticks/(WorldEconomy.DAY_TICKS*3))%homes.size()
+		homes = homes.slice(offset)+homes.slice(0,offset)
 
 func _next_home() -> void:
 	home_cursor += 1; cursor = 0; phase = 1
@@ -49,7 +53,8 @@ func _purpose(destination: Dictionary) -> String:
 	if not known: return "colony" if destination.get("town",-1) == -1 and WorldEconomy.members(world,home).size() >= 12 else "explore"
 	var target := WorldEconomy.town(world,destination.town)
 	if WorldEconomy.food_days(world,home) < 12 and WorldEconomy.housing(world,target) > WorldEconomy.members(world,target).size()+1: return "migrate"
-	return "trade"
+	var offer: Dictionary = world.networks.offer(world,home,target)
+	return "explore" if offer.is_empty() else ("aid" if offer.aid else "trade")
 
 func unit() -> void:
 	if finished: return
@@ -62,11 +67,11 @@ func unit() -> void:
 				if world.ticks % (WorldEconomy.DAY_TICKS * 3) != 0: finished = true; return
 				phase = 1; cursor = 0
 		1:
-			if home_cursor >= homes.size(): finished = true; return
+			if home_cursor >= homes.size() or searches>=2: finished = true; return
 			home = homes[home_cursor]
 			for ship in world.voyages:
 				if ship.home == home.id: _next_home(); return
-			if WorldEconomy.food_days(world, home) < 10: _next_home(); return
+			if WorldEconomy.food_days(world,home)<4: _next_home(); return
 			if WorldMaritime.crew_candidates(world,home,1).is_empty(): _next_home(); return
 			buildings = world.workforce.buildings(world, home).duplicate()
 			phase = 2; cursor = 0
@@ -74,7 +79,7 @@ func unit() -> void:
 			if cursor >= buildings.size(): _next_home(); return
 			var value: Dictionary = buildings[cursor]; cursor += 1
 			if value.town != home.id or value.kind not in ["boat", "sailboat"] or not value.ready: return
-			vessel = value
+			vessel = value; searches += 1
 			phase = 3; cursor = 0
 		3:
 			if navigation_job != null:
@@ -119,9 +124,11 @@ func unit() -> void:
 			if not known and world.explored_coasts.has(mark): cursor += 1; return
 			var departure := WorldMaritime.shore(world, home, destination.land)
 			if departure.is_empty(): cursor += 1; return
-			var count := 3 if _purpose(destination) == "colony" else 1
+			var relocating: bool = _purpose(destination) in ["migrate","colony"]
+			var group: Array = WorldMaritime.migration_group(world,home,8 if vessel.kind=="sailboat" else 3,_purpose(destination)=="colony") if relocating else WorldMaritime.crew_candidates(world,home,1)
+			var count := group.size()
 			var duration := maxi(20,ceili(departure.water.distance_to(destination.water)/int(WorldMaritime.SPEED[vessel.kind])))
-			if not WorldMaritime.can_supply(world,home,vessel,duration,count) or WorldMaritime.crew_candidates(world,home,count).is_empty(): cursor += 1; return
+			if not WorldMaritime.can_supply(world,home,vessel,duration,count,relocating) or group.is_empty(): cursor += 1; return
 			route_job = WorldSeaRouteJob.new(world, departure.water, destination.water)
 			phase = 6
 		6:

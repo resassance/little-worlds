@@ -55,7 +55,7 @@ func setup(mobile: bool, target: float) -> void:
 	add_child(notice)
 	notice_label = label("", 14, AtlasTheme.INK)
 	notice.add_child(notice_label)
-	for item in [["history", "История места"], ["development", "Развитие"], ["technology", "Технологии"], ["economy", "Хозяйство"], ["population", "Жители"], ["sea", "Море и соседи"], ["family", "Семья"], ["skills", "Навыки и характер"], ["relations", "Отношения"], ["building", "Постройка"], ["terrain", "Местность"]]:
+	for item in [["history", "История места"], ["development", "Развитие"], ["technology", "Технологии"], ["economy", "Хозяйство"], ["population", "Жители"], ["civic","Город и общие стройки"], ["network","Связи и переселение"], ["sea", "Морские экспедиции"], ["family", "Семья"], ["skills", "Навыки и характер"], ["relations", "Отношения"], ["building", "Постройка"], ["terrain", "Местность"]]:
 		var box := VBoxContainer.new()
 		box.add_theme_constant_override("separation", 4)
 		add_child(box)
@@ -168,7 +168,7 @@ func present(world: WorldState, cell: Vector2i, person: Dictionary, home: Dictio
 	var visible_sections: Array = ["terrain"]
 	var warning := false
 	if kind == "town":
-		visible_sections.append_array(["development", "technology", "economy", "population", "sea"])
+		visible_sections.append_array(["development","technology","economy","population","civic","network","sea"])
 		put(title_label, home.name)
 		put(subtitle_label, "Поселение · %d, %d" % [home.x, home.y])
 		var residents := WorldEconomy.members(world, home).size()
@@ -276,6 +276,33 @@ func details(key: String, world: WorldState, cell: Vector2i, person: Dictionary,
 			for skill in crafts: result.append([WorldSocial.SKILLS[skill], "Опытных: %d · учеников: %d" % crafts[skill]])
 			var leader := int(world.civilization.get(home.id, {}).get("leader", -1))
 			if leader != -1: result.append(["Старейшина", WorldLife.label(world, leader)])
+		"civic":
+			var state: Dictionary = world.networks.town_index.get(home.id,{})
+			result.append([WorldNetworks.STAGES[int(state.get("stage",0))],"Жильё: %d мест · жителей: %d" % [WorldEconomy.housing(world,home),WorldEconomy.members(world,home).size()]])
+			if not state.get("parent_name","").is_empty(): result.append(["Основано переселенцами",state.parent_name])
+			if WorldEconomy.count(world,home,"power")>0: result.append(["Электроснабжение","Работает · расход 2 древесины в месяц" if world.networks.powered(world,home) else "Остановлено · нужны топливо и освоенное электричество"])
+			for kind in ["bridge","irrigation","roadworks","plaza","embankment","mill","factory","power","townhouse","apartment","tower"]:
+				var total := WorldEconomy.count(world,home,kind,false)
+				if total==0: continue
+				var ready := WorldEconomy.count(world,home,kind)
+				var effects := {"bridge":"Пеший путь через воду","irrigation":"Поля растут при засухе","roadworks":"Меньше усталости в пути","plaza":"Место встреч жителей","embankment":"Защита судов у родного берега","mill":"Быстрее обработка урожая","factory":"Быстрее производство при электроснабжении","power":"Энергия для производства и высотной застройки","townhouse":"8 мест в каждом доме","apartment":"16 мест в каждом доме","tower":"32 места в каждом доме"}
+				result.append([WorldEconomy.NAMES[kind],"Готово: %d · строится: %d\n%s" % [ready,total-ready,effects[kind]]])
+		"network":
+			var state: Dictionary = world.networks.town_index.get(home.id,{})
+			var pressure: int = int(state.get("pressure",0))
+			result.append(["Переселение","Ищут место с едой и жильём" if pressure>=24 else ("Нужны еда или свободное жильё" if pressure>=12 else "Община устроена на месте")])
+			for journey in world.journeys:
+				if journey.home!=home.id and journey.target!=home.id: continue
+				var titles := {"trade":"Торговый караван","aid":"Помощь соседям","migrate":"Переселение семьи","colony":"Новая община"}
+				var destination := WorldEconomy.town(world,journey.target)
+				var cargo: String = {"food":"еда","wood":"древесина"}.get(journey.cargo_kind,WorldCivilization.GOODS.get(journey.cargo_kind,"без груза"))
+				result.append([titles[journey.purpose],"%s · %d чел.\nГруз: %d · %s" % [destination.get("name","Новый очаг"),journey.crew.size(),journey.cargo,cargo]])
+			for link in world.networks.neighbors.get(home.id,[]):
+				var other := WorldEconomy.town(world,link.b if link.a==home.id else link.a)
+				if other.is_empty(): continue
+				var transport: String = "море" if link.mode=="sea" else "суша"
+				result.append([other.name+" · "+world.networks.status(link,world.ticks),"Доверие: %d/100 · %s\nДоставок: %d · помощи: %d\n%s" % [link.trust,transport,link.deliveries,link.aid,link.reason]])
+			if world.networks.neighbors.get(home.id,[]).is_empty(): result.append(["Соседи пока неизвестны","Связь появляется после настоящей встречи путешественников."])
 		"sea":
 			for ship in world.voyages:
 				if ship.home != home.id: continue

@@ -99,6 +99,7 @@ func unit() -> void:
 					world.log_event("Поселение исчезло", "%s потеряло землю под собой." % home.name)
 					world.metrics.lost_food += home.food; world.metrics.lost_wood += home.wood
 					WorldExploration.forget(world, home)
+					world.networks.forget_home(home.id)
 					world.towns.remove_at(cursor)
 				cursor -= 1
 			else: phase = 3

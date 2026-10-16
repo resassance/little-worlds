@@ -38,16 +38,18 @@ static func initialize(world, society: Dictionary) -> void:
 	society.project_reason = ""
 	society.domain_practice = {}
 	for domain in DOMAINS: society.domain_practice[domain] = 0
-	for key in METHODS:
-		var state: Dictionary = society.tech[key]
-		state.experiment_rng = seed_for(world, society.town, key)
-		state.threshold = 0.0
-		state.intensity = 0.0
-		state.attempts = 0
-		state.attempt_work = 0
-		state.work_done = int(state.progress)
-		state.retry_tick = 0
-		state.spent = false
+	for key in METHODS: initialize_method(world,society,key)
+
+static func initialize_method(world, society: Dictionary, key: String) -> void:
+	var state: Dictionary = society.tech[key]
+	state.experiment_rng = seed_for(world, society.town, key)
+	state.threshold = 0.0
+	state.intensity = 0.0
+	state.attempts = 0
+	state.attempt_work = 0
+	state.work_done = int(state.progress)
+	state.retry_tick = 0
+	state.spent = false
 
 static func practice(society: Dictionary, member: Dictionary, skill: String) -> void:
 	var domain: String = PRACTICE_DOMAINS[skill]
@@ -71,6 +73,7 @@ static func profile(world, home: Dictionary) -> Dictionary:
 	return result
 
 static func construction_ready(world, home: Dictionary, kind: String) -> bool:
+	if not world.networks.construction_ready(world,home,kind): return false
 	var available := WorldSociety.experts(world, home)
 	for skill in CONSTRUCTION.get(kind, {}):
 		if int(available[skill]) < int(CONSTRUCTION[kind][skill]): return false

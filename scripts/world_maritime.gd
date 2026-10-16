@@ -35,7 +35,7 @@ static func contact(world, a: int, b: int) -> Dictionary:
 		if (value.a == a and value.b == b) or (value.a == b and value.b == a): return value
 	return {}
 
-static func meet(world, home: Dictionary, target: Dictionary, carriers: Array) -> void:
+static func meet(world, home: Dictionary, target: Dictionary, carriers: Array, mode: String = "sea") -> void:
 	if home.is_empty() or target.is_empty() or home.id == target.id: return
 	var value := contact(world, home.id, target.id)
 	if value.is_empty():
@@ -45,7 +45,8 @@ static func meet(world, home: Dictionary, target: Dictionary, carriers: Array) -
 		world.log_event("Первый контакт", "%s встретило жителей %s. Открыт путь для обмена и переселения." % [home.name, target.name])
 	value.visits += 1
 	value.trust = mini(100, int(value.trust) + 5)
-	var theirs := WorldSociety.get_society(world, target.id)
+	world.networks.link_towns(world,home,target,mode)
+	var theirs := WorldSociety.ensure_town(world,target)
 	for id in carriers:
 		var member := WorldLife.person(world, id)
 		if member.is_empty(): continue
@@ -157,31 +158,69 @@ static func crew_candidates(world, home: Dictionary, count: int) -> Array:
 		if crew.size() == count: return crew
 	return []
 
+static func migration_group(world, home: Dictionary, capacity: int, colony: bool) -> Array:
+	var residents := WorldEconomy.members(world,home)
+	for i in mini(24,residents.size()):
+		var member: Dictionary = residents[i]
+		if not WorldLife.adult(world,member): continue
+		var family := WorldLife.household(world,member.household)
+		var group: Array = family.members.duplicate() if not family.is_empty() else [int(member.id)]
+		if group.size()>capacity or not WorldTravel.eligible(world,home,group,true): continue
+		if colony and group.size()<3:
+			for j in mini(24,residents.size()):
+				var other: Dictionary = residents[j]
+				if group.has(int(other.id)) or not WorldLife.adult(world,other): continue
+				var next_family := WorldLife.household(world,other.household)
+				var additions: Array = next_family.members if not next_family.is_empty() else [int(other.id)]
+				if group.size()+additions.size()>capacity: continue
+				var joined: Array = group+additions
+				if WorldTravel.eligible(world,home,joined,true): group = joined
+				if group.size()>=3: break
+		if (not colony or group.size()>=3) and residents.size()-group.size()>=3: return group
+	return []
+
 static func provisions(duration: int, count: int) -> int:
 	return ceili((duration*2+60)*count*WorldEconomy.HUNGER_PER_STEP/WorldEconomy.NUTRITION)+4
 
-static func can_supply(world, home: Dictionary, vessel: Dictionary, duration: int, count: int) -> bool:
+static func can_supply(world, home: Dictionary, vessel: Dictionary, duration: int, count: int, relocating: bool = false) -> bool:
 	var amount := provisions(duration,count)
-	return amount <= int(HOLD[vessel.kind]) and home.food-amount >= WorldEconomy.members(world,home).size()*3
+	var reserve := maxi(0,WorldEconomy.members(world,home).size()-count) if relocating else WorldEconomy.members(world,home).size()*3
+	return amount<=int(HOLD[vessel.kind]) and home.food-amount>=reserve
 
 static func launch(world, home: Dictionary, vessel: Dictionary, destination: Dictionary, purpose: String = "explore", prepared_route: Variant = null) -> bool:
-	if world.voyages.size() >= MAX_VOYAGES or not vessel.ready or WorldEconomy.food_days(world, home) < 10: return false
+	if world.voyages.size() >= MAX_VOYAGES or not vessel.ready or WorldEconomy.food_days(world,home)<(4 if purpose in ["migrate","colony"] else 10) or purpose not in ["explore","trade","aid","colony","migrate"]: return false
 	for ship in world.voyages:
 		if ship.home == home.id: return false
 	var landing: Vector2i = destination.land
 	var departure := shore(world, home, landing)
 	if departure.is_empty(): return false
-	var count := 3 if purpose == "colony" else 1
-	var crew := crew_candidates(world,home,count)
-	if crew.size() != count: return false
+	var crew: Array = migration_group(world,home,8 if vessel.kind=="sailboat" else 3,purpose=="colony") if purpose in ["colony","migrate"] else crew_candidates(world,home,1)
+	var count := crew.size()
+	if count==0: return false
+	var target := WorldEconomy.town(world,int(destination.get("town",-1)))
+	if purpose=="migrate" and (target.is_empty() or WorldEconomy.housing(world,target)-WorldEconomy.members(world,target).size()<count or not world.networks.permitted(home.id,target.id,world.ticks)): return false
+	var terms: Dictionary = world.networks.offer(world,home,target) if purpose in ["trade","aid"] else {}
+	if purpose in ["trade","aid"] and terms.is_empty(): return false
+	if purpose=="colony" and home.wood<4: return false
 	var minimum_duration := maxi(20,ceili(departure.water.distance_to(destination.water)/int(SPEED[vessel.kind])))
-	if not can_supply(world,home,vessel,minimum_duration,count): return false
+	if not can_supply(world,home,vessel,minimum_duration,count,purpose in ["migrate","colony"]): return false
 	var points: Array = route(world, departure.water, destination.water) if prepared_route == null else prepared_route
 	if points.is_empty(): return false
 	var duration: int = maxi(20, ceili(route_length(points) / int(SPEED[vessel.kind])))
 	var provisions: int = provisions(duration,count)
-	if not can_supply(world,home,vessel,duration,count): return false
+	if not can_supply(world,home,vessel,duration,count,purpose in ["migrate","colony"]): return false
 	var ship := {"id": world.next_id, "home": int(home.id), "kind": vessel.kind, "crew": crew, "origin": [departure.land.x, departure.land.y], "landing": [landing.x, landing.y], "route": points, "phase": "boarding", "progress": 0, "duration": duration, "food": provisions, "cargo_kind": "", "cargo": 0, "purpose": purpose, "target": int(destination.get("town", -1)), "integrity": 12, "wait": 0}
+	var exported_food: int = terms.get("amount",0) if terms.get("kind","")=="food" else 0
+	var reserve := maxi(0,WorldEconomy.members(world,home).size()-count) if purpose in ["migrate","colony"] else WorldEconomy.members(world,home).size()*3
+	if home.food-provisions-exported_food<reserve: return false
+	ship.return_kind = ""; ship.return_amount = 0
+	if not terms.is_empty():
+		ship.purpose = "aid" if terms.aid else "trade"
+		ship.cargo_kind = terms.kind; ship.cargo = int(terms.amount)
+		ship.return_kind = terms.return_kind; ship.return_amount = int(terms.return_amount)
+		world.networks.take(world,home,ship.cargo_kind,ship.cargo)
+	elif purpose=="colony":
+		ship.cargo_kind = "wood"; ship.cargo = mini(6,int(home.wood)); home.wood -= ship.cargo
 	world.next_id += 1
 	home.food -= provisions
 	world.voyages.append(ship)
@@ -192,14 +231,6 @@ static func launch(world, home: Dictionary, vessel: Dictionary, destination: Dic
 		WorldEconomy.set_task(world, member, WorldEconomy.task("travel", departure.land))
 		member.job = "sailor"
 		WorldSociety.remember(member, "sailing" if vessel.kind == "sailboat" else "navigation")
-	if purpose == "trade":
-		var stock: Dictionary = WorldCivilization.ensure(world, home).stock
-		for key in WorldCivilization.GOODS:
-			if stock[key] < 6: continue
-			ship.cargo_kind = key
-			ship.cargo = 3
-			stock[key] -= 3
-			break
 	world.building_index.erase(vessel.id)
 	for y in WorldEconomy.SIZE[vessel.kind]:
 		for x in WorldEconomy.SIZE[vessel.kind]: world.occupied.erase(Vector2i(vessel.x + x, vessel.y + y))
@@ -296,16 +327,8 @@ static func arrive(world, ship: Dictionary) -> void:
 	var target: Dictionary = world._town_near(landing, 28)
 	if not target.is_empty():
 		meet(world, home, target, ship.crew)
-		if ship.purpose == "trade" and ship.cargo > 0 and WorldCivilization.GOODS.has(ship.cargo_kind):
-			var stock: Dictionary = WorldCivilization.ensure(world, target).stock
-			var amount: int = mini(ship.cargo, WorldCivilization.CAPACITY - int(stock[ship.cargo_kind]))
-			if amount == ship.cargo and amount > 0 and target.food >= amount * 2 + 12:
-				stock[ship.cargo_kind] += amount
-				target.food -= amount * 2
-				ship.cargo_kind = "food"
-				ship.cargo = amount * 2
-				world.log_event("Морской обмен", "%s обменяло материалы на %d еды у %s." % [home.name, ship.cargo, target.name])
-		if ship.purpose == "migrate":
+		if ship.purpose in ["trade","aid"] and not world.networks.exchange(world,ship,home,target,"sea"): world.networks.failed(world,ship,"Сорваны условия морской поставки")
+		if ship.purpose in ["migrate","colony"] and WorldEconomy.housing(world,target)-WorldEconomy.members(world,target).size()>=ship.crew.size():
 			land_crew(world, ship, target, landing)
 			ship.home = int(target.id)
 			ship.origin = [landing.x, landing.y]
@@ -320,7 +343,9 @@ static func arrive(world, ship: Dictionary) -> void:
 		ship.food -= int(colony.food)
 		ship.home = int(colony.id)
 		ship.origin = [landing.x, landing.y]
-		meet(world, home, colony, [])
+		if not home.is_empty():
+			world.networks.ancestry(world,colony,home,"sea")
+		meet(world,home,colony,[])
 		world.log_event("Основана колония", "%s: переселенцы начали жизнь на новом материке." % colony.name)
 	var mark := "%d:%d:%d" % [ship.home, landing.x, landing.y]
 	if world.explored_coasts.size()>=8192 and not world.explored_coasts.has(mark): world.explored_coasts.erase(world.explored_coasts.keys()[0])
@@ -349,7 +374,8 @@ static func step_ship(world, ship: Dictionary) -> void:
 			ship.phase = "outbound"
 			world.log_event("Выход в море", "Экспедиция покинула берег. Длина маршрута: %d клеток." % roundi(route_length(ship.route)))
 		return
-	if WorldWeather.at(world, position(ship), "storm"):
+	var protected := not WorldEconomy.town(world,ship.home).is_empty() and WorldEconomy.count(world,WorldEconomy.town(world,ship.home),"embankment")>0 and position(ship).distance_squared_to(Vector2i(ship.origin[0],ship.origin[1]))<=12*12
+	if not protected and WorldWeather.at(world, position(ship), "storm"):
 		ship.wait = maxi(int(ship.wait), 1)
 		if world.ticks % (WorldEconomy.DAY_TICKS * (2 if ship.kind == "sailboat" else 1)) == 0: ship.integrity -= 1
 	if ship.integrity <= 0:
@@ -416,20 +442,23 @@ static func restore(world, data: Variant) -> bool:
 	for values in [world.people, world.towns, world.buildings, world.households, world.ancestry_archive, world.societies]:
 		for value in values: ids[int(value.id)] = true
 	for source in data.voyages:
-		if not source is Dictionary or source.get("kind") not in SPEED or source.get("phase") not in ["boarding", "outbound", "returning", "unload"] or source.get("purpose") not in ["explore", "trade", "colony", "migrate"]: return false
+		if not source is Dictionary or source.get("kind") not in SPEED or source.get("phase") not in ["boarding", "outbound", "returning", "unload"] or source.get("purpose") not in ["explore","trade","aid","colony","migrate"]: return false
 		for key in ["id", "home", "progress", "duration", "food", "cargo", "target", "integrity", "wait"]:
 			if not WorldState._integer(source.get(key)): return false
 		if ids.has(int(source.id)) or source.id <= 0 or source.id >= world.next_id or source.progress < 0 or source.duration < 20 or source.progress >= source.duration or source.food < 0 or source.food > int(HOLD[source.kind]) or source.integrity <= 0 or source.integrity > 12 or source.wait < 0 or source.wait > WorldEconomy.DAY_TICKS: return false
 		if source.cargo < 0 or source.cargo > 6 or ((source.cargo == 0) != (source.get("cargo_kind", "") == "")) or source.get("cargo_kind", "") not in ["", "food", "wood"] and not WorldCivilization.GOODS.has(source.get("cargo_kind")): return false
 
 
-		if not source.get("crew") is Array or source.crew.size() > 3: return false
+		if not source.get("crew") is Array or source.crew.size() > (8 if source.kind=="sailboat" and source.purpose in ["colony","migrate"] else 3): return false
 		for key in ["origin", "landing"]:
 			if not valid_point(world, source.get(key)): return false
 		if not source.get("route") is Array or source.route.size() < 2 or source.route.size() > 130: return false
 		for point in source.route:
 			if not valid_point(world, point): return false
+		if not WorldNetworks.valid_terms(source): return false
 		var ship: Dictionary = source.duplicate(true)
+		ship.return_kind = str(ship.get("return_kind","food" if ship.purpose=="trade" and ship.cargo_kind!="food" else ""))
+		ship.return_amount = int(ship.get("return_amount",ship.cargo*2 if ship.return_kind=="food" else 0))
 		for key in ["id", "home", "progress", "duration", "food", "cargo", "target", "integrity", "wait"]: ship[key] = int(ship[key])
 		for key in ["origin", "landing"]:
 			for i in 2: ship[key][i] = int(ship[key][i])
@@ -439,7 +468,7 @@ static func restore(world, data: Variant) -> bool:
 			if not WorldState._integer(ship.crew[i]): return false
 			ship.crew[i] = int(ship.crew[i])
 			var member := WorldLife.person(world, ship.crew[i])
-			if member.is_empty() or not WorldLife.adult(world, member) or world.voyage_people.has(member.id) or member.task.get("kind", "") != "travel": return false
+			if member.is_empty() or (not WorldLife.adult(world,member) and ship.purpose not in ["colony","migrate"]) or world.voyage_people.has(member.id) or member.task.get("kind", "") != "travel": return false
 			world.voyage_people[member.id] = ship.id
 		world.voyages.append(ship)
 		world.voyage_index[ship.id] = ship
@@ -466,4 +495,4 @@ static func restore(world, data: Variant) -> bool:
 	return true
 
 static func valid_point(world, value: Variant) -> bool:
-	return value is Array and value.size() == 2 and WorldState._integer(value[0]) and WorldState._integer(value[1]) and world.inside(Vector2i(value[0], value[1]))
+	return value is Array and value.size() == 2 and WorldState._integer(value[0]) and WorldState._integer(value[1]) and value[0]>=-WorldState.COORD_LIMIT and value[0]<WorldState.COORD_LIMIT and value[1]>=-WorldState.COORD_LIMIT and value[1]<WorldState.COORD_LIMIT
