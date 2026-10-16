@@ -1,41 +1,41 @@
 {
-  "build": "territory-01",
-  "version": "0.3.1-test.1",
-  "android_version_code": 22,
+  "build": "pastures-traditions-01",
+  "version": "0.3.1-test.2",
+  "android_version_code": 23,
   "android_package": "org.littleworlds.sandbox.preview",
   "android_updates_026": true,
   "android_updates_previous_preview": true,
-  "source_commit": "4971d22ad85c158b32803e6d845a488fa8e0c102",
+  "source_commit": "a327d04c5e1b9b3b533ea0fe3f47867716531cbe",
   "files": [
     {
       "name": "little-worlds-android-preview.apk",
-      "bytes": 53677189,
-      "sha256": "aa1e57c75aaafe8c567ceaf8d1039bd426d9731c97a0be00fd974a23429da99c"
+      "bytes": 53706735,
+      "sha256": "5e53b30f7d969e2be668ded47d2b1c7b7b61a5b6f9894e1b4c1f7800fae92fb6"
     },
     {
       "name": "little-worlds-android-test.zip",
-      "bytes": 53267962,
-      "sha256": "6492bfd01827a9782d3d5cfc745f40bfd965b426b15087f8531beeb6590d56f5"
+      "bytes": 53298073,
+      "sha256": "5d5e064f40361a0dc184e7a8982caf36064eec0cfca79cf72052d6946bac641b"
     },
     {
       "name": "little-worlds-godot-test.zip",
-      "bytes": 1403171,
-      "sha256": "653068facbd26df16c067a4286f51ef57b1aff1210e2d6fd30186af4d632ec26"
+      "bytes": 1434426,
+      "sha256": "73a0952b6d3f555e3d43073bd2450acdc80fc899044caa654ed76f5276f0e769"
     },
     {
       "name": "little-worlds-linux-test.zip",
-      "bytes": 29750889,
-      "sha256": "bfbcf04ee3d5381b457116d7e992399acea772d900546a48406ab3cf39ce6601"
+      "bytes": 29779289,
+      "sha256": "f2dc693f32b82f1de80a0d73cf14db20c8dea31c10d86f65202f2f39fd1ffcba"
     },
     {
       "name": "little-worlds-web-test.zip",
-      "bytes": 16539134,
-      "sha256": "4eb1bb5653870ad585a865c2104c99e35f7a817caf78c3ec75f7308d13d2d194"
+      "bytes": 16567355,
+      "sha256": "b5f2949a27338c1e5fad923b63dc7df59d19919718b6e29f19c176404e27c11f"
     },
     {
       "name": "little-worlds-windows-test.zip",
-      "bytes": 39366639,
-      "sha256": "2a84f790239b454f4b7ac21b0ecb5d2f3ec42ae40c8174c5a6cbb023ed2c2422"
+      "bytes": 39395041,
+      "sha256": "4eefb8a94cee44779dbbf07565616eaa00b454c1d84fe713d0b780b0861ba947"
     }
   ]
 }
