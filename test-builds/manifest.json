@@ -1,101 +1,41 @@
 {
-  "build": "ruins-09",
-  "version": "0.2.6-test.9",
-  "android_version_code": 18,
+  "build": "living-civilizations-01",
+  "version": "0.3.0-test.1",
+  "android_version_code": 20,
   "android_package": "org.littleworlds.sandbox.preview",
-  "android_updates_existing_app": false,
+  "android_updates_026": true,
   "android_updates_previous_preview": true,
-  "source_commit": "1d19f64d09afbed2e23266c16b5a815505462aef",
+  "source_commit": "dbe98b08a7fb4f23084b99fb5976b1b9e1830f6b",
   "files": [
     {
-      "name": "heritage-1080x2400.png",
-      "bytes": 132890,
-      "sha256": "55f32792144accbbbebea8dce5cb2de1c97342eb34e6c72044126991f0bc83e5"
-    },
-    {
-      "name": "heritage-2160x1080.png",
-      "bytes": 91888,
-      "sha256": "462469ad7143d3b5d2c0398f76ab0cb1145613a46f9ed21347aa9771fb027577"
-    },
-    {
-      "name": "heritage-desktop.png",
-      "bytes": 89569,
-      "sha256": "1c3c792daa90a1159008c27d33060cb4d1fd97e2449090573a87743308492040"
-    },
-    {
-      "name": "inspector-before-desktop.png",
-      "bytes": 133928,
-      "sha256": "868c50f621b2e45adcf413158b15dc0061e3931cb28c115e002634554e4e2569"
-    },
-    {
-      "name": "inspector-before-phone.png",
-      "bytes": 144543,
-      "sha256": "25fa743a73937e3ead7bc84f038e51b4658704c3fb2054b0825a9904da32122a"
-    },
-    {
-      "name": "inspector-development-phone.png",
-      "bytes": 129619,
-      "sha256": "4d2833fb254de1fecf6817de5bc026857a2650e7fa13d5d64ae20e9fcb3dd57e"
-    },
-    {
-      "name": "inspector-events-desktop.png",
-      "bytes": 123525,
-      "sha256": "a336ac8baf58e78c272ac43b6e02fe955edace07dadb4b8e267baa5044831b84"
-    },
-    {
-      "name": "inspector-resident-phone.png",
-      "bytes": 124321,
-      "sha256": "71daaa7c2de0e35a9f34c4fca62bf4f1282fb049be41e06094212a71482c39b0"
-    },
-    {
-      "name": "inspector-settlement-desktop.png",
-      "bytes": 63009,
-      "sha256": "2dc001c33acce54c92854a4bcc1d70d7ee8cd2bee14eb6cf20aca3371635c1a9"
-    },
-    {
-      "name": "inspector-settlement-phone.png",
-      "bytes": 129774,
-      "sha256": "f7e68ef72dcb6e541b7be06ee1eed6552f59dd3bf4d2d675fb3330ae196d7668"
-    },
-    {
-      "name": "landscape-after.png",
-      "bytes": 34393,
-      "sha256": "92ccc1e0fb20bf1caa00370cc03058f5baf8f5556945cfe1c647b62c16017b1b"
-    },
-    {
-      "name": "landscape-before.png",
-      "bytes": 32977,
-      "sha256": "976a96069a7cdd3aefaa43906c0bcbf8e1cc71304437a0f3383df5759817db5a"
-    },
-    {
       "name": "little-worlds-android-preview.apk",
-      "bytes": 53618743,
-      "sha256": "8bfadc6844bd39da508f27072028d2f9441fc7572199c3b3696d14d5418cd4cb"
+      "bytes": 53660395,
+      "sha256": "9b4a864eec59f0bf2d309c2ff94ed2a1087c644b47aad3d8dbb04714fb182f32"
+    },
+    {
+      "name": "little-worlds-android-test.zip",
+      "bytes": 53253830,
+      "sha256": "b61f2e1652654ef0ff88230a12e6085d1ec22f2124fbca61809df2db90c04128"
     },
     {
       "name": "little-worlds-godot-test.zip",
-      "bytes": 1337938,
-      "sha256": "854cca8804826c92671eb728a59227e36fa38df6512b05af27450a9b56d04cc4"
+      "bytes": 1380154,
+      "sha256": "0b6dea7fd057905125fc9a5b3d3b12f72d60db68eace72a56befae36715f08fa"
     },
     {
       "name": "little-worlds-linux-test.zip",
-      "bytes": 29696861,
-      "sha256": "a7e7cd9f3b7c3204c8acee1f30a670f7a098b9be5c9e77ea66896f3212670f78"
+      "bytes": 29737443,
+      "sha256": "96b3b3f3fca5a5da4e88d824e2cb7017016049bbcc4135e4ac76405880fc78dc"
     },
     {
       "name": "little-worlds-web-test.zip",
-      "bytes": 16485053,
-      "sha256": "9e2160e6c11dda404e734b0469880ba23d9acab57d8974ed77283f74fcf34534"
+      "bytes": 16525514,
+      "sha256": "5952feaa0a7fadaad030da3c579ee24e660d31d2bd0c5de82d53cab592ba587b"
     },
     {
       "name": "little-worlds-windows-test.zip",
-      "bytes": 39312436,
-      "sha256": "18824c64f00e35bcfc202f123546e6069998918490e8fa457b213d5d9d752627"
-    },
-    {
-      "name": "validation.json",
-      "bytes": 2817,
-      "sha256": "4352946c75438d91e76bf1e6482964599da48557a7f82e49c9c75f014c05d893"
+      "bytes": 39353371,
+      "sha256": "59bfa9aedacdcaabac2e6c416ed2a8fc0ace9addfbdbbc901b5e290ac8cd0e9b"
     }
   ]
 }

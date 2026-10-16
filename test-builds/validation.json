@@ -1,92 +1,28 @@
 {
-  "version": "0.2.6-test.9",
-  "save_format": 12,
-  "source_commit": "1d19f64d09afbed2e23266c16b5a815505462aef",
-  "models": [
-    "historical abandonment and terrain loss",
-    "finite resource balances",
-    "knowledge delivery and carrier death",
-    "old save migration and strict history validation",
-    "immutable background snapshot",
-    "autonomous scout route and return",
-    "resettlement with actual construction costs",
-    "identical full and sliced continuation",
-    "historical limits and spatial index cleanup"
-  ],
+  "version": "0.3.0-test.1",
+  "source_commit": "dbe98b08a7fb4f23084b99fb5976b1b9e1830f6b",
+  "model_scenarios": "passed",
+  "mobile_layout_and_touch": "passed",
+  "linux_export_boot": "passed",
+  "android_signature_and_update_identity": "passed",
+  "chromium_new_civilizations_and_legacy_saves": "passed",
+  "chromium_2000_people_and_sdk": "passed",
+  "source_comments": "absent",
   "performance": {
-    "baseline_first": {
-      "cold_reads": 0,
-      "mean_step_ms": 175.9045,
-      "slice_max_ms": 14.861,
-      "slice_p95_ms": 3.137,
-      "unit_max_ms": 13.771
-    },
-    "baseline_last": {
-      "cold_reads": 0,
-      "mean_step_ms": 169.73765,
-      "slice_max_ms": 15.824,
-      "slice_p95_ms": 3.239,
-      "unit_max_ms": 14.558
-    },
     "conserved": true,
-    "heritage_job_usec": 7731,
-    "heritage_unit_max_usec": 2769,
-    "heritage_units": 2279,
-    "people": 2000,
-    "sites": 256,
-    "with_256_sites": {
-      "cold_reads": 0,
-      "mean_step_ms": 173.5742,
-      "slice_max_ms": 7.739,
-      "slice_p95_ms": 3.181,
-      "unit_max_ms": 7.084
-    }
-  },
-  "web": {
-    "web_smoke": {
-      "passed": true,
-      "result": "Web: Chromium launch, drawers, camera, resize, v11 save/load with local societies and technologies, distant painting without canceling work or resetting knowledge, complete IndexedDB commit and land persistence across page reload; no console errors."
+    "final_population": 2000,
+    "peaks_usec": {
+      "CLAIMS": 6531,
+      "CLIMATE": 6751,
+      "COURT": 4727,
+      "PEOPLE": 22401,
+      "TRAVEL": 4453
     },
-    "web_cold_save_test": {
-      "passed": true,
-      "result": "Web cold save: cloud-loaded world with 300 remote regions saves a complete unchanged snapshot without console errors"
-    },
-    "web_heritage_test": {
-      "passed": true,
-      "result": "Web heritage: historical places, finite reserves and a carried record survive cloud import, IndexedDB save and browser reload without console errors"
-    },
-    "web_mobile_smoke": {
-      "passed": true,
-      "result": "Web mobile: 12 checks, 0 failures"
-    },
-    "web_sdk_smoke": {
-      "passed": true,
-      "result": "Web SDK: 10 checks, 0 failures; actual bridge readiness, pause/resume, one reward, cloud restore and 2000-person WASM simulation; no console errors."
-    }
-  },
-  "platforms": {
-    "Linux": "exported and booted",
-    "Windows": "exported",
-    "Android Preview": "exported, zipaligned, signature and package verified",
-    "Web": "exported and browser tested"
-  },
-  "screens": [
-    {
-      "width": 1440,
-      "height": 900,
-      "density": 1
-    },
-    {
-      "width": 2160,
-      "height": 1080,
-      "density": 2.25
-    },
-    {
-      "width": 1080,
-      "height": 2400,
-      "density": 3
-    }
-  ],
-  "user_test_pending": true,
-  "release_published": false
+    "population": 2000,
+    "slice_max_ms": 23.01,
+    "slice_p95_ms": 3.234,
+    "steps": 45,
+    "tick_max_ms": 994.479,
+    "tick_p50_ms": 128.118
+  }
 }
