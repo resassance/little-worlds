@@ -1,13 +1,15 @@
-# Стада и традиции · 0.3.1-test.2
+# Новый интерфейс · 0.3.2-test.1
 
-Дикие стада, охота, приручение, скотоводство, шерсть и традиции поселений.
+Обновлённые кнопки, архив истории с фильтрами и карточки зданий со значками материалов и прогрессом.
 
-[Android APK](https://raw.githubusercontent.com/resassance/little-worlds/refs/heads/test/pastures-traditions-01/test-builds/little-worlds-android-preview.apk) · [Android ZIP](https://raw.githubusercontent.com/resassance/little-worlds/refs/heads/test/pastures-traditions-01/test-builds/little-worlds-android-test.zip) · [Windows](https://raw.githubusercontent.com/resassance/little-worlds/refs/heads/test/pastures-traditions-01/test-builds/little-worlds-windows-test.zip) · [Linux](https://raw.githubusercontent.com/resassance/little-worlds/refs/heads/test/pastures-traditions-01/test-builds/little-worlds-linux-test.zip) · [Web](https://raw.githubusercontent.com/resassance/little-worlds/refs/heads/test/pastures-traditions-01/test-builds/little-worlds-web-test.zip) · [Исходники](https://raw.githubusercontent.com/resassance/little-worlds/refs/heads/test/pastures-traditions-01/test-builds/little-worlds-godot-test.zip)
+[Android APK](little-worlds-android-preview.apk?raw=true) · [Android ZIP](little-worlds-android-test.zip?raw=true) · [Windows](little-worlds-windows-test.zip?raw=true) · [Linux](little-worlds-linux-test.zip?raw=true) · [Web](little-worlds-web-test.zip?raw=true) · [Исходники](little-worlds-godot-test.zip?raw=true)
 
-APK обновляет 0.3.0 и 0.3.1-test.1 с сохранением миров. Новые сохранения v15 не открываются старой версией игры.
+APK обновляет 0.3.1 и последние тестовые сборки с сохранением миров. Формат сохранений остаётся v15.
 
-[Что посмотреть в игре](../TEST_BUILD.md) · [Изменения](../docs/PASTURES_TRADITIONS.md).
+[Что посмотреть в игре](../TEST_BUILD.md) · [Изменения](../docs/INTERFACE_032.md).
 
 Если ссылка не скачивается, откройте нужный файл в списке выше и нажмите Download raw file. Для Web распакуйте весь архив и запустите start-windows.exe или start-linux.
 
-[Поселение](pastures-overview.png) · [Телефон 2160×1080](pastures-2160x1080.png) · [Животные](herds-2160x1080.png) · [1080×2400](pastures-1080x2400.png).
+## Скриншоты
+
+[Кнопки](buttons-desktop.png) · [Здание на телефоне](building-phone.png) · [Производство](production-desktop.png) · [Архив на телефоне](archive-phone.png) · [Архив вертикально](archive-portrait.png).
