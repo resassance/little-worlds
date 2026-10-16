@@ -20,4 +20,4 @@
 
 ## Поставка
 
-Подготовить тестовую сборку Windows, Linux, Android и Web в отдельной ветке GitHub. Новый релиз — после проверки пользователем и отдельного указания.
+Освоение земель доступно для Windows, Linux, Android и Web в [релизе 0.3.1](https://github.com/resassance/little-worlds/releases/tag/v0.3.1).

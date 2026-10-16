@@ -1,3 +1,5 @@
+Этот пакет вошёл в [релиз 0.3.1](https://github.com/resassance/little-worlds/releases/tag/v0.3.1). Ниже сохранено описание предрелизной проверки.
+
 # Стада и традиции · 0.3.1-test.2
 
 [Android, Windows, Linux, Web и исходники](test-builds/README.md).
