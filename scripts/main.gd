@@ -32,7 +32,7 @@ var brush_slider: HSlider
 var brush_row: VBoxContainer
 var stats_label: Label
 var inspector: WorldInspector
-var world_info: VBoxContainer
+var world_info: WorldChronicle
 var object_tab: Button
 var world_tab: Button
 var info_world := false
@@ -191,7 +191,7 @@ func _prepare_touch_ui(node: Node) -> void:
 		node.custom_minimum_size = Vector2(node.get_meta("touch_minimum")).max(Vector2.ONE * _touch_target())
 		node.add_theme_font_size_override("font_size", 16)
 		if node is Button: node.add_theme_constant_override("icon_max_width", 22)
-	elif node is LineEdit or node is Range:
+	elif node is LineEdit or node is SpinBox or node is Slider:
 		node.custom_minimum_size.y = maxf(_touch_target(), node.custom_minimum_size.y)
 		if node is LineEdit: node.add_theme_font_size_override("font_size", 16)
 	if node is ScrollContainer: node.scroll_deadzone = 12
@@ -243,15 +243,24 @@ func _build_theme() -> void:
 		ui.set_constant("buttons_min_height", "AcceptDialog", ceili(_touch_target()))
 		ui.set_constant("buttons_min_width", "AcceptDialog", 120)
 	ui.set_color("font_color", "Label", AtlasTheme.INK)
-	ui.set_color("font_color", "Button", AtlasTheme.INK)
+	ui.set_color("font_color", "Button", AtlasTheme.SOFT)
 	ui.set_color("font_pressed_color", "Button", Color("fff0cf"))
-	ui.set_color("font_hover_color", "Button", AtlasTheme.INK)
-	ui.set_color("icon_pressed_color", "Button", Color("75472f"))
-	ui.set_stylebox("normal", "Button", AtlasTheme.frame(AtlasTheme.PAPER, Color("8d7759")))
-	ui.set_stylebox("hover", "Button", AtlasTheme.frame(Color("f0e3c7"), AtlasTheme.COPPER))
-	ui.set_stylebox("pressed", "Button", AtlasTheme.frame(ACCENT, Color("b99b65")))
-	ui.set_stylebox("focus", "Button", _style(Color.TRANSPARENT, AtlasTheme.COPPER, 6))
-	var panel := AtlasTheme.frame(AtlasTheme.PAPER, Color("827052"))
+	ui.set_color("font_hover_color", "Button", AtlasTheme.SOFT)
+	ui.set_color("icon_pressed_color", "Button", Color.WHITE)
+	ui.set_color("font_disabled_color", "Button", Color("8e979c"))
+	ui.set_stylebox("disabled", "Button", AtlasTheme.button(Color("414b51"), Color("5d676b"), false))
+	ui.set_stylebox("normal", "Button", AtlasTheme.button(AtlasTheme.NAVY, Color("4a5862")))
+	ui.set_stylebox("hover", "Button", AtlasTheme.button(Color("3c5365"), AtlasTheme.BLUE))
+	ui.set_stylebox("pressed", "Button", AtlasTheme.button(ACCENT, AtlasTheme.GOLD, false))
+	ui.set_stylebox("focus", "Button", _style(Color.TRANSPARENT, AtlasTheme.GOLD, 6))
+	ui.set_type_variation("AtlasToken","Button")
+	ui.set_color("font_color","AtlasToken",AtlasTheme.INK)
+	ui.set_color("font_hover_color","AtlasToken",AtlasTheme.INK)
+	ui.set_color("font_pressed_color","AtlasToken",AtlasTheme.INK)
+	ui.set_stylebox("normal","AtlasToken",AtlasTheme.frame(AtlasTheme.SOFT,AtlasTheme.EDGE))
+	ui.set_stylebox("hover","AtlasToken",AtlasTheme.frame(Color.WHITE,AtlasTheme.BLUE))
+	ui.set_stylebox("pressed","AtlasToken",AtlasTheme.frame(Color("e3d3b5"),AtlasTheme.COPPER))
+	var panel := AtlasTheme.frame(AtlasTheme.PAPER, AtlasTheme.EDGE)
 	panel.content_margin_left = 14
 	panel.content_margin_right = 14
 	panel.content_margin_top = 14
@@ -335,7 +344,7 @@ func _tool_button(key: String, caption: String, description: String, grid: bool 
 	content.offset_bottom = -5
 	content.alignment = BoxContainer.ALIGNMENT_CENTER
 	content.add_child(_icon_rect(key, 23))
-	var label := _label(caption, 11 if grid else 12)
+	var label := _label(caption, 11 if grid else 12, AtlasTheme.SOFT)
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	content.add_child(label)
@@ -527,7 +536,7 @@ func _build_info_drawer() -> void:
 	var tabs := HBoxContainer.new()
 	side.add_child(tabs)
 	object_tab = _button("Выбрано", func(): _set_info_tab(false), Vector2(0, 36))
-	world_tab = _button("События", func(): _set_info_tab(true), Vector2(0, 36))
+	world_tab = _button("Архив", func(): _set_info_tab(true), Vector2(0, 36))
 	var tab_group := ButtonGroup.new()
 	tab_group.allow_unpress = false
 	for tab in [object_tab, world_tab]:
@@ -536,6 +545,10 @@ func _build_info_drawer() -> void:
 		tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		tabs.add_child(tab)
 	tabs.add_child(_button("×", _toggle_info, Vector2(38, 36)))
+	object_tab.icon = InterfaceArt.icon("building:camp")
+	world_tab.icon = InterfaceArt.icon("history")
+	world_tab.tooltip_text = "История мира"
+	for tab in [object_tab,world_tab]: tab.add_theme_constant_override("icon_max_width",18)
 	object_tab.set_pressed_no_signal(true)
 	history_scroll = ScrollContainer.new()
 	history_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -548,22 +561,22 @@ func _build_info_drawer() -> void:
 	content.add_child(inspector)
 	inspector.setup(touch_ui, _touch_target())
 	inspector.details_changed.connect(func(): inspector_dirty = true)
+	inspector.settlement_requested.connect(func(id: int):
+		var home := WorldEconomy.town(world,id)
+		if not home.is_empty():
+			inspected_person_id = -1
+			_inspect(Vector2i(home.x,home.y),false))
 	inspector.selection_changed.connect(func():
 		info_scroll_positions[0] = 0
 		history_scroll.set_deferred("scroll_vertical", 0))
-	world_info = VBoxContainer.new()
+	world_info = WorldChronicle.new()
 	world_info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	content.add_child(world_info)
-	stats_label = _label("", 14, AtlasTheme.INK)
-	stats_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	world_info.add_child(stats_label)
-	world_info.add_child(HSeparator.new())
-	world_info.add_child(_label("Летопись", 18, ACCENT))
-	history_box = VBoxContainer.new()
-	history_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	history_box.add_theme_constant_override("separation", 14)
-	world_info.add_child(history_box)
+	world_info.setup(touch_ui,_touch_target())
+	stats_label = world_info.summary_label
+	history_box = world_info.entries
 	world_info.hide()
+
 	sidebar.hide()
 
 func _set_info_tab(show_world: bool) -> void:
@@ -693,6 +706,13 @@ func _responsive() -> void:
 	if sidebar == null: return
 	if tool_tween != null: tool_tween.kill()
 	if info_tween != null: info_tween.kill()
+	inspector.touch_ui = touch_ui
+	inspector.target_size = _touch_target()
+	inspector.building_card.touch_ui = touch_ui
+	inspector.building_card.target_size = _touch_target()
+	world_info.touch_ui = touch_ui
+	world_info.target_size = _touch_target()
+	world_info.header.visible = not (touch_ui and size.y<600)
 	safe_rect = _screen_rect()
 	var top := safe_rect.position.y + (60.0 if touch_ui else 60.0)
 	var bottom := safe_rect.end.y - (_touch_target() if touch_ui else 44.0)
@@ -843,6 +863,7 @@ func _set_world(value: WorldState) -> void:
 	accumulator = 0.0
 	autosave_timer = 0.0
 	history_signature = ""
+	if world_info != null: world_info.reset()
 	_refresh()
 
 func _select_tool(value: String) -> void:
@@ -857,7 +878,7 @@ func _select_tool(value: String) -> void:
 		var active: bool = key == value
 		tool_buttons[key].button_pressed = active
 		var caption: Label = tool_buttons[key].get_meta("caption_label")
-		caption.add_theme_color_override("font_color", Color("fff0cf") if active else AtlasTheme.INK)
+		caption.add_theme_color_override("font_color", AtlasTheme.SOFT)
 	tool_title.text = tool_buttons[value].get_meta("caption")
 	tool_description.text = tool_buttons[value].get_meta("description")
 	tools_button.icon = PixelArt.icon(value)
@@ -951,8 +972,7 @@ func _refresh() -> void:
 		if not hud_hidden:
 			for event in world.weather.active:
 				if int(event.id) == weather_sequence: show_message(WorldWeather.TITLES[event.kind]); break
-	stats_label.text = "%d жителей · %d поселений\n%s" % [world.people.size(), world.towns.size(),
-		"%d очагов огня" % world.fires.size() if not world.fires.is_empty() else ("Засуха" if world.ticks < world.drought_until else "Остров спокоен")]
+	world_info.update_summary(world)
 	day_label.text = "Год %d · месяц %d" % [world.year(), (world.month() - 1) % WorldEconomy.DAYS_PER_YEAR + 1]
 	inspector_dirty = true
 	if inspected_person_id != -1:
@@ -967,27 +987,7 @@ func _refresh_inspector() -> void:
 	inspector_updates += 1
 	if selected_cell != WorldState.NO_CELL and not info_world: _inspect(selected_cell, false)
 	if not info_world: return
-	var signature := str(world.history_revision)
-	if signature != history_signature:
-		history_signature = signature
-		for child in history_box.get_children():
-			history_box.remove_child(child)
-			child.queue_free()
-		for event in world.history.slice(0, 20):
-			var card := PanelContainer.new()
-			card.add_theme_stylebox_override("panel", inspector.surface(Color("f0e3c7"), Color("baa27b")))
-			history_box.add_child(card)
-			var entry := VBoxContainer.new()
-			entry.add_theme_constant_override("separation", 6)
-			card.add_child(entry)
-			entry.add_child(_label("ГОД %d · МЕСЯЦ %d" % [int(event.tick) / WorldLife.YEAR + 1, (int(event.tick) / WorldEconomy.DAY_TICKS) % WorldEconomy.DAYS_PER_YEAR + 1], 10, ACCENT))
-			var title := _label(event.title, 15)
-			title.add_theme_font_override("font", BOLD)
-			title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			entry.add_child(title)
-			var description := _label(event.message, 12, MUTED)
-			description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			entry.add_child(description)
+	world_info.present(world)
 
 func _request_inspection(cell: Vector2i) -> void:
 	_set_info_tab(false)
@@ -1002,11 +1002,11 @@ func _inspect(cell: Vector2i, reveal: bool = true, open_panel: bool = true, cycl
 		var repeated_cell := selected_cell == cell
 		var previous_person_id := inspected_person_id if selected_cell == cell else -1
 		inspected_person_id = -1
-		if structure.is_empty() or structure.kind != "camp" or repeated_cell or cycles > 1:
+		if structure.is_empty() or repeated_cell or cycles > 1:
 			var occupants: Array[Dictionary] = []
 			occupants = world.population.nearby(world, cell, 0)
 			if not occupants.is_empty():
-				var camp: bool = not structure.is_empty() and structure.kind == "camp"
+				var camp: bool = not structure.is_empty()
 				var slots := occupants.size() + (1 if camp else 0)
 				var next := posmod(cycles - (2 if camp and not repeated_cell else 1), slots)
 				for i in occupants.size():
@@ -1038,7 +1038,8 @@ func _inspect(cell: Vector2i, reveal: bool = true, open_panel: bool = true, cycl
 					distance = gap
 	if reveal: _set_info_tab(false)
 	inspector.present(world, cell, person, nearest, structure)
-	object_tab.text = {"town": "Поселение", "person": "Житель", "terrain": "Клетка", "site":"Руины"}[inspector.selection_kind]
+	object_tab.text = {"town":"Поселение","person":"Житель","terrain":"Местность","site":"Руины","building":"Здание","herd":"Стадо"}.get(inspector.selection_kind,"Выбрано")
+	object_tab.icon = InterfaceArt.icon({"town":"building:camp","person":"person","terrain":"leaf","site":"history","building":"building:"+str(structure.get("kind","house")),"herd":"wool"}.get(inspector.selection_kind,"inspect"))
 	world.workforce.end()
 	world.population.active = false
 	inspector_dirty = false

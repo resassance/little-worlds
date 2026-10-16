@@ -1,25 +1,32 @@
 class_name AtlasTheme
 extends RefCounted
 
-const PAPER := Color("e7d8b6")
-const INK := Color("3d3329")
-const COPPER := Color("945f3c")
-const MUTED := Color("776750")
+const PAPER := Color("f0e8d6")
+const INK := Color("303b49")
+const COPPER := Color("9a603c")
+const MUTED := Color("6e716e")
+const NAVY := Color("293847")
+const EDGE := Color("cbbda2")
+const SOFT := Color("faf4e7")
+const GOLD := Color("d2a460")
+const BLUE := Color("52788e")
+const GOOD := Color("52735d")
 
-static func frame(fill: Color, border: Color) -> StyleBoxTexture:
-	var image := Image.create(24, 24, false, Image.FORMAT_RGBA8)
-	image.fill(Color.TRANSPARENT)
-	image.fill_rect(Rect2i(1, 1, 22, 22), border.darkened(0.28))
-	image.fill_rect(Rect2i(2, 2, 20, 20), border)
-	image.fill_rect(Rect2i(3, 3, 18, 18), fill)
-	image.fill_rect(Rect2i(4, 3, 16, 1), fill.lightened(0.12))
-	image.fill_rect(Rect2i(3, 20, 18, 1), fill.darkened(0.1))
-	for point in [Vector2i(2, 2), Vector2i(20, 2), Vector2i(2, 20), Vector2i(20, 20)]:
-		image.fill_rect(Rect2i(point, Vector2i(2, 2)), Color("b69b68"))
-	var box := StyleBoxTexture.new()
-	box.texture = ImageTexture.create_from_image(image)
-	box.texture_margin_left = 5; box.texture_margin_right = 5
-	box.texture_margin_top = 5; box.texture_margin_bottom = 5
-	box.content_margin_left = 12; box.content_margin_right = 12
-	box.content_margin_top = 8; box.content_margin_bottom = 8
+static func frame(fill: Color, border: Color) -> StyleBoxFlat:
+	var box := StyleBoxFlat.new()
+	box.bg_color = fill
+	box.border_color = border
+	box.set_border_width_all(1)
+	box.set_corner_radius_all(3)
+	box.content_margin_left = 12
+	box.content_margin_right = 12
+	box.content_margin_top = 8
+	box.content_margin_bottom = 8
+	return box
+
+static func button(fill: Color, border: Color, raised: bool = true) -> StyleBoxFlat:
+	var box := frame(fill,border)
+	box.border_width_bottom = 3 if raised else 1
+	box.content_margin_left = 12
+	box.content_margin_right = 12
 	return box

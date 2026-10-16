@@ -3,10 +3,13 @@ extends VBoxContainer
 
 signal details_changed
 signal selection_changed
+signal settlement_requested(id: int)
 
 const BOLD := preload("res://assets/fonts/DejaVuSans-Bold.ttf")
-const SUBTLE := Color("685944")
+const SUBTLE := AtlasTheme.MUTED
 const ALERT := Color("91462f")
+var header_icon: TextureRect
+var building_card: BuildingCard
 var title_label: Label
 var subtitle_label: Label
 var metrics: GridContainer
@@ -27,10 +30,23 @@ func setup(mobile: bool, target: float) -> void:
 	touch_ui = mobile
 	target_size = target
 	add_theme_constant_override("separation", 10)
+	var header := HBoxContainer.new()
+	header.add_theme_constant_override("separation",12)
+	add_child(header)
+	header_icon = InterfaceArt.rect("building:camp",42)
+	header.add_child(header_icon)
+	var headings := VBoxContainer.new()
+	headings.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(headings)
 	title_label = label("Выберите место на карте", 22, AtlasTheme.INK, true)
-	add_child(title_label)
+	headings.add_child(title_label)
 	subtitle_label = label("Нажмите на поселение, жителя или клетку.", 13, SUBTLE)
-	add_child(subtitle_label)
+	headings.add_child(subtitle_label)
+	building_card = BuildingCard.new()
+	add_child(building_card)
+	building_card.setup(mobile,target)
+	building_card.settlement_requested.connect(func(id: int): settlement_requested.emit(id))
+	building_card.hide()
 	metrics = GridContainer.new()
 	metrics.columns = 2
 	metrics.add_theme_constant_override("h_separation", 8)
@@ -39,28 +55,35 @@ func setup(mobile: bool, target: float) -> void:
 	for i in 4:
 		var card := PanelContainer.new()
 		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		card.add_theme_stylebox_override("panel", surface(Color("f4e9d0"), Color("bba47e")))
+		card.add_theme_stylebox_override("panel", surface(AtlasTheme.SOFT, AtlasTheme.EDGE))
 		metrics.add_child(card)
 		var body := VBoxContainer.new()
 		body.add_theme_constant_override("separation", 2)
 		card.add_child(body)
-		var value := label("", 20, AtlasTheme.INK, true)
+		var line := HBoxContainer.new()
+		line.add_theme_constant_override("separation",8)
+		body.add_child(line)
+		var symbol := InterfaceArt.rect("person",20)
+		line.add_child(symbol)
+		var value := label("", 18, AtlasTheme.INK, true)
 		var caption := label("", 14 if mobile else 12, SUBTLE)
-		body.add_child(value)
+		line.add_child(value)
 		body.add_child(caption)
-		metric_nodes.append({"card": card, "value": value, "caption": caption})
-	notice_styles = [surface(Color("d9c7a2"), Color("b59a70")), surface(Color("e8c9ac"), ALERT)]
+		metric_nodes.append({"card": card, "value": value, "caption": caption, "icon":symbol})
+	notice_styles = [surface(Color("dce4e4"), Color("b5c5c7")), surface(Color("e8c9ac"), ALERT)]
 	notice = PanelContainer.new()
 	notice.add_theme_stylebox_override("panel", notice_styles[0])
 	add_child(notice)
 	notice_label = label("", 14, AtlasTheme.INK)
 	notice.add_child(notice_label)
-	for item in [["history", "История места"], ["development", "Развитие"], ["technology", "Технологии"], ["economy", "Хозяйство"], ["population", "Жители"], ["culture","Традиции"], ["fauna","Животные"], ["landworks","Освоение земли"], ["civic","Город и общие стройки"], ["network","Связи и переселение"], ["sea", "Морские экспедиции"], ["family", "Семья"], ["skills", "Навыки и характер"], ["relations", "Отношения"], ["building", "Постройка"], ["terrain", "Местность"]]:
+	for item in [["history", "История места"], ["development", "Развитие"], ["technology", "Технологии"], ["economy", "Хозяйство"], ["population", "Жители"], ["culture","Традиции"], ["fauna","Животные"], ["landworks","Освоение земли"], ["civic","Здания и стройки"], ["network","Соседи"], ["sea", "Экспедиции"], ["family", "Семья"], ["skills", "Навыки и характер"], ["relations", "Отношения"], ["building", "Постройка"], ["terrain", "Местность"]]:
 		var box := VBoxContainer.new()
 		box.add_theme_constant_override("separation", 4)
 		add_child(box)
 		var button := Button.new()
-		button.text = "▸ " + item[1]
+		button.text = item[1] + "  +"
+		button.icon = InterfaceArt.icon(section_icon(item[0]))
+		button.add_theme_constant_override("icon_max_width",18)
 		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		button.toggle_mode = true
 		button.custom_minimum_size.y = target if mobile else 38.0
@@ -103,16 +126,18 @@ func reset() -> void:
 	subtitle_label.text = "Нажмите на поселение, жителя или клетку. Повторное нажатие перебирает жителей в одной точке."
 	metrics.hide()
 	notice.hide()
+	building_card.hide()
+	header_icon.hide()
 	for section in sections.values():
 		section.box.hide()
 		section.button.set_pressed_no_signal(false)
-		section.button.text = "▸ " + section.title
+		section.button.text = section.title + "  +"
 		section.body.hide()
 
 func set_expanded(key: String, opened: bool) -> void:
 	var section: Dictionary = sections[key]
 	section.button.set_pressed_no_signal(opened)
-	section.button.text = ("▾ " if opened else "▸ ") + section.title
+	section.button.text = section.title + ("  −" if opened else "  +")
 	section.body.visible = opened
 	details_changed.emit()
 
@@ -122,9 +147,13 @@ func expanded(key: String) -> bool:
 func put(node: Label, value: String) -> void:
 	if node.text != value: node.text = value
 
-func metric(index: int, value: String, caption: String, warning: bool = false) -> void:
+func section_icon(key: String) -> String:
+	return {"history":"history","development":"work","technology":"book","economy":"food","population":"person","culture":"flag","fauna":"wool","landworks":"grass","civic":"building:house","network":"trade","sea":"water","family":"heart","skills":"tools","relations":"person","building":"building:house","terrain":"leaf"}.get(key,"book")
+
+func metric(index: int, value: String, caption: String, warning: bool = false, symbol: String = "") -> void:
 	var item: Dictionary = metric_nodes[index]
 	item.card.show()
+	item.icon.texture = InterfaceArt.icon(symbol if not symbol.is_empty() else {"жителей":"person","мест занято":"building:house","запас еды":"food","древесина":"wood","здоровье":"heart","силы":"energy","голод":"food","еды с собой":"food","животных":"wool","корм":"grass","находок":"history","общин":"building:camp","еда":"food"}.get(caption,"book"))
 	put(item.value, value)
 	put(item.caption, caption)
 	item.value.add_theme_color_override("font_color", ALERT if warning else AtlasTheme.INK)
@@ -134,7 +163,7 @@ func rows(key: String, values: Array) -> void:
 	for i in values.size():
 		if i >= section.rows.size():
 			var panel := PanelContainer.new()
-			var style := surface(Color("eddfc1") if i % 2 == 0 else Color("e7d8b6"), Color.TRANSPARENT)
+			var style := surface(AtlasTheme.SOFT if i % 2 == 0 else AtlasTheme.PAPER, Color.TRANSPARENT)
 			style.set_border_width_all(0)
 			panel.add_theme_stylebox_override("panel", style)
 			section.body.add_child(panel)
@@ -157,8 +186,9 @@ func rows(key: String, values: Array) -> void:
 func present(world: WorldState, cell: Vector2i, person: Dictionary, home: Dictionary, building: Dictionary) -> void:
 	var site := world.heritage.at(cell)
 	var herd := world.fauna.at(cell)
-	var kind := "person" if not person.is_empty() else ("town" if not home.is_empty() else ("site" if not site.is_empty() else ("herd" if not herd.is_empty() else "terrain")))
-	var key := kind + ":" + (str(person.id) if kind == "person" else (str(home.id) if kind == "town" else (str(site.id) if kind == "site" else (str(herd.id) if kind=="herd" else str(cell)))))
+	var kind := "person" if not person.is_empty() else ("building" if not building.is_empty() and building.kind != "camp" else ("town" if not home.is_empty() else ("site" if not site.is_empty() else ("herd" if not herd.is_empty() else "terrain"))))
+	var selected_id: Variant = {"person":person.get("id",-1),"building":building.get("id",-1),"town":home.get("id",-1),"site":site.get("id",-1),"herd":herd.get("id",-1)}.get(kind,str(cell))
+	var key := kind + ":" + str(selected_id)
 	if identity != key:
 		reset()
 		identity = key
@@ -168,7 +198,17 @@ func present(world: WorldState, cell: Vector2i, person: Dictionary, home: Dictio
 	notice.show()
 	var visible_sections: Array = ["terrain"]
 	var warning := false
-	if kind == "town":
+	header_icon.visible = kind in ["building","town","site","herd"]
+	if header_icon.visible: header_icon.texture = InterfaceArt.icon("building:"+building.kind if kind=="building" else {"town":"building:camp","site":"history","herd":"wool"}.get(kind,"book"))
+	building_card.visible = kind=="building"
+	if kind == "building":
+		put(title_label,WorldEconomy.NAMES[building.kind])
+		put(subtitle_label,BuildingCard.category(building.kind))
+		metrics.hide()
+		notice.hide()
+		building_card.present(world,building,home)
+		if building.kind=="archive": visible_sections.append("technology")
+	elif kind == "town":
 		visible_sections.append_array(["development","technology","economy","population","culture","fauna","landworks","civic","network","sea"])
 		put(title_label, home.name)
 		put(subtitle_label, "Поселение · %d, %d" % [home.x, home.y])
@@ -221,7 +261,7 @@ func present(world: WorldState, cell: Vector2i, person: Dictionary, home: Dictio
 		metric_nodes[3].card.hide()
 		put(notice_label, WorldClimate.describe(world, cell))
 	if not site.is_empty(): visible_sections.append("history")
-	if not building.is_empty() and building.kind != "camp": visible_sections.append("building")
+	if kind != "building" and not building.is_empty() and building.kind != "camp": visible_sections.append("building")
 	if notice_warning != warning:
 		notice_warning = warning
 		notice.add_theme_stylebox_override("panel", notice_styles[int(warning)])
@@ -393,6 +433,7 @@ func text_rows(value: String) -> Array:
 
 func readable_text() -> String:
 	var parts: Array[String] = [title_label.text, subtitle_label.text]
+	if building_card.visible: parts.append(building_card.readable_text())
 	for item in metric_nodes:
 		if item.card.visible: parts.append(item.value.text + " " + item.caption.text)
 	if notice.visible: parts.append(notice_label.text)
