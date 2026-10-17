@@ -26,4 +26,4 @@
 
 ## Поставка
 
-Сначала тестовая сборка Windows, Linux, Android и Web в отдельной ветке GitHub. Новый релиз — после проверки пользователем и отдельного указания.
+Windows, Linux, Android и Web доступны в [релизе 0.3.2](https://github.com/resassance/little-worlds/releases/tag/v0.3.2).
